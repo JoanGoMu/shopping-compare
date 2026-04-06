@@ -1,11 +1,14 @@
 'use client';
 
+import { useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import type { Product } from '@/lib/supabase/types';
 
 interface Props {
   product: Product;
   selected: boolean;
   onToggleSelect: () => void;
+  onDeleted: (id: string) => void;
 }
 
 function formatPrice(price: number | null, currency: string) {
@@ -13,7 +16,17 @@ function formatPrice(price: number | null, currency: string) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(price);
 }
 
-export default function ProductCard({ product, selected, onToggleSelect }: Props) {
+export default function ProductCard({ product, selected, onToggleSelect, onDeleted }: Props) {
+  const [deleting, setDeleting] = useState(false);
+  const supabase = createClient();
+
+  async function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation();
+    setDeleting(true);
+    await supabase.from('products').delete().eq('id', product.id);
+    onDeleted(product.id);
+  }
+
   return (
     <div
       onClick={onToggleSelect}
@@ -33,6 +46,18 @@ export default function ProductCard({ product, selected, onToggleSelect }: Props
           </svg>
         )}
       </div>
+
+      {/* Delete button - visible on hover */}
+      <button
+        onClick={handleDelete}
+        disabled={deleting}
+        className="absolute top-2.5 left-2.5 z-10 w-6 h-6 bg-white/80 border border-warm-border text-muted hover:text-red-600 hover:border-red-300 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+        title="Remove"
+      >
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
 
       {/* Image - plain img to avoid Next.js domain restrictions on external CDNs */}
       <div className="aspect-[3/4] bg-cream overflow-hidden">

@@ -13,17 +13,23 @@ interface Props {
 
 type SortKey = 'date' | 'price_asc' | 'price_desc' | 'name';
 
-export default function ProductGrid({ products, groups }: Props) {
+export default function ProductGrid({ products: initialProducts, groups }: Props) {
+  const [items, setItems] = useState(initialProducts);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortKey>('date');
   const [filterStore, setFilterStore] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [addingToGroup, setAddingToGroup] = useState(false);
 
-  const stores = useMemo(() => Array.from(new Set(products.map((p) => p.store_name))).sort(), [products]);
+  function handleDeleted(id: string) {
+    setItems((prev) => prev.filter((p) => p.id !== id));
+    setSelectedIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
+  }
+
+  const stores = useMemo(() => Array.from(new Set(items.map((p) => p.store_name))).sort(), [items]);
 
   const filtered = useMemo(() => {
-    let list = products;
+    let list = items;
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((p) => p.name.toLowerCase().includes(q) || p.store_name.toLowerCase().includes(q));
@@ -35,7 +41,7 @@ export default function ProductGrid({ products, groups }: Props) {
       case 'name': return [...list].sort((a, b) => a.name.localeCompare(b.name));
       default: return list;
     }
-  }, [products, search, sort, filterStore]);
+  }, [items, search, sort, filterStore]);
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -100,7 +106,7 @@ export default function ProductGrid({ products, groups }: Props) {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-px bg-warm-border">
           {filtered.map((p) => (
-            <ProductCard key={p.id} product={p} selected={selectedIds.has(p.id)} onToggleSelect={() => toggleSelect(p.id)} />
+            <ProductCard key={p.id} product={p} selected={selectedIds.has(p.id)} onToggleSelect={() => toggleSelect(p.id)} onDeleted={handleDeleted} />
           ))}
         </div>
       )}
