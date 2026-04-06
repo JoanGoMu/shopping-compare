@@ -130,16 +130,9 @@
         return raw ? parsePrice(raw).price : null;
       })(),
       currency: "EUR",
-      image_url: (() => {
-        const img = document.querySelector('[class*="media-image__image"], picture img, [class*="product"] img');
-        if (img) {
-          const srcset = img.getAttribute("srcset") ?? img.getAttribute("data-srcset") ?? "";
-          const firstSrc = srcset.split(",")[0]?.trim().split(" ")[0];
-          if (firstSrc) return firstSrc;
-          if (img.src && !img.src.endsWith("spacer.gif") && img.src.startsWith("http")) return img.src;
-        }
-        return document.querySelector('meta[property="og:image"]')?.content ?? null;
-      })()
+      // og:image is always the product image on Zara - much more reliable than DOM selectors
+      // which pick up campaign/editorial banners instead of the actual item photo.
+      image_url: document.querySelector('meta[property="og:image"]')?.content ?? null
     }),
     "thenorthface.": () => ({
       name: document.querySelector('h1[class*="product-name"], h1')?.textContent?.trim() ?? null,
