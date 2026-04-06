@@ -10,23 +10,23 @@ export default async function CompareLayout({ children }: { children: React.Reac
   if (!user) redirect('/login');
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <Link href="/dashboard" className="text-lg font-bold text-indigo-600">{APP_NAME}</Link>
-            <nav className="hidden sm:flex items-center gap-4">
-              <Link href="/dashboard" className="text-sm text-gray-600 hover:text-gray-900 font-medium">All products</Link>
-              <Link href="/compare" className="text-sm text-gray-600 hover:text-gray-900 font-medium">Compare</Link>
+    <div className="min-h-screen flex flex-col bg-cream">
+      <header className="bg-surface border-b border-warm-border sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-8">
+            <Link href="/dashboard" className="font-[var(--font-display)] text-xl italic text-ink">{APP_NAME}</Link>
+            <nav className="hidden sm:flex items-center gap-6">
+              <Link href="/dashboard" className="text-xs tracking-widest uppercase text-muted hover:text-ink transition-colors">Collection</Link>
+              <Link href="/compare" className="text-xs tracking-widest uppercase text-muted hover:text-ink transition-colors">Compare</Link>
             </nav>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="hidden sm:block text-xs text-gray-400">{user.email}</span>
+          <div className="flex items-center gap-4">
+            <span className="hidden sm:block text-xs text-muted">{user.email}</span>
             <SignOutButton />
           </div>
         </div>
       </header>
-      <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-6">
+      <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-8">
         {children}
       </main>
     </div>

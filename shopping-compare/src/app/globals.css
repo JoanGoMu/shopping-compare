@@ -1,1 +1,18 @@
 @import "tailwindcss";
+
+@theme {
+  --color-cream: #FAF8F5;
+  --color-surface: #FFFFFF;
+  --color-warm-border: #E8E3DC;
+  --color-muted: #8C8278;
+  --color-ink: #1A1A18;
+  --color-terra: #C4603C;
+  --color-terra-light: #F7EDE8;
+  --color-terra-dark: #A84E30;
+  --font-display: "Playfair Display", Georgia, serif;
+}
+
+body {
+  background-color: #FAF8F5;
+  color: #1A1A18;
+}

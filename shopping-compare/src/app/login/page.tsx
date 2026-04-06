@@ -18,68 +18,55 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-    } else {
-      router.push('/dashboard');
-      router.refresh();
-    }
+    if (error) { setError(error.message); setLoading(false); }
+    else { router.push('/dashboard'); router.refresh(); }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <Link href="/" className="text-2xl font-bold text-indigo-600">{APP_NAME}</Link>
-          <p className="mt-2 text-gray-500 text-sm">Sign in to your account</p>
+    <div className="min-h-screen flex flex-col">
+      <header className="border-b border-warm-border px-6 h-16 flex items-center">
+        <Link href="/" className="font-[var(--font-display)] text-2xl italic tracking-wide text-ink">{APP_NAME}</Link>
+      </header>
+      <div className="flex-1 flex items-center justify-center px-4">
+        <div className="w-full max-w-sm">
+          <h1 className="font-[var(--font-display)] italic text-3xl text-ink mb-2">Welcome back</h1>
+          <p className="text-sm text-muted mb-8">Sign in to your account</p>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {error && <p className="text-sm text-red-700 bg-red-50 border border-red-200 px-3 py-2">{error}</p>}
+
+            <div>
+              <label className="block text-xs tracking-widest uppercase text-muted mb-2">Email</label>
+              <input
+                type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+                className="w-full border border-warm-border bg-surface px-3 py-3 text-sm focus:outline-none focus:border-terra"
+                placeholder="you@example.com"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs tracking-widest uppercase text-muted mb-2">Password</label>
+              <input
+                type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
+                className="w-full border border-warm-border bg-surface px-3 py-3 text-sm focus:outline-none focus:border-terra"
+                placeholder="••••••••"
+              />
+            </div>
+
+            <button
+              type="submit" disabled={loading}
+              className="w-full bg-terra text-white py-3 text-xs tracking-widest uppercase hover:bg-terra-dark transition-colors disabled:opacity-50"
+            >
+              {loading ? 'Signing in...' : 'Sign in'}
+            </button>
+
+            <p className="text-center text-sm text-muted pt-2">
+              No account?{' '}
+              <Link href="/signup" className="text-terra hover:underline">Create one free</Link>
+            </p>
+          </form>
         </div>
-
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 space-y-4">
-          {error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="you@example.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              placeholder="••••••••"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-indigo-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-50"
-          >
-            {loading ? 'Signing in...' : 'Sign in'}
-          </button>
-
-          <p className="text-center text-sm text-gray-500">
-            No account?{' '}
-            <Link href="/signup" className="text-indigo-600 hover:underline font-medium">Sign up free</Link>
-          </p>
-        </form>
       </div>
     </div>
   );

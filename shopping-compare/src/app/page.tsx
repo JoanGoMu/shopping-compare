@@ -1,44 +1,38 @@
 import Link from 'next/link';
-import { APP_NAME, APP_TAGLINE } from '@/lib/constants';
+import { APP_NAME } from '@/lib/constants';
 
 const FEATURES = [
   {
-    icon: '🛒',
+    icon: '✦',
     title: 'Save from any store',
-    body: 'Install the browser extension and click "Save to Compare" on any product page. Works on Amazon, eBay, AliExpress, and thousands more.',
+    body: 'Install the browser extension and click "Save to Compare" on any product page. Works on ASOS, Zara, Amazon, eBay and thousands more.',
   },
   {
-    icon: '⚖️',
+    icon: '✦',
     title: 'Compare side by side',
-    body: 'Group products you want to compare and see them in a clean table. Filter by price, sort by any field, spot the best deal instantly.',
+    body: 'Group pieces you want to compare and see them in a clean table. Filter by price, spot the best deal across every store at once.',
   },
   {
-    icon: '🔍',
+    icon: '✦',
     title: 'All your research, one place',
-    body: 'No more 20 browser tabs. Your basket holds everything you found across multiple sessions, devices, and stores.',
+    body: 'No more 20 open tabs. Your basket holds everything you found across multiple sessions, devices, and stores.',
   },
-];
-
-const STEPS = [
-  { step: '1', text: 'Install the Chrome extension' },
-  { step: '2', text: 'Browse any shopping site and click "Save"' },
-  { step: '3', text: 'Open your dashboard and compare' },
 ];
 
 export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Nav */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <span className="text-xl font-bold text-indigo-600">{APP_NAME}</span>
-          <div className="flex items-center gap-3">
-            <Link href="/login" className="text-sm text-gray-600 hover:text-gray-900 font-medium">Sign in</Link>
+      <header className="bg-surface border-b border-warm-border">
+        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
+          <span className="font-[var(--font-display)] text-2xl italic tracking-wide text-ink">{APP_NAME}</span>
+          <div className="flex items-center gap-6">
+            <Link href="/login" className="text-sm text-muted hover:text-ink transition-colors tracking-wide uppercase">Sign in</Link>
             <Link
               href="/signup"
-              className="text-sm bg-indigo-600 text-white rounded-lg px-4 py-2 font-medium hover:bg-indigo-700 transition-colors"
+              className="text-sm bg-terra text-white px-5 py-2.5 tracking-widest uppercase hover:bg-terra-dark transition-colors"
             >
-              Get started free
+              Start free
             </Link>
           </div>
         </div>
@@ -46,77 +40,80 @@ export default function HomePage() {
 
       <main className="flex-1">
         {/* Hero */}
-        <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-20 pb-16 text-center">
-          <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 leading-tight">
-            {APP_TAGLINE}
+        <section className="max-w-5xl mx-auto px-6 pt-24 pb-20 text-center">
+          <p className="text-xs tracking-[0.3em] uppercase text-terra mb-5">The smarter way to shop</p>
+          <h1 className="font-[var(--font-display)] text-5xl sm:text-6xl text-ink leading-tight italic mb-6">
+            Compare products<br />across every store
           </h1>
-          <p className="mt-5 text-lg text-gray-500 max-w-2xl mx-auto">
-            Stop opening 20 browser tabs. Save products from Amazon, eBay, Zara, IKEA - wherever you shop - and compare them all in one clean view.
+          <p className="text-muted max-w-xl mx-auto leading-relaxed mb-10">
+            Stop drowning in browser tabs. Save pieces from Zara, ASOS, Amazon, or wherever you shop, and compare them all in one clean view.
           </p>
-          <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               href="/signup"
-              className="bg-indigo-600 text-white rounded-xl px-6 py-3 font-semibold hover:bg-indigo-700 transition-colors text-sm"
+              className="bg-terra text-white px-8 py-3.5 text-sm tracking-widest uppercase hover:bg-terra-dark transition-colors"
             >
-              Start comparing for free
+              Start comparing free
             </Link>
             <Link
               href="/login"
-              className="bg-white text-gray-700 border border-gray-300 rounded-xl px-6 py-3 font-semibold hover:bg-gray-50 transition-colors text-sm"
+              className="border border-warm-border text-ink px-8 py-3.5 text-sm tracking-widest uppercase hover:bg-surface transition-colors"
             >
-              I already have an account
+              Sign in
             </Link>
           </div>
         </section>
 
+        {/* Divider */}
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="border-t border-warm-border" />
+        </div>
+
         {/* How it works */}
-        <section className="bg-white border-y border-gray-200 py-12">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6">
-            <h2 className="text-center text-sm font-semibold text-indigo-600 uppercase tracking-wide mb-8">How it works</h2>
-            <div className="flex flex-col sm:flex-row items-stretch">
-              {STEPS.map((s, i) => (
-                <div key={s.step} className="flex-1 flex items-start sm:items-center gap-4 px-6 py-4 sm:py-0 relative">
-                  {i < STEPS.length - 1 && (
-                    <div className="hidden sm:block absolute right-0 top-1/2 -translate-y-1/2 text-gray-300 text-xl">→</div>
-                  )}
-                  <span className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm shrink-0">
-                    {s.step}
-                  </span>
-                  <p className="text-sm text-gray-700">{s.text}</p>
-                </div>
-              ))}
-            </div>
+        <section className="max-w-5xl mx-auto px-6 py-16">
+          <p className="text-xs tracking-[0.3em] uppercase text-muted mb-10 text-center">How it works</p>
+          <div className="grid sm:grid-cols-3 gap-px bg-warm-border">
+            {[
+              { n: '01', text: 'Install the Chrome extension' },
+              { n: '02', text: 'Browse any store and click "Save"' },
+              { n: '03', text: 'Compare everything side by side' },
+            ].map((s) => (
+              <div key={s.n} className="bg-cream px-8 py-10">
+                <p className="font-[var(--font-display)] text-4xl italic text-terra mb-3">{s.n}</p>
+                <p className="text-sm text-ink leading-relaxed">{s.text}</p>
+              </div>
+            ))}
           </div>
         </section>
 
         {/* Features */}
-        <section className="max-w-5xl mx-auto px-4 sm:px-6 py-16">
-          <div className="grid sm:grid-cols-3 gap-8">
+        <section className="bg-surface border-y border-warm-border py-16">
+          <div className="max-w-5xl mx-auto px-6 grid sm:grid-cols-3 gap-12">
             {FEATURES.map((f) => (
-              <div key={f.title} className="bg-white rounded-2xl border border-gray-200 p-6">
-                <div className="text-3xl mb-3">{f.icon}</div>
-                <h3 className="font-semibold text-gray-900 mb-2">{f.title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{f.body}</p>
+              <div key={f.title}>
+                <p className="text-terra text-xs mb-4">{f.icon}</p>
+                <h3 className="font-[var(--font-display)] italic text-xl text-ink mb-3">{f.title}</h3>
+                <p className="text-sm text-muted leading-relaxed">{f.body}</p>
               </div>
             ))}
           </div>
         </section>
 
         {/* CTA */}
-        <section className="bg-indigo-600 py-14 text-center">
-          <h2 className="text-2xl font-bold text-white mb-3">Ready to shop smarter?</h2>
-          <p className="text-indigo-200 text-sm mb-6">Free to use. No credit card required.</p>
+        <section className="max-w-5xl mx-auto px-6 py-20 text-center">
+          <p className="font-[var(--font-display)] italic text-3xl text-ink mb-4">Ready to shop smarter?</p>
+          <p className="text-muted text-sm mb-8">Free to use. No credit card required.</p>
           <Link
             href="/signup"
-            className="bg-white text-indigo-700 rounded-xl px-6 py-3 font-semibold hover:bg-indigo-50 transition-colors text-sm inline-block"
+            className="inline-block bg-terra text-white px-8 py-3.5 text-sm tracking-widest uppercase hover:bg-terra-dark transition-colors"
           >
             Create your free account
           </Link>
         </section>
       </main>
 
-      <footer className="bg-white border-t border-gray-200 py-6 text-center text-xs text-gray-400">
-        {APP_NAME} - Compare products across any store
+      <footer className="border-t border-warm-border py-6 text-center text-xs text-muted tracking-widest uppercase">
+        {APP_NAME} — Compare products across any store
       </footer>
     </div>
   );
