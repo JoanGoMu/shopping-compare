@@ -4,3 +4,4 @@ shopping-compare/node_modules/
 shopping-compare/.next/
 shopping-compare/.env.local
 *.js.map
+*.zip
