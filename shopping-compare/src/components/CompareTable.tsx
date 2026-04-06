@@ -11,7 +11,9 @@ function formatPrice(price: number | null, currency: string) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(price);
 }
 
-function lowestPrice(products: Product[]) {
+function lowestPrice(products: Product[]): number | null {
+  const currencies = new Set(products.filter((p) => p.price != null).map((p) => p.currency));
+  if (currencies.size !== 1) return null; // mixed currencies - can't compare
   const prices = products.filter((p) => p.price != null).map((p) => p.price as number);
   return prices.length ? Math.min(...prices) : null;
 }
