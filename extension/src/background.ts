@@ -53,17 +53,31 @@ interface GetAuthStatusMessage {
   type: 'GET_AUTH_STATUS';
 }
 
-type Message = SaveProductMessage | GetAuthStatusMessage;
+interface SignInMessage {
+  type: 'SIGN_IN';
+  email: string;
+  password: string;
+}
+
+type Message = SaveProductMessage | GetAuthStatusMessage | SignInMessage;
 
 chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) => {
   if (message.type === 'SAVE_PRODUCT') {
     handleSaveProduct(message.product).then(sendResponse);
-    return true; // Keep message channel open for async response
+    return true;
   }
 
   if (message.type === 'GET_AUTH_STATUS') {
     supabase.auth.getUser().then(({ data }) => {
       sendResponse({ loggedIn: !!data.user, email: data.user?.email ?? null });
+    });
+    return true;
+  }
+
+  if (message.type === 'SIGN_IN') {
+    supabase.auth.signInWithPassword({ email: message.email, password: message.password }).then(({ data, error }) => {
+      if (error) sendResponse({ ok: false, error: error.message });
+      else sendResponse({ ok: true, email: data.user?.email });
     });
     return true;
   }

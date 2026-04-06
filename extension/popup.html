@@ -2,39 +2,57 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CompareCart</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; width: 280px; padding: 20px; background: #fff; color: #111; }
-    h1 { font-size: 18px; font-weight: 700; color: #4f46e5; margin-bottom: 4px; }
-    .subtitle { font-size: 12px; color: #9ca3af; margin-bottom: 16px; }
-    .status { font-size: 13px; color: #374151; margin-bottom: 14px; line-height: 1.5; }
-    .status .email { font-weight: 600; color: #111; }
-    .btn { display: block; width: 100%; padding: 10px 16px; border-radius: 10px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; text-decoration: none; transition: background 0.15s; }
-    .btn-primary { background: #4f46e5; color: white; }
-    .btn-primary:hover { background: #4338ca; }
-    .btn-secondary { background: #f3f4f6; color: #374151; margin-top: 8px; }
-    .btn-secondary:hover { background: #e5e7eb; }
-    .divider { height: 1px; background: #f3f4f6; margin: 14px 0; }
-    .hint { font-size: 11px; color: #9ca3af; text-align: center; line-height: 1.5; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; width: 280px; padding: 20px; background: #FAF8F5; color: #1A1A18; }
+    h1 { font-size: 18px; font-weight: 700; font-style: italic; color: #1A1A18; margin-bottom: 2px; letter-spacing: -0.3px; }
+    .subtitle { font-size: 11px; color: #8C8278; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.1em; }
+    label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; color: #8C8278; margin-bottom: 5px; }
+    input { width: 100%; border: 1px solid #E8E3DC; background: #fff; padding: 8px 10px; font-size: 13px; color: #1A1A18; outline: none; margin-bottom: 10px; }
+    input:focus { border-color: #C4603C; }
+    .error { font-size: 12px; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; padding: 6px 10px; margin-bottom: 10px; }
+    .btn { display: block; width: 100%; padding: 10px; border: none; font-size: 11px; font-weight: 600; cursor: pointer; text-align: center; text-transform: uppercase; letter-spacing: 0.15em; transition: background 0.15s; }
+    .btn-primary { background: #C4603C; color: white; }
+    .btn-primary:hover { background: #A84E30; }
+    .btn-primary:disabled { opacity: 0.5; cursor: default; }
+    .btn-secondary { background: transparent; color: #8C8278; border: 1px solid #E8E3DC; margin-top: 8px; }
+    .btn-secondary:hover { border-color: #8C8278; color: #1A1A18; }
+    .status { font-size: 12px; color: #1A1A18; margin-bottom: 12px; }
+    .email-label { font-weight: 600; }
+    .divider { height: 1px; background: #E8E3DC; margin: 12px 0; }
+    .hint { font-size: 11px; color: #8C8278; text-align: center; line-height: 1.5; }
+    a { color: #C4603C; text-decoration: none; }
+    a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
   <h1>CompareCart</h1>
-  <p class="subtitle">Compare products across any store</p>
+  <p class="subtitle">Save to compare</p>
 
+  <!-- Logged out: show sign-in form -->
   <div id="logged-out" style="display:none">
-    <p class="status">Sign in to start saving products for comparison.</p>
-    <a id="signin-btn" href="#" class="btn btn-primary">Sign in / Create account</a>
+    <div id="error" class="error" style="display:none"></div>
+    <div>
+      <label>Email</label>
+      <input type="email" id="email" placeholder="you@example.com" />
+    </div>
+    <div>
+      <label>Password</label>
+      <input type="password" id="password" placeholder="••••••••" />
+    </div>
+    <button id="signin-btn" class="btn btn-primary">Sign in</button>
+    <div class="divider"></div>
+    <p class="hint">No account? <a id="signup-link" href="#">Create one free</a></p>
   </div>
 
+  <!-- Logged in -->
   <div id="logged-in" style="display:none">
-    <p class="status">Signed in as <span class="email" id="user-email"></span></p>
-    <a id="dashboard-btn" href="#" class="btn btn-primary">Open dashboard</a>
+    <p class="status">Signed in as <span class="email-label" id="user-email"></span></p>
+    <a id="dashboard-btn" href="#" class="btn btn-primary" style="display:block;text-decoration:none;text-align:center;padding:10px;font-size:11px;font-weight:600;letter-spacing:0.15em;text-transform:uppercase;background:#C4603C;color:white;">Open dashboard</a>
     <button id="signout-btn" class="btn btn-secondary">Sign out</button>
     <div class="divider"></div>
-    <p class="hint">Browse any shopping site and click the<br>"Save to Compare" button that appears.</p>
+    <p class="hint">Browse any store and click the<br>"Save to Compare" button.</p>
   </div>
 
   <script src="popup.js"></script>
