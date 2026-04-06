@@ -6,7 +6,7 @@ import type { Product } from '@/lib/supabase/types';
 interface Props { products: Product[]; }
 
 function formatPrice(price: number | null, currency: string) {
-  if (price == null) return '-';
+  if (price == null) return null;
   return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(price);
 }
 
@@ -84,12 +84,16 @@ export default function CompareTable({ products }: Props) {
                 <td className="text-xs tracking-widest uppercase text-muted py-3 pr-6">Price</td>
                 {filtered.map((p) => (
                   <td key={p.id} className="py-3 px-4 align-top">
-                    <span className={`text-sm font-medium ${lowest != null && p.price === lowest ? 'text-terra' : 'text-ink'}`}>
-                      {formatPrice(p.price, p.currency)}
-                      {lowest != null && p.price === lowest && (
-                        <span className="ml-1.5 text-xs bg-terra-light text-terra px-1.5 py-0.5">Best</span>
-                      )}
-                    </span>
+                    {p.price == null ? (
+                      <span className="text-xs text-muted italic">No price</span>
+                    ) : (
+                      <span className={`text-sm font-medium ${lowest != null && p.price === lowest ? 'text-terra' : 'text-ink'}`}>
+                        {formatPrice(p.price, p.currency)}
+                        {lowest != null && p.price === lowest && (
+                          <span className="ml-1.5 text-xs bg-terra-light text-terra px-1.5 py-0.5">Best</span>
+                        )}
+                      </span>
+                    )}
                   </td>
                 ))}
               </tr>

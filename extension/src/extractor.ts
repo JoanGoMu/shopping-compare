@@ -66,7 +66,19 @@ function extractFromJsonLd(): Partial<ExtractedProduct> | null {
         const isProduct = type === 'Product' || (Array.isArray(type) && type.includes('Product'));
         if (!isProduct) continue;
 
-        const offer = item.offers?.['@type'] === 'Offer' ? item.offers : item.offers?.[0];
+        // Handle Offer, array of Offers, and AggregateOffer (used by Zalando and others)
+        let offer = null;
+        if (item.offers) {
+          const offersType = item.offers['@type'];
+          if (offersType === 'Offer') {
+            offer = item.offers;
+          } else if (offersType === 'AggregateOffer') {
+            // AggregateOffer has lowPrice/highPrice instead of price
+            offer = { price: item.offers.lowPrice, priceCurrency: item.offers.priceCurrency };
+          } else if (Array.isArray(item.offers)) {
+            offer = item.offers[0];
+          }
+        }
         const { price, currency } = parsePrice(offer?.price);
 
         return {
@@ -162,9 +174,26 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
   'zalando.': () => ({
     name: document.querySelector<HTMLElement>('h1[class*="Title"], span[class*="title"], h1')?.textContent?.trim() ?? null,
     price: (() => {
-      const meta = document.querySelector<HTMLMetaElement>('meta[itemprop="price"]')?.content
-        ?? document.querySelector<HTMLElement>('[data-testid="price"] span, [class*="price"]')?.textContent;
-      return meta ? parsePrice(meta).price : null;
+      // Try multiple Zalando price selectors (they change frequently)
+      const candidates = [
+        document.querySelector<HTMLMetaElement>('meta[itemprop="price"]')?.content,
+        document.querySelector<HTMLElement>('[data-testid="pdp-price-amount"]')?.textContent,
+        document.querySelector<HTMLElement>('[data-testid="price"] [class*="amount"]')?.textContent,
+        // Current Zalando structure: price in a <p> or <span> inside a price section
+        document.querySelector<HTMLElement>('p[class*="Price"], span[class*="Price"]')?.textContent,
+        // Fallback: look for element containing currency symbol near a number
+        (() => {
+          const el = document.querySelector<HTMLElement>('[class*="price_"] [class*="amount"], [class*="Price_"] [class*="amount"]');
+          return el?.textContent ?? null;
+        })(),
+      ];
+      for (const raw of candidates) {
+        if (raw) {
+          const { price } = parsePrice(raw);
+          if (price !== null) return price;
+        }
+      }
+      return null;
     })(),
     currency: 'EUR',
     image_url: (() => {

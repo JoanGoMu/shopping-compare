@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 import type { Product, ComparisonGroup } from '@/lib/supabase/types';
 import ProductCard from './ProductCard';
 import AddToGroupModal from './AddToGroupModal';
@@ -14,16 +15,28 @@ interface Props {
 type SortKey = 'date' | 'price_asc' | 'price_desc' | 'name';
 
 export default function ProductGrid({ products: initialProducts, groups }: Props) {
+  const supabase = createClient();
   const [items, setItems] = useState(initialProducts);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortKey>('date');
   const [filterStore, setFilterStore] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [addingToGroup, setAddingToGroup] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   function handleDeleted(id: string) {
     setItems((prev) => prev.filter((p) => p.id !== id));
     setSelectedIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
+  }
+
+  async function handleBulkDelete() {
+    if (deleting || selectedIds.size === 0) return;
+    setDeleting(true);
+    const ids = Array.from(selectedIds);
+    await supabase.from('products').delete().in('id', ids);
+    setItems((prev) => prev.filter((p) => !selectedIds.has(p.id)));
+    setSelectedIds(new Set());
+    setDeleting(false);
   }
 
   const stores = useMemo(() => Array.from(new Set(items.map((p) => p.store_name))).sort(), [items]);
@@ -81,20 +94,31 @@ export default function ProductGrid({ products: initialProducts, groups }: Props
           <option value="name">Name A–Z</option>
         </select>
 
-        {selectedIds.size >= 2 && (
+        {selectedIds.size >= 1 && (
           <div className="flex items-center gap-3 ml-auto">
             <span className="text-xs text-muted">{selectedIds.size} selected</span>
-            <Link
-              href={`/compare?ids=${Array.from(selectedIds).join(',')}`}
-              className="bg-terra text-white px-4 py-2 text-xs tracking-widest uppercase hover:bg-terra-dark transition-colors"
-            >
-              Compare
-            </Link>
+            {selectedIds.size >= 2 && (
+              <Link
+                href={`/compare?ids=${Array.from(selectedIds).join(',')}`}
+                className="bg-terra text-white px-4 py-2 text-xs tracking-widest uppercase hover:bg-terra-dark transition-colors"
+              >
+                Compare
+              </Link>
+            )}
+            {selectedIds.size >= 2 && (
+              <button
+                onClick={() => setAddingToGroup(true)}
+                className="border border-warm-border text-ink px-4 py-2 text-xs tracking-widest uppercase hover:border-muted transition-colors"
+              >
+                Save group
+              </button>
+            )}
             <button
-              onClick={() => setAddingToGroup(true)}
-              className="border border-warm-border text-ink px-4 py-2 text-xs tracking-widest uppercase hover:border-muted transition-colors"
+              onClick={handleBulkDelete}
+              disabled={deleting}
+              className="border border-red-200 text-red-500 px-4 py-2 text-xs tracking-widest uppercase hover:bg-red-50 transition-colors disabled:opacity-50"
             >
-              Save group
+              {deleting ? 'Deleting...' : 'Delete'}
             </button>
             <button onClick={() => setSelectedIds(new Set())} className="text-xs text-muted hover:text-ink">Clear</button>
           </div>
