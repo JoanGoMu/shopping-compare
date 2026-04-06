@@ -19692,6 +19692,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     });
     return true;
   }
+  if (message.type === "SIGN_IN") {
+    supabase.auth.signInWithPassword({ email: message.email, password: message.password }).then(({ data, error }) => {
+      if (error) sendResponse({ ok: false, error: error.message });
+      else sendResponse({ ok: true, email: data.user?.email });
+    });
+    return true;
+  }
   if (message.type === "SIGN_OUT") {
     supabase.auth.signOut().then(() => sendResponse({ ok: true }));
     return true;

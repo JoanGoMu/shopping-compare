@@ -1,0 +1,6 @@
+node_modules/
+extension/node_modules/
+shopping-compare/node_modules/
+shopping-compare/.next/
+shopping-compare/.env.local
+*.js.map
