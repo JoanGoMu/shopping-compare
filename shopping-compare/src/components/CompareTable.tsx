@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
 import type { Product } from '@/lib/supabase/types';
 
 interface Props { products: Product[]; }
@@ -61,9 +60,10 @@ export default function CompareTable({ products }: Props) {
                 <th className="text-left text-xs tracking-widest uppercase text-muted py-3 pr-6 w-28">Field</th>
                 {filtered.map((p) => (
                   <th key={p.id} className="text-left pb-4 px-4 min-w-[180px] align-top">
-                    <div className="aspect-[3/4] w-full max-w-[140px] bg-cream overflow-hidden relative">
+                    <div className="aspect-[3/4] w-full max-w-[140px] bg-cream overflow-hidden">
                       {p.image_url ? (
-                        <Image src={p.image_url} alt={p.name} fill className="object-cover" unoptimized />
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-4xl text-warm-border">◻</div>
                       )}

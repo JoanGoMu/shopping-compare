@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import type { Product } from '@/lib/supabase/types';
 
 interface Props {
@@ -35,15 +34,15 @@ export default function ProductCard({ product, selected, onToggleSelect }: Props
         )}
       </div>
 
-      {/* Image */}
-      <div className="aspect-[3/4] bg-cream relative overflow-hidden">
+      {/* Image - plain img to avoid Next.js domain restrictions on external CDNs */}
+      <div className="aspect-[3/4] bg-cream overflow-hidden">
         {product.image_url ? (
-          <Image
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
             src={product.image_url}
             alt={product.name}
-            fill
-            className="object-cover group-hover:scale-105 transition-transform duration-500"
-            unoptimized
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            referrerPolicy="no-referrer"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-4xl text-warm-border">◻</div>

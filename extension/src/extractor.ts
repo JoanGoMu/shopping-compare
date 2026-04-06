@@ -30,10 +30,26 @@ function parsePrice(raw: string | number | undefined | null): { price: number | 
   if (raw == null) return { price: null, currency: 'USD' };
   if (typeof raw === 'number') return { price: raw, currency: 'USD' };
 
-  // Remove currency symbols and commas, then parse
-  const cleaned = String(raw).replace(/[^0-9.,]/g, '').replace(',', '.');
+  const str = String(raw).trim();
+
+  // Detect currency
+  const currency = str.includes('€') ? 'EUR'
+    : str.includes('£') ? 'GBP'
+    : 'USD';
+
+  // Remove all non-numeric except . and ,
+  let cleaned = str.replace(/[^0-9.,]/g, '');
+
+  // Handle European format: 1.234,56 → 1234.56
+  if (/\d{1,3}(\.\d{3})+(,\d+)?$/.test(cleaned)) {
+    cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+  } else {
+    // Handle simple comma decimal: 39,95 → 39.95
+    cleaned = cleaned.replace(',', '.');
+  }
+
   const price = parseFloat(cleaned);
-  return { price: isNaN(price) ? null : price, currency: 'USD' };
+  return { price: isNaN(price) ? null : price, currency };
 }
 
 function extractFromJsonLd(): Partial<ExtractedProduct> | null {
@@ -136,6 +152,70 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
     })(),
     currency: 'USD',
     image_url: document.querySelector<HTMLImageElement>('[data-carousel-first-image]')?.src ?? null,
+  }),
+
+  'zalando.nl': () => ({
+    name: document.querySelector<HTMLElement>('h1[class*="Title"], span[class*="title"], h1')?.textContent?.trim() ?? null,
+    price: (() => {
+      // Zalando puts price in itemprop or data attributes
+      const meta = document.querySelector<HTMLMetaElement>('meta[itemprop="price"]')?.content
+        ?? document.querySelector<HTMLElement>('[data-testid="price"] span, [class*="price"]')?.textContent;
+      return meta ? parsePrice(meta).price : null;
+    })(),
+    currency: 'EUR',
+    image_url: document.querySelector<HTMLImageElement>('img[class*="Image"][src*="img01.ztat"]')?.src ?? null,
+  }),
+
+  'zalando.com': () => ({
+    name: document.querySelector<HTMLElement>('h1')?.textContent?.trim() ?? null,
+    price: (() => {
+      const meta = document.querySelector<HTMLMetaElement>('meta[itemprop="price"]')?.content
+        ?? document.querySelector<HTMLElement>('[data-testid="price"] span')?.textContent;
+      return meta ? parsePrice(meta).price : null;
+    })(),
+    currency: 'EUR',
+    image_url: document.querySelector<HTMLImageElement>('img[src*="img01.ztat"]')?.src ?? null,
+  }),
+
+  'zara.com': () => ({
+    name: document.querySelector<HTMLElement>('h1[class*="product-detail-info__name"], h1')?.textContent?.trim() ?? null,
+    price: (() => {
+      const raw = document.querySelector<HTMLElement>('[class*="price__amount"], .price span, [data-price]')?.textContent;
+      return raw ? parsePrice(raw).price : null;
+    })(),
+    currency: 'EUR',
+    image_url: document.querySelector<HTMLImageElement>('[class*="media-image__image"], picture img')?.src ?? null,
+  }),
+
+  'thenorthface.com': () => ({
+    name: document.querySelector<HTMLElement>('h1[class*="product-name"], h1')?.textContent?.trim() ?? null,
+    price: (() => {
+      const raw = document.querySelector<HTMLElement>('[class*="product-price"], [itemprop="price"], .price')?.textContent
+        ?? document.querySelector<HTMLMetaElement>('meta[itemprop="price"]')?.content;
+      return raw ? parsePrice(raw).price : null;
+    })(),
+    currency: 'EUR',
+    image_url: document.querySelector<HTMLImageElement>('[class*="product-image"] img, .primary-image')?.src ?? null,
+  }),
+
+  'asos.com': () => ({
+    name: document.querySelector<HTMLElement>('h1[class*="product-hero"], h1[data-testid*="product-title"]')?.textContent?.trim() ?? null,
+    price: (() => {
+      const raw = document.querySelector<HTMLElement>('[data-testid="current-price"], [class*="current-price"]')?.textContent;
+      return raw ? parsePrice(raw).price : null;
+    })(),
+    currency: 'EUR',
+    image_url: document.querySelector<HTMLImageElement>('[class*="product-photo"] img, #hero-image')?.src ?? null,
+  }),
+
+  'hm.com': () => ({
+    name: document.querySelector<HTMLElement>('h1[class*="product-item-headline"]')?.textContent?.trim() ?? null,
+    price: (() => {
+      const raw = document.querySelector<HTMLElement>('[class*="product-item-price"] .price, [data-testid="price"]')?.textContent;
+      return raw ? parsePrice(raw).price : null;
+    })(),
+    currency: 'EUR',
+    image_url: document.querySelector<HTMLImageElement>('[class*="product-detail-main-image-container"] img')?.src ?? null,
   }),
 };
 

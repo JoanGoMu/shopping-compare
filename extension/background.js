@@ -19656,82 +19656,83 @@ if (shouldShowDeprecationWarning()) console.warn("\u26A0\uFE0F  Node.js 18 and b
 // src/background.ts
 var SUPABASE_URL = "https://czrvohnvncavpoulivtt.supabase.co";
 var SUPABASE_ANON_KEY = "sb_publishable_ArmBmKscGkvt6_j2P_tI2Q_huwe9gqD";
-var APP_URL = "http://localhost:3000";
+var SESSION_KEY = "comparecart_session";
 var supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    storage: {
-      // Use chrome.storage.local for session persistence in extensions
-      async getItem(key) {
-        return new Promise((resolve) => {
-          chrome.storage.local.get(key, (result) => resolve(result[key] ?? null));
-        });
-      },
-      async setItem(key, value) {
-        return new Promise((resolve) => {
-          chrome.storage.local.set({ [key]: value }, resolve);
-        });
-      },
-      async removeItem(key) {
-        return new Promise((resolve) => {
-          chrome.storage.local.remove(key, resolve);
-        });
-      }
-    },
-    autoRefreshToken: true,
-    detectSessionInUrl: false
-  }
+  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
 });
+async function restoreSession() {
+  const result = await chrome.storage.local.get(SESSION_KEY);
+  const stored = result[SESSION_KEY];
+  if (!stored) return null;
+  try {
+    const { access_token, refresh_token } = JSON.parse(stored);
+    const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
+    if (error || !data.session) {
+      await chrome.storage.local.remove(SESSION_KEY);
+      return null;
+    }
+    await chrome.storage.local.set({
+      [SESSION_KEY]: JSON.stringify({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token
+      })
+    });
+    return data.session.user;
+  } catch {
+    await chrome.storage.local.remove(SESSION_KEY);
+    return null;
+  }
+}
+async function getUser() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) return user;
+  return restoreSession();
+}
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message.type === "SAVE_PRODUCT") {
+  const type = message.type;
+  if (type === "SAVE_PRODUCT") {
     handleSaveProduct(message.product).then(sendResponse);
     return true;
   }
-  if (message.type === "GET_AUTH_STATUS") {
-    supabase.auth.getUser().then(({ data }) => {
-      sendResponse({ loggedIn: !!data.user, email: data.user?.email ?? null });
+  if (type === "GET_AUTH_STATUS") {
+    getUser().then((user) => {
+      sendResponse({ loggedIn: !!user, email: user?.email ?? null });
     });
     return true;
   }
-  if (message.type === "SIGN_IN") {
-    supabase.auth.signInWithPassword({ email: message.email, password: message.password }).then(({ data, error }) => {
-      if (error) sendResponse({ ok: false, error: error.message });
-      else sendResponse({ ok: true, email: data.user?.email });
+  if (type === "SIGN_IN") {
+    supabase.auth.signInWithPassword({ email: message.email, password: message.password }).then(async ({ data, error }) => {
+      if (error || !data.session) {
+        sendResponse({ ok: false, error: error?.message ?? "Sign in failed" });
+      } else {
+        await chrome.storage.local.set({
+          [SESSION_KEY]: JSON.stringify({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token
+          })
+        });
+        sendResponse({ ok: true, email: data.user?.email });
+      }
     });
     return true;
   }
-  if (message.type === "SIGN_OUT") {
-    supabase.auth.signOut().then(() => sendResponse({ ok: true }));
+  if (type === "SIGN_OUT") {
+    supabase.auth.signOut().then(async () => {
+      await chrome.storage.local.remove(SESSION_KEY);
+      sendResponse({ ok: true });
+    });
     return true;
   }
 });
 async function handleSaveProduct(product) {
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return { ok: false, error: "not logged in" };
-  }
+  const user = await getUser();
+  if (!user) return { ok: false, error: "not logged in" };
   const { data: existing } = await supabase.from("products").select("id").eq("user_id", user.id).eq("product_url", product.product_url).maybeSingle();
-  if (existing) {
-    return { ok: true, duplicate: true };
-  }
+  if (existing) return { ok: true, duplicate: true };
   const { error } = await supabase.from("products").insert({
     user_id: user.id,
-    name: product.name,
-    price: product.price,
-    currency: product.currency,
-    image_url: product.image_url,
-    product_url: product.product_url,
-    store_name: product.store_name,
-    store_domain: product.store_domain,
-    specs: product.specs
+    ...product
   });
-  if (error) {
-    return { ok: false, error: error.message };
-  }
+  if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
-chrome.action.onClicked.addListener(async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    chrome.tabs.create({ url: `${APP_URL}/login` });
-  }
-});
