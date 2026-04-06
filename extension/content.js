@@ -28,8 +28,21 @@
           const type = item["@type"];
           if (!type) continue;
           const isProduct = type === "Product" || Array.isArray(type) && type.includes("Product");
-          if (!isProduct) continue;
-          const offer = item.offers?.["@type"] === "Offer" ? item.offers : item.offers?.[0];
+          const isProductGroup = type === "ProductGroup";
+          if (!isProduct && !isProductGroup) continue;
+          const source = isProductGroup ? Array.isArray(item.hasVariant) ? item.hasVariant[0] : null : item;
+          if (!source) continue;
+          let offer = null;
+          if (source.offers) {
+            const offersType = source.offers["@type"];
+            if (offersType === "Offer") {
+              offer = source.offers;
+            } else if (offersType === "AggregateOffer") {
+              offer = { price: source.offers.lowPrice, priceCurrency: source.offers.priceCurrency };
+            } else if (Array.isArray(source.offers)) {
+              offer = source.offers[0];
+            }
+          }
           const { price, currency } = parsePrice(offer?.price);
           return {
             name: item.name ?? null,
@@ -110,10 +123,8 @@
     }),
     "zalando.": () => ({
       name: document.querySelector('h1[class*="Title"], span[class*="title"], h1')?.textContent?.trim() ?? null,
-      price: (() => {
-        const meta = document.querySelector('meta[itemprop="price"]')?.content ?? document.querySelector('[data-testid="price"] span, [class*="price"]')?.textContent;
-        return meta ? parsePrice(meta).price : null;
-      })(),
+      // Price handled by extractFromJsonLd() via ProductGroup > hasVariant[0] > offers
+      price: null,
       currency: "EUR",
       image_url: (() => {
         const img = document.querySelector('img[src*="img01.ztat"], img[srcset*="img01.ztat"]');
