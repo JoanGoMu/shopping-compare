@@ -5,141 +5,107 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// These are injected at build time by the config
 const SUPABASE_URL = '__SUPABASE_URL__';
 const SUPABASE_ANON_KEY = '__SUPABASE_ANON_KEY__';
 const APP_URL = '__APP_URL__';
+const SESSION_KEY = 'comparecart_session';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    storage: {
-      // Use chrome.storage.local for session persistence in extensions
-      async getItem(key: string) {
-        return new Promise((resolve) => {
-          chrome.storage.local.get(key, (result) => resolve(result[key] ?? null));
-        });
-      },
-      async setItem(key: string, value: string) {
-        return new Promise<void>((resolve) => {
-          chrome.storage.local.set({ [key]: value }, resolve);
-        });
-      },
-      async removeItem(key: string) {
-        return new Promise<void>((resolve) => {
-          chrome.storage.local.remove(key, resolve);
-        });
-      },
-    },
-    autoRefreshToken: true,
-    detectSessionInUrl: false,
-  },
+  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
 });
 
-interface SaveProductMessage {
-  type: 'SAVE_PRODUCT';
-  product: {
-    name: string;
-    price: number | null;
-    currency: string;
-    image_url: string | null;
-    product_url: string;
-    store_name: string;
-    store_domain: string;
-    specs: Record<string, string>;
-  };
+// Restore session from our own storage key on every service worker startup
+async function restoreSession() {
+  const result = await chrome.storage.local.get(SESSION_KEY);
+  const stored = result[SESSION_KEY];
+  if (!stored) return null;
+  try {
+    const { access_token, refresh_token } = JSON.parse(stored);
+    const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
+    if (error || !data.session) {
+      await chrome.storage.local.remove(SESSION_KEY);
+      return null;
+    }
+    // Save refreshed tokens
+    await chrome.storage.local.set({
+      [SESSION_KEY]: JSON.stringify({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+      }),
+    });
+    return data.session.user;
+  } catch {
+    await chrome.storage.local.remove(SESSION_KEY);
+    return null;
+  }
 }
 
-interface GetAuthStatusMessage {
-  type: 'GET_AUTH_STATUS';
+async function getUser() {
+  // Try in-memory session first (fast path when SW is still alive)
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) return user;
+  // SW restarted - restore from our storage
+  return restoreSession();
 }
 
-interface SignInMessage {
-  type: 'SIGN_IN';
-  email: string;
-  password: string;
-}
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  const type = (message as { type: string }).type;
 
-type Message = SaveProductMessage | GetAuthStatusMessage | SignInMessage;
-
-chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) => {
-  if (message.type === 'SAVE_PRODUCT') {
+  if (type === 'SAVE_PRODUCT') {
     handleSaveProduct(message.product).then(sendResponse);
     return true;
   }
 
-  if (message.type === 'GET_AUTH_STATUS') {
-    getRestoredUser().then((user) => {
+  if (type === 'GET_AUTH_STATUS') {
+    getUser().then((user) => {
       sendResponse({ loggedIn: !!user, email: user?.email ?? null });
     });
     return true;
   }
 
-  if (message.type === 'SIGN_IN') {
-    supabase.auth.signInWithPassword({ email: message.email, password: message.password }).then(({ data, error }) => {
-      if (error) sendResponse({ ok: false, error: error.message });
-      else sendResponse({ ok: true, email: data.user?.email });
+  if (type === 'SIGN_IN') {
+    supabase.auth.signInWithPassword({ email: message.email, password: message.password }).then(async ({ data, error }) => {
+      if (error || !data.session) {
+        sendResponse({ ok: false, error: error?.message ?? 'Sign in failed' });
+      } else {
+        // Save tokens to our own key so we can restore after SW restart
+        await chrome.storage.local.set({
+          [SESSION_KEY]: JSON.stringify({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+          }),
+        });
+        sendResponse({ ok: true, email: data.user?.email });
+      }
     });
     return true;
   }
 
-  if ((message as { type: string }).type === 'SIGN_OUT') {
-    supabase.auth.signOut().then(() => sendResponse({ ok: true }));
+  if (type === 'SIGN_OUT') {
+    supabase.auth.signOut().then(async () => {
+      await chrome.storage.local.remove(SESSION_KEY);
+      sendResponse({ ok: true });
+    });
     return true;
   }
 });
 
-async function getRestoredUser() {
-  // Service workers can go to sleep between pages. When they wake up,
-  // getUser() fires before the session is restored from chrome.storage.local.
-  // Call getSession() first to force session restoration, then verify with server.
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return null;
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-}
+async function handleSaveProduct(product: {
+  name: string; price: number | null; currency: string;
+  image_url: string | null; product_url: string;
+  store_name: string; store_domain: string; specs: Record<string, string>;
+}) {
+  const user = await getUser();
+  if (!user) return { ok: false, error: 'not logged in' };
 
-async function handleSaveProduct(product: SaveProductMessage['product']) {
-  const user = await getRestoredUser();
-
-  if (!user) {
-    return { ok: false, error: 'not logged in' };
-  }
-
-  // Check for duplicate
   const { data: existing } = await supabase
-    .from('products')
-    .select('id')
-    .eq('user_id', user.id)
-    .eq('product_url', product.product_url)
-    .maybeSingle();
-
-  if (existing) {
-    return { ok: true, duplicate: true };
-  }
+    .from('products').select('id')
+    .eq('user_id', user.id).eq('product_url', product.product_url).maybeSingle();
+  if (existing) return { ok: true, duplicate: true };
 
   const { error } = await supabase.from('products').insert({
-    user_id: user.id,
-    name: product.name,
-    price: product.price,
-    currency: product.currency,
-    image_url: product.image_url,
-    product_url: product.product_url,
-    store_name: product.store_name,
-    store_domain: product.store_domain,
-    specs: product.specs,
+    user_id: user.id, ...product,
   });
-
-  if (error) {
-    return { ok: false, error: error.message };
-  }
-
+  if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
-
-// Open app when extension icon is clicked and user is not logged in
-chrome.action.onClicked.addListener(async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    chrome.tabs.create({ url: `${APP_URL}/login` });
-  }
-});

@@ -1,14 +1,13 @@
 /**
  * Content script: injects the "Save to Compare" button on product pages.
- * Communicates with the background service worker via chrome.runtime.sendMessage.
  */
 
 import { extractProduct } from './extractor';
 
 const BUTTON_ID = 'comparecart-save-btn';
+const TOAST_ID = 'comparecart-toast';
 
 function isLikelyProductPage(): boolean {
-  // Quick heuristic: page has price-like content or product structured data
   const hasJsonLd = !!document.querySelector('script[type="application/ld+json"]');
   const hasOgProduct = !!document.querySelector('meta[property="og:type"][content="product"]');
   const hasPriceText = /\$[\d,]+\.?\d{0,2}|€[\d,]+\.?\d{0,2}|£[\d,]+/.test(document.body.innerText.slice(0, 5000));
@@ -20,11 +19,12 @@ function createButton(): HTMLButtonElement {
   btn.id = BUTTON_ID;
   btn.textContent = '🛒 Save to Compare';
   btn.style.cssText = `
+    all: initial;
     position: fixed;
     bottom: 24px;
     right: 24px;
     z-index: 2147483647;
-    background: #4f46e5;
+    background: #C4603C;
     color: white;
     border: none;
     border-radius: 100px;
@@ -33,52 +33,43 @@ function createButton(): HTMLButtonElement {
     font-weight: 600;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     cursor: pointer;
-    box-shadow: 0 4px 16px rgba(79, 70, 229, 0.4);
+    box-shadow: 0 4px 16px rgba(196, 96, 60, 0.4);
     transition: all 0.15s ease;
     line-height: 1;
     white-space: nowrap;
+    display: block;
   `;
-
-  btn.addEventListener('mouseenter', () => {
-    btn.style.background = '#4338ca';
-    btn.style.transform = 'scale(1.03)';
-  });
-  btn.addEventListener('mouseleave', () => {
-    btn.style.background = '#4f46e5';
-    btn.style.transform = 'scale(1)';
-  });
-
+  btn.addEventListener('mouseenter', () => { btn.style.background = '#A84E30'; });
+  btn.addEventListener('mouseleave', () => { btn.style.background = '#C4603C'; });
   return btn;
 }
 
 function showToast(message: string, type: 'success' | 'error' = 'success') {
+  document.getElementById(TOAST_ID)?.remove();
   const toast = document.createElement('div');
+  toast.id = TOAST_ID;
   toast.textContent = message;
   toast.style.cssText = `
+    all: initial;
     position: fixed;
-    bottom: 24px;
+    bottom: 80px;
     right: 24px;
     z-index: 2147483647;
     background: ${type === 'success' ? '#059669' : '#dc2626'};
     color: white;
-    border-radius: 12px;
-    padding: 12px 18px;
-    font-size: 14px;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 13px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-    animation: ccFadeIn 0.2s ease;
-    max-width: 300px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    max-width: 280px;
+    display: block;
   `;
-
-  const style = document.createElement('style');
-  style.textContent = `@keyframes ccFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`;
-  document.head.appendChild(style);
-  document.body.appendChild(toast);
-
+  document.documentElement.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
 }
 
-async function handleSave(btn: HTMLButtonElement) {
+function handleSave(btn: HTMLButtonElement) {
   btn.textContent = 'Saving...';
   btn.style.opacity = '0.7';
 
@@ -89,37 +80,36 @@ async function handleSave(btn: HTMLButtonElement) {
     btn.style.opacity = '1';
   }
 
-  const timeout = setTimeout(() => {
+  const timer = window.setTimeout(() => {
     reset();
     showToast('Timed out - try again', 'error');
   }, 10000);
 
   try {
     chrome.runtime.sendMessage({ type: 'SAVE_PRODUCT', product }, (response) => {
-      clearTimeout(timeout);
+      window.clearTimeout(timer);
       reset();
 
       if (chrome.runtime.lastError) {
-        // Service worker waking up - retry once after a short delay
-        setTimeout(() => handleSave(btn), 1500);
+        // Service worker waking up - retry once
+        window.setTimeout(() => handleSave(btn), 1500);
         return;
       }
-
       if (!response?.ok) {
-        const msg = response?.error ?? 'Unknown error';
-        if (msg.includes('not logged in') || msg.includes('JWT')) {
-          showToast('Sign in to CompareCart first', 'error');
+        const msg = (response?.error ?? '') as string;
+        if (msg.includes('not logged in')) {
+          showToast('Sign in via the extension popup first', 'error');
         } else {
-          showToast('Failed to save - ' + msg, 'error');
+          showToast('Could not save: ' + msg, 'error');
         }
       } else if (response?.duplicate) {
-        showToast('Already saved!');
+        showToast('Already in your collection!');
       } else {
         showToast('Saved to CompareCart!');
       }
     });
   } catch {
-    clearTimeout(timeout);
+    window.clearTimeout(timer);
     reset();
     showToast('Extension error - reload the page', 'error');
   }
@@ -128,26 +118,23 @@ async function handleSave(btn: HTMLButtonElement) {
 function init() {
   if (document.getElementById(BUTTON_ID)) return;
   if (!isLikelyProductPage()) return;
-
   const btn = createButton();
   btn.addEventListener('click', () => handleSave(btn));
-  document.body.appendChild(btn);
+  document.documentElement.appendChild(btn);
 }
 
-// Run after page load
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {
   init();
 }
 
-// Re-run on SPA navigation
 let lastUrl = location.href;
 const observer = new MutationObserver(() => {
   if (location.href !== lastUrl) {
     lastUrl = location.href;
     document.getElementById(BUTTON_ID)?.remove();
-    setTimeout(init, 500);
+    window.setTimeout(init, 600);
   }
 });
-observer.observe(document.body, { childList: true, subtree: true });
+observer.observe(document.documentElement, { childList: true, subtree: true });
