@@ -68,8 +68,8 @@ chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) =
   }
 
   if (message.type === 'GET_AUTH_STATUS') {
-    supabase.auth.getUser().then(({ data }) => {
-      sendResponse({ loggedIn: !!data.user, email: data.user?.email ?? null });
+    getRestoredUser().then((user) => {
+      sendResponse({ loggedIn: !!user, email: user?.email ?? null });
     });
     return true;
   }
@@ -88,10 +88,20 @@ chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) =
   }
 });
 
-async function handleSaveProduct(product: SaveProductMessage['product']) {
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+async function getRestoredUser() {
+  // Service workers can go to sleep between pages. When they wake up,
+  // getUser() fires before the session is restored from chrome.storage.local.
+  // Call getSession() first to force session restoration, then verify with server.
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return null;
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+}
 
-  if (authError || !user) {
+async function handleSaveProduct(product: SaveProductMessage['product']) {
+  const user = await getRestoredUser();
+
+  if (!user) {
     return { ok: false, error: 'not logged in' };
   }
 

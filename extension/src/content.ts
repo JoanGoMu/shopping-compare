@@ -84,15 +84,21 @@ async function handleSave(btn: HTMLButtonElement) {
 
   const product = extractProduct();
 
+  const timeout = setTimeout(() => {
+    btn.textContent = '🛒 Save to Compare';
+    btn.style.opacity = '1';
+    showToast('Timed out - try again', 'error');
+  }, 10000);
+
   chrome.runtime.sendMessage({ type: 'SAVE_PRODUCT', product }, (response) => {
+    clearTimeout(timeout);
     btn.textContent = '🛒 Save to Compare';
     btn.style.opacity = '1';
 
     if (chrome.runtime.lastError || !response?.ok) {
       const msg = response?.error ?? chrome.runtime.lastError?.message ?? 'Unknown error';
-
       if (msg.includes('not logged in') || msg.includes('JWT')) {
-        showToast('Sign in to CompareCart to save products', 'error');
+        showToast('Sign in to CompareCart first', 'error');
       } else {
         showToast('Failed to save - ' + msg, 'error');
       }
