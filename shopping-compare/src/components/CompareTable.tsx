@@ -158,7 +158,7 @@ export default function CompareTable({ products: initialProducts }: Props) {
                 {filtered.map((p) => (
                   <td key={p.id} className="py-3 px-4 align-top">
                     <a href={p.product_url} target="_blank" rel="noopener noreferrer" className="text-xs text-terra hover:underline tracking-wide uppercase">
-                      View on {p.store_name} →
+                      Buy on {p.store_name} →
                     </a>
                   </td>
                 ))}

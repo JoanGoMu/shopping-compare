@@ -107,7 +107,7 @@ export default function ProductCard({ product, selected, onToggleSelect, onDelet
             onClick={(e) => e.stopPropagation()}
             className="text-xs text-terra hover:underline"
           >
-            View →
+            Buy →
           </a>
         </div>
 
