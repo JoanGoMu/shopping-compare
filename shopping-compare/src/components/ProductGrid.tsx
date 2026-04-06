@@ -128,7 +128,7 @@ export default function ProductGrid({ products: initialProducts, groups }: Props
       {filtered.length === 0 ? (
         <p className="text-sm text-muted text-center py-16">No products match your search.</p>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-px bg-warm-border">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-px">
           {filtered.map((p) => (
             <ProductCard key={p.id} product={p} selected={selectedIds.has(p.id)} onToggleSelect={() => toggleSelect(p.id)} onDeleted={handleDeleted} />
           ))}

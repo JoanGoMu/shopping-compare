@@ -33,7 +33,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  if (isAuthPage && user) {
+  if ((isAuthPage || pathname === '/') && user) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
