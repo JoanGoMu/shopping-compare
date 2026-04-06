@@ -114,6 +114,8 @@ export default function HomePage() {
 
       <footer className="border-t border-warm-border py-6 text-center text-xs text-muted tracking-widest uppercase">
         {APP_NAME} — Compare products across any store
+        <span className="mx-3">·</span>
+        <Link href="/privacy" className="hover:text-ink transition-colors">Privacy Policy</Link>
       </footer>
     </div>
   );
