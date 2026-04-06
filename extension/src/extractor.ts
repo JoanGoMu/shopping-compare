@@ -167,7 +167,13 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
       return meta ? parsePrice(meta).price : null;
     })(),
     currency: 'EUR',
-    image_url: document.querySelector<HTMLImageElement>('img[src*="img01.ztat"]')?.src ?? null,
+    image_url: (() => {
+      const img = document.querySelector<HTMLImageElement>('img[src*="img01.ztat"], img[srcset*="img01.ztat"]');
+      if (img?.src && img.src.includes('img01.ztat')) return img.src;
+      const srcset = img?.getAttribute('srcset') ?? '';
+      const first = srcset.split(',')[0]?.trim().split(' ')[0];
+      return first || document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content || null;
+    })(),
   }),
 
   'zara.': () => ({
@@ -177,7 +183,17 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
       return raw ? parsePrice(raw).price : null;
     })(),
     currency: 'EUR',
-    image_url: document.querySelector<HTMLImageElement>('[class*="media-image__image"], picture img')?.src ?? null,
+    image_url: (() => {
+      // Zara lazy-loads — try srcset first, then src, then og:image
+      const img = document.querySelector<HTMLImageElement>('[class*="media-image__image"], picture img, [class*="product"] img');
+      if (img) {
+        const srcset = img.getAttribute('srcset') ?? img.getAttribute('data-srcset') ?? '';
+        const firstSrc = srcset.split(',')[0]?.trim().split(' ')[0];
+        if (firstSrc) return firstSrc;
+        if (img.src && !img.src.endsWith('spacer.gif') && img.src.startsWith('http')) return img.src;
+      }
+      return document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? null;
+    })(),
   }),
 
   'thenorthface.': () => ({
@@ -188,7 +204,14 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
       return raw ? parsePrice(raw).price : null;
     })(),
     currency: 'EUR',
-    image_url: document.querySelector<HTMLImageElement>('[class*="product-image"] img, .primary-image')?.src ?? null,
+    image_url: (() => {
+      const img = document.querySelector<HTMLImageElement>('[class*="product-image"] img, .primary-image, [class*="pdp"] img');
+      const srcset = img?.getAttribute('srcset') ?? img?.getAttribute('data-srcset') ?? '';
+      const first = srcset.split(',')[0]?.trim().split(' ')[0];
+      if (first) return first;
+      if (img?.src && img.src.startsWith('http')) return img.src;
+      return document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? null;
+    })(),
   }),
 
   'asos.': () => ({

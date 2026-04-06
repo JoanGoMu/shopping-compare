@@ -7,9 +7,16 @@
   function parsePrice(raw) {
     if (raw == null) return { price: null, currency: "USD" };
     if (typeof raw === "number") return { price: raw, currency: "USD" };
-    const cleaned = String(raw).replace(/[^0-9.,]/g, "").replace(",", ".");
+    const str = String(raw).trim();
+    const currency = str.includes("\u20AC") ? "EUR" : str.includes("\xA3") ? "GBP" : "USD";
+    let cleaned = str.replace(/[^0-9.,]/g, "");
+    if (/\d{1,3}(\.\d{3})+(,\d+)?$/.test(cleaned)) {
+      cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+    } else {
+      cleaned = cleaned.replace(",", ".");
+    }
     const price = parseFloat(cleaned);
-    return { price: isNaN(price) ? null : price, currency: "USD" };
+    return { price: isNaN(price) ? null : price, currency };
   }
   function extractFromJsonLd() {
     const scripts = document.querySelectorAll('script[type="application/ld+json"]');
@@ -48,7 +55,7 @@
     };
   }
   var STORE_EXTRACTORS = {
-    "amazon.com": () => ({
+    "amazon.": () => ({
       name: document.querySelector("#productTitle")?.textContent?.trim() ?? null,
       price: (() => {
         const whole = document.querySelector(".a-price-whole")?.textContent?.replace(/[^0-9]/g, "");
@@ -56,8 +63,11 @@
         if (!whole) return null;
         return parseFloat(`${whole}.${frac ?? "0"}`);
       })(),
-      currency: "USD",
-      image_url: document.querySelector("#landingImage, #imgTagWrapperId img")?.src ?? null,
+      currency: window.location.hostname.includes(".nl") || window.location.hostname.includes(".de") || window.location.hostname.includes(".fr") ? "EUR" : "USD",
+      image_url: (() => {
+        const img = document.querySelector("#landingImage, #imgTagWrapperId img");
+        return img?.getAttribute("data-old-hires") || img?.src || null;
+      })(),
       specs: (() => {
         const specs = {};
         document.querySelectorAll("#productDetails_techSpec_section_1 tr, #productDetails_detailBullets_sections1 tr").forEach((row) => {
@@ -71,7 +81,7 @@
         return specs;
       })()
     }),
-    "ebay.com": () => ({
+    "ebay.": () => ({
       name: document.querySelector("#itemTitle")?.textContent?.replace("Details about\xA0", "").trim() ?? document.querySelector(".x-item-title__mainTitle")?.textContent?.trim() ?? null,
       price: (() => {
         const raw = document.querySelector('[itemprop="price"]')?.getAttribute("content") ?? document.querySelector(".x-price-primary .ux-textspans")?.textContent;
@@ -97,6 +107,73 @@
       })(),
       currency: "USD",
       image_url: document.querySelector("[data-carousel-first-image]")?.src ?? null
+    }),
+    "zalando.": () => ({
+      name: document.querySelector('h1[class*="Title"], span[class*="title"], h1')?.textContent?.trim() ?? null,
+      price: (() => {
+        const meta = document.querySelector('meta[itemprop="price"]')?.content ?? document.querySelector('[data-testid="price"] span, [class*="price"]')?.textContent;
+        return meta ? parsePrice(meta).price : null;
+      })(),
+      currency: "EUR",
+      image_url: (() => {
+        const img = document.querySelector('img[src*="img01.ztat"], img[srcset*="img01.ztat"]');
+        if (img?.src && img.src.includes("img01.ztat")) return img.src;
+        const srcset = img?.getAttribute("srcset") ?? "";
+        const first = srcset.split(",")[0]?.trim().split(" ")[0];
+        return first || document.querySelector('meta[property="og:image"]')?.content || null;
+      })()
+    }),
+    "zara.": () => ({
+      name: document.querySelector('h1[class*="product-detail-info__name"], h1')?.textContent?.trim() ?? null,
+      price: (() => {
+        const raw = document.querySelector('[class*="price__amount"], .price span, [data-price]')?.textContent;
+        return raw ? parsePrice(raw).price : null;
+      })(),
+      currency: "EUR",
+      image_url: (() => {
+        const img = document.querySelector('[class*="media-image__image"], picture img, [class*="product"] img');
+        if (img) {
+          const srcset = img.getAttribute("srcset") ?? img.getAttribute("data-srcset") ?? "";
+          const firstSrc = srcset.split(",")[0]?.trim().split(" ")[0];
+          if (firstSrc) return firstSrc;
+          if (img.src && !img.src.endsWith("spacer.gif") && img.src.startsWith("http")) return img.src;
+        }
+        return document.querySelector('meta[property="og:image"]')?.content ?? null;
+      })()
+    }),
+    "thenorthface.": () => ({
+      name: document.querySelector('h1[class*="product-name"], h1')?.textContent?.trim() ?? null,
+      price: (() => {
+        const raw = document.querySelector('[class*="product-price"], [itemprop="price"], .price')?.textContent ?? document.querySelector('meta[itemprop="price"]')?.content;
+        return raw ? parsePrice(raw).price : null;
+      })(),
+      currency: "EUR",
+      image_url: (() => {
+        const img = document.querySelector('[class*="product-image"] img, .primary-image, [class*="pdp"] img');
+        const srcset = img?.getAttribute("srcset") ?? img?.getAttribute("data-srcset") ?? "";
+        const first = srcset.split(",")[0]?.trim().split(" ")[0];
+        if (first) return first;
+        if (img?.src && img.src.startsWith("http")) return img.src;
+        return document.querySelector('meta[property="og:image"]')?.content ?? null;
+      })()
+    }),
+    "asos.": () => ({
+      name: document.querySelector('h1[class*="product-hero"], h1[data-testid*="product-title"]')?.textContent?.trim() ?? null,
+      price: (() => {
+        const raw = document.querySelector('[data-testid="current-price"], [class*="current-price"]')?.textContent;
+        return raw ? parsePrice(raw).price : null;
+      })(),
+      currency: "EUR",
+      image_url: document.querySelector('[class*="product-photo"] img, #hero-image')?.src ?? null
+    }),
+    "hm.": () => ({
+      name: document.querySelector('h1[class*="product-item-headline"]')?.textContent?.trim() ?? null,
+      price: (() => {
+        const raw = document.querySelector('[class*="product-item-price"] .price, [data-testid="price"]')?.textContent;
+        return raw ? parsePrice(raw).price : null;
+      })(),
+      currency: "EUR",
+      image_url: document.querySelector('[class*="product-detail-main-image-container"] img')?.src ?? null
     })
   };
   function getStoreDomain() {
