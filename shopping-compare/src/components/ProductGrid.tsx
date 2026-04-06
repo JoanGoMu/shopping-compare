@@ -105,14 +105,12 @@ export default function ProductGrid({ products: initialProducts, groups }: Props
                 Compare
               </Link>
             )}
-            {selectedIds.size >= 2 && (
-              <button
-                onClick={() => setAddingToGroup(true)}
-                className="border border-warm-border text-ink px-4 py-2 text-xs tracking-widest uppercase hover:border-muted transition-colors"
-              >
-                Save group
-              </button>
-            )}
+            <button
+              onClick={() => setAddingToGroup(true)}
+              className="border border-warm-border text-ink px-4 py-2 text-xs tracking-widest uppercase hover:border-muted transition-colors"
+            >
+              {selectedIds.size >= 2 ? 'Save group' : 'Add to group'}
+            </button>
             <button
               onClick={handleBulkDelete}
               disabled={deleting}

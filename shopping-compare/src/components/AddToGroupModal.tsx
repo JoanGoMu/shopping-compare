@@ -12,7 +12,7 @@ interface Props {
 }
 
 export default function AddToGroupModal({ productIds, existingGroups, onClose, onDone }: Props) {
-  const [mode, setMode] = useState<'select' | 'new'>('select');
+  const [mode, setMode] = useState<'select' | 'new'>(existingGroups.length > 0 ? 'select' : 'new');
   const [newName, setNewName] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState('');
   const [loading, setLoading] = useState(false);
