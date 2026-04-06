@@ -70,8 +70,8 @@ export default function CompareTable({ products: initialProducts }: Props) {
                 <th className="text-left text-xs tracking-widest uppercase text-muted py-3 pr-6 w-28">Field</th>
                 {filtered.map((p) => (
                   <th key={p.id} className="text-left pb-4 px-4 min-w-[180px] align-top">
-                    <div className="relative group/col">
-                      <div className="aspect-[3/4] w-full max-w-[140px] bg-cream overflow-hidden">
+                    <div className="relative group/col max-w-[140px]">
+                      <div className="aspect-[3/4] w-full bg-cream overflow-hidden">
                         {p.image_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -159,7 +159,7 @@ export default function CompareTable({ products: initialProducts }: Props) {
                 <td className="text-xs tracking-widest uppercase text-muted py-3 pr-6">Link</td>
                 {filtered.map((p) => (
                   <td key={p.id} className="py-3 px-4 align-top">
-                    <a href={p.product_url} target="_blank" rel="noopener noreferrer" className="text-xs text-terra hover:underline tracking-wide uppercase">
+                    <a href={p.product_url} target="_blank" rel="noopener noreferrer" className="text-xs text-terra hover:underline">
                       Buy on {p.store_name} →
                     </a>
                   </td>
