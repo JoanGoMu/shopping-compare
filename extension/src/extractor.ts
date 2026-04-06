@@ -96,9 +96,10 @@ function extractFromOpenGraph(): Partial<ExtractedProduct> {
   };
 }
 
-// Store-specific extractors for the top 10 shopping sites
+// Store-specific extractors for the top 10 shopping sites.
+// Keys are matched with domain.includes(key) so 'amazon.' matches amazon.com, amazon.nl, amazon.de etc.
 const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
-  'amazon.com': () => ({
+  'amazon.': () => ({
     name: document.querySelector<HTMLElement>('#productTitle')?.textContent?.trim() ?? null,
     price: (() => {
       const whole = document.querySelector('.a-price-whole')?.textContent?.replace(/[^0-9]/g, '');
@@ -106,8 +107,12 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
       if (!whole) return null;
       return parseFloat(`${whole}.${frac ?? '0'}`);
     })(),
-    currency: 'USD',
-    image_url: document.querySelector<HTMLImageElement>('#landingImage, #imgTagWrapperId img')?.src ?? null,
+    currency: window.location.hostname.includes('.nl') || window.location.hostname.includes('.de') || window.location.hostname.includes('.fr') ? 'EUR' : 'USD',
+    image_url: (() => {
+      // Amazon lazy-loads images - try data-old-hires first, then src
+      const img = document.querySelector<HTMLImageElement>('#landingImage, #imgTagWrapperId img');
+      return img?.getAttribute('data-old-hires') || img?.src || null;
+    })(),
     specs: (() => {
       const specs: Record<string, string> = {};
       document.querySelectorAll<HTMLTableRowElement>('#productDetails_techSpec_section_1 tr, #productDetails_detailBullets_sections1 tr').forEach((row) => {
@@ -122,7 +127,7 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
     })(),
   }),
 
-  'ebay.com': () => ({
+  'ebay.': () => ({
     name: document.querySelector<HTMLElement>('#itemTitle')?.textContent?.replace('Details about\u00a0', '').trim() ??
       document.querySelector<HTMLElement>('.x-item-title__mainTitle')?.textContent?.trim() ?? null,
     price: (() => {
@@ -154,30 +159,18 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
     image_url: document.querySelector<HTMLImageElement>('[data-carousel-first-image]')?.src ?? null,
   }),
 
-  'zalando.nl': () => ({
+  'zalando.': () => ({
     name: document.querySelector<HTMLElement>('h1[class*="Title"], span[class*="title"], h1')?.textContent?.trim() ?? null,
     price: (() => {
-      // Zalando puts price in itemprop or data attributes
       const meta = document.querySelector<HTMLMetaElement>('meta[itemprop="price"]')?.content
         ?? document.querySelector<HTMLElement>('[data-testid="price"] span, [class*="price"]')?.textContent;
-      return meta ? parsePrice(meta).price : null;
-    })(),
-    currency: 'EUR',
-    image_url: document.querySelector<HTMLImageElement>('img[class*="Image"][src*="img01.ztat"]')?.src ?? null,
-  }),
-
-  'zalando.com': () => ({
-    name: document.querySelector<HTMLElement>('h1')?.textContent?.trim() ?? null,
-    price: (() => {
-      const meta = document.querySelector<HTMLMetaElement>('meta[itemprop="price"]')?.content
-        ?? document.querySelector<HTMLElement>('[data-testid="price"] span')?.textContent;
       return meta ? parsePrice(meta).price : null;
     })(),
     currency: 'EUR',
     image_url: document.querySelector<HTMLImageElement>('img[src*="img01.ztat"]')?.src ?? null,
   }),
 
-  'zara.com': () => ({
+  'zara.': () => ({
     name: document.querySelector<HTMLElement>('h1[class*="product-detail-info__name"], h1')?.textContent?.trim() ?? null,
     price: (() => {
       const raw = document.querySelector<HTMLElement>('[class*="price__amount"], .price span, [data-price]')?.textContent;
@@ -187,7 +180,7 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
     image_url: document.querySelector<HTMLImageElement>('[class*="media-image__image"], picture img')?.src ?? null,
   }),
 
-  'thenorthface.com': () => ({
+  'thenorthface.': () => ({
     name: document.querySelector<HTMLElement>('h1[class*="product-name"], h1')?.textContent?.trim() ?? null,
     price: (() => {
       const raw = document.querySelector<HTMLElement>('[class*="product-price"], [itemprop="price"], .price')?.textContent
@@ -198,7 +191,7 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
     image_url: document.querySelector<HTMLImageElement>('[class*="product-image"] img, .primary-image')?.src ?? null,
   }),
 
-  'asos.com': () => ({
+  'asos.': () => ({
     name: document.querySelector<HTMLElement>('h1[class*="product-hero"], h1[data-testid*="product-title"]')?.textContent?.trim() ?? null,
     price: (() => {
       const raw = document.querySelector<HTMLElement>('[data-testid="current-price"], [class*="current-price"]')?.textContent;
@@ -208,7 +201,7 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
     image_url: document.querySelector<HTMLImageElement>('[class*="product-photo"] img, #hero-image')?.src ?? null,
   }),
 
-  'hm.com': () => ({
+  'hm.': () => ({
     name: document.querySelector<HTMLElement>('h1[class*="product-item-headline"]')?.textContent?.trim() ?? null,
     price: (() => {
       const raw = document.querySelector<HTMLElement>('[class*="product-item-price"] .price, [data-testid="price"]')?.textContent;
