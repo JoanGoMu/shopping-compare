@@ -84,30 +84,45 @@ async function handleSave(btn: HTMLButtonElement) {
 
   const product = extractProduct();
 
-  const timeout = setTimeout(() => {
+  function reset() {
     btn.textContent = '🛒 Save to Compare';
     btn.style.opacity = '1';
+  }
+
+  const timeout = setTimeout(() => {
+    reset();
     showToast('Timed out - try again', 'error');
   }, 10000);
 
-  chrome.runtime.sendMessage({ type: 'SAVE_PRODUCT', product }, (response) => {
-    clearTimeout(timeout);
-    btn.textContent = '🛒 Save to Compare';
-    btn.style.opacity = '1';
+  try {
+    chrome.runtime.sendMessage({ type: 'SAVE_PRODUCT', product }, (response) => {
+      clearTimeout(timeout);
+      reset();
 
-    if (chrome.runtime.lastError || !response?.ok) {
-      const msg = response?.error ?? chrome.runtime.lastError?.message ?? 'Unknown error';
-      if (msg.includes('not logged in') || msg.includes('JWT')) {
-        showToast('Sign in to CompareCart first', 'error');
-      } else {
-        showToast('Failed to save - ' + msg, 'error');
+      if (chrome.runtime.lastError) {
+        // Service worker waking up - retry once after a short delay
+        setTimeout(() => handleSave(btn), 1500);
+        return;
       }
-    } else if (response?.duplicate) {
-      showToast('Already saved!');
-    } else {
-      showToast('Saved to CompareCart!');
-    }
-  });
+
+      if (!response?.ok) {
+        const msg = response?.error ?? 'Unknown error';
+        if (msg.includes('not logged in') || msg.includes('JWT')) {
+          showToast('Sign in to CompareCart first', 'error');
+        } else {
+          showToast('Failed to save - ' + msg, 'error');
+        }
+      } else if (response?.duplicate) {
+        showToast('Already saved!');
+      } else {
+        showToast('Saved to CompareCart!');
+      }
+    });
+  } catch {
+    clearTimeout(timeout);
+    reset();
+    showToast('Extension error - reload the page', 'error');
+  }
 }
 
 function init() {
