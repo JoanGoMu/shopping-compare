@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import type { Product } from '@/lib/supabase/types';
 
 interface Props { products: Product[]; }
@@ -15,9 +16,16 @@ function lowestPrice(products: Product[]) {
   return prices.length ? Math.min(...prices) : null;
 }
 
-export default function CompareTable({ products }: Props) {
+export default function CompareTable({ products: initialProducts }: Props) {
+  const supabase = createClient();
+  const [products, setProducts] = useState(initialProducts);
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
+
+  async function handleDelete(id: string) {
+    await supabase.from('products').delete().eq('id', id);
+    setProducts((prev) => prev.filter((p) => p.id !== id));
+  }
 
   const lowest = lowestPrice(products);
   const filtered = products.filter((p) => {
@@ -60,13 +68,24 @@ export default function CompareTable({ products }: Props) {
                 <th className="text-left text-xs tracking-widest uppercase text-muted py-3 pr-6 w-28">Field</th>
                 {filtered.map((p) => (
                   <th key={p.id} className="text-left pb-4 px-4 min-w-[180px] align-top">
-                    <div className="aspect-[3/4] w-full max-w-[140px] bg-cream overflow-hidden">
-                      {p.image_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-4xl text-warm-border">◻</div>
-                      )}
+                    <div className="relative group/col">
+                      <div className="aspect-[3/4] w-full max-w-[140px] bg-cream overflow-hidden">
+                        {p.image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-4xl text-warm-border">◻</div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleDelete(p.id)}
+                        className="absolute top-1.5 right-1.5 w-6 h-6 bg-white/80 border border-warm-border text-muted hover:text-red-600 hover:border-red-300 flex items-center justify-center opacity-0 group-hover/col:opacity-100 transition-opacity"
+                        title="Remove from comparison"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
                     </div>
                   </th>
                 ))}

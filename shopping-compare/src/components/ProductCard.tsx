@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { Product } from '@/lib/supabase/types';
 
@@ -18,6 +18,9 @@ function formatPrice(price: number | null, currency: string) {
 
 export default function ProductCard({ product, selected, onToggleSelect, onDeleted }: Props) {
   const [deleting, setDeleting] = useState(false);
+  const [notes, setNotes] = useState(product.notes ?? '');
+  const [editingNotes, setEditingNotes] = useState(false);
+  const notesRef = useRef<HTMLTextAreaElement>(null);
   const supabase = createClient();
 
   async function handleDelete(e: React.MouseEvent) {
@@ -25,6 +28,17 @@ export default function ProductCard({ product, selected, onToggleSelect, onDelet
     setDeleting(true);
     await supabase.from('products').delete().eq('id', product.id);
     onDeleted(product.id);
+  }
+
+  function startEditingNotes(e: React.MouseEvent) {
+    e.stopPropagation();
+    setEditingNotes(true);
+    setTimeout(() => notesRef.current?.focus(), 0);
+  }
+
+  async function saveNotes() {
+    setEditingNotes(false);
+    await supabase.from('products').update({ notes: notes || null }).eq('id', product.id);
   }
 
   return (
@@ -95,6 +109,33 @@ export default function ProductCard({ product, selected, onToggleSelect, onDelet
           >
             View →
           </a>
+        </div>
+
+        {/* Notes */}
+        <div className="mt-2 border-t border-warm-border pt-2" onClick={(e) => e.stopPropagation()}>
+          {editingNotes ? (
+            <textarea
+              ref={notesRef}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              onBlur={saveNotes}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveNotes(); } }}
+              placeholder="Add a note..."
+              rows={2}
+              className="w-full text-xs text-ink bg-cream border border-warm-border focus:border-terra focus:outline-none px-2 py-1 resize-none"
+            />
+          ) : (
+            <button
+              onClick={startEditingNotes}
+              className="w-full text-left text-xs leading-relaxed min-h-[1.5rem]"
+            >
+              {notes ? (
+                <span className="text-ink">{notes}</span>
+              ) : (
+                <span className="text-warm-border group-hover:text-muted transition-colors">Add note...</span>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>

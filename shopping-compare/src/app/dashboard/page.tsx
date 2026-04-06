@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import ProductGrid from '@/components/ProductGrid';
 import EmptyState from '@/components/EmptyState';
+import ExtensionBanner from '@/components/ExtensionBanner';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -20,6 +21,7 @@ export default async function DashboardPage() {
 
   return (
     <div>
+      <ExtensionBanner />
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Your products</h1>
