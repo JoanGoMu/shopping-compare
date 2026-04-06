@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { APP_NAME } from '@/lib/constants';
+import { createClient } from '@/lib/supabase/server';
 
 const FEATURES = [
   {
@@ -19,7 +20,10 @@ const FEATURES = [
   },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* Nav */}
@@ -27,13 +31,18 @@ export default function HomePage() {
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <span className="font-[var(--font-display)] text-2xl italic tracking-wide text-ink">{APP_NAME}</span>
           <div className="flex items-center gap-6">
-            <Link href="/login" className="text-sm text-muted hover:text-ink transition-colors tracking-wide uppercase">Sign in</Link>
-            <Link
-              href="/signup"
-              className="text-sm bg-terra text-white px-5 py-2.5 tracking-widest uppercase hover:bg-terra-dark transition-colors"
-            >
-              Start free
-            </Link>
+            {user ? (
+              <Link href="/dashboard" className="text-sm bg-terra text-white px-5 py-2.5 tracking-widest uppercase hover:bg-terra-dark transition-colors">
+                Go to dashboard
+              </Link>
+            ) : (
+              <>
+                <Link href="/login" className="text-sm text-muted hover:text-ink transition-colors tracking-wide uppercase">Sign in</Link>
+                <Link href="/signup" className="text-sm bg-terra text-white px-5 py-2.5 tracking-widest uppercase hover:bg-terra-dark transition-colors">
+                  Start free
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -49,18 +58,20 @@ export default function HomePage() {
             Stop drowning in browser tabs. Save pieces from Zara, ASOS, Amazon, or wherever you shop, and compare them all in one clean view.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link
-              href="/signup"
-              className="bg-terra text-white px-8 py-3.5 text-sm tracking-widest uppercase hover:bg-terra-dark transition-colors"
-            >
-              Start comparing free
-            </Link>
-            <Link
-              href="/login"
-              className="border border-warm-border text-ink px-8 py-3.5 text-sm tracking-widest uppercase hover:bg-surface transition-colors"
-            >
-              Sign in
-            </Link>
+            {user ? (
+              <Link href="/dashboard" className="bg-terra text-white px-8 py-3.5 text-sm tracking-widest uppercase hover:bg-terra-dark transition-colors">
+                Go to your dashboard
+              </Link>
+            ) : (
+              <>
+                <Link href="/signup" className="bg-terra text-white px-8 py-3.5 text-sm tracking-widest uppercase hover:bg-terra-dark transition-colors">
+                  Start comparing free
+                </Link>
+                <Link href="/login" className="border border-warm-border text-ink px-8 py-3.5 text-sm tracking-widest uppercase hover:bg-surface transition-colors">
+                  Sign in
+                </Link>
+              </>
+            )}
           </div>
         </section>
 
