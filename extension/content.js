@@ -23,7 +23,16 @@
     for (const script of scripts) {
       try {
         const data = JSON.parse(script.textContent ?? "");
-        const items = Array.isArray(data) ? data : [data];
+        const rawItems = Array.isArray(data) ? data : [data];
+        const items = [];
+        for (const raw of rawItems) {
+          const r = raw;
+          if (r["@graph"] && Array.isArray(r["@graph"])) {
+            items.push(...r["@graph"]);
+          } else {
+            items.push(raw);
+          }
+        }
         for (const item of items) {
           const type = item["@type"];
           if (!type) continue;
@@ -147,13 +156,22 @@
       // which pick up campaign/editorial banners instead of the actual item photo.
       image_url: document.querySelector('meta[property="og:image"]')?.content ?? null
     }),
-    "thenorthface.": () => ({
-      name: document.querySelector('h1[class*="product-name"], h1')?.textContent?.trim() ?? null,
+    "sephora.": () => ({
+      name: document.querySelector('h1[class*="product"], h1[data-comp*="Name"], .product-name h1, h1')?.textContent?.trim() ?? null,
       price: (() => {
-        const raw = document.querySelector('[class*="product-price"], [itemprop="price"], .price')?.textContent ?? document.querySelector('meta[itemprop="price"]')?.content;
+        const raw = document.querySelector('[data-comp="Price"] [class*="current"], [class*="product-price"] .value, [itemprop="price"], [class*="price-sales"], [class*="price__value"]')?.textContent ?? document.querySelector('meta[itemprop="price"]')?.content ?? document.querySelector('meta[property="product:price:amount"]')?.content;
         return raw ? parsePrice(raw).price : null;
       })(),
-      currency: "EUR",
+      currency: window.location.hostname.includes(".fr") ? "EUR" : window.location.hostname.includes(".co.uk") ? "GBP" : "USD",
+      image_url: document.querySelector('meta[property="og:image"]')?.content ?? null
+    }),
+    "thenorthface.": () => ({
+      name: document.querySelector('h1[class*="product-name"], h1[class*="ProductName"], h1[class*="pdp"], h1')?.textContent?.trim() ?? null,
+      price: (() => {
+        const raw = document.querySelector('[class*="product-price__value"], [class*="ProductPrice"], [class*="pdp-price"], [class*="product-price"], [itemprop="price"], .price')?.textContent ?? document.querySelector('meta[itemprop="price"]')?.content ?? document.querySelector('meta[property="product:price:amount"]')?.content;
+        return raw ? parsePrice(raw).price : null;
+      })(),
+      currency: window.location.hostname.includes(".com") && window.location.pathname.includes("/nl-") ? "EUR" : window.location.hostname.includes(".com") && window.location.pathname.includes("/de-") ? "EUR" : window.location.hostname.includes(".com") && window.location.pathname.includes("/fr-") ? "EUR" : window.location.hostname.includes(".co.uk") ? "GBP" : "EUR",
       image_url: (() => {
         const img = document.querySelector('[class*="product-image"] img, .primary-image, [class*="pdp"] img');
         const srcset = img?.getAttribute("srcset") ?? img?.getAttribute("data-srcset") ?? "";
@@ -198,10 +216,18 @@
     const storeKey = Object.keys(STORE_EXTRACTORS).find((k) => domain.includes(k));
     const storeData = storeKey ? STORE_EXTRACTORS[storeKey]() : {};
     const allImages = (jsonLd.images ?? []).length > 0 ? jsonLd.images : [storeData.image_url ?? jsonLd.image_url ?? og.image_url].filter((u) => !!u);
+    function genericDomPrice() {
+      const el = document.querySelector(
+        '[itemprop="price"], [data-price], [data-product-price], [class*="current-price"], [class*="sale-price"], [class*="selling-price"], [class*="product-price"]:not([class*="was"]):not([class*="old"]):not([class*="original"]), [class*="price-current"], [class*="price-now"], [class*="price__current"], [data-testid*="price"]:not([data-testid*="original"]):not([data-testid*="was"])'
+      );
+      const content = el?.getAttribute("content") ?? el?.getAttribute("data-price") ?? el?.textContent;
+      return content ? parsePrice(content) : { price: null, currency: "USD" };
+    }
+    const domFallback = (storeData.price ?? jsonLd.price ?? og.price) == null ? genericDomPrice() : null;
     const merged = {
       name: storeData.name ?? jsonLd.name ?? og.name ?? document.title ?? "Unknown product",
-      price: storeData.price ?? jsonLd.price ?? og.price ?? null,
-      currency: storeData.currency ?? jsonLd.currency ?? og.currency ?? "USD",
+      price: storeData.price ?? jsonLd.price ?? og.price ?? domFallback?.price ?? null,
+      currency: storeData.currency ?? jsonLd.currency ?? og.currency ?? domFallback?.currency ?? "USD",
       image_url: allImages[0] ?? storeData.image_url ?? jsonLd.image_url ?? og.image_url ?? null,
       images: allImages,
       product_url: productUrl,

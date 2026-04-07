@@ -137,11 +137,13 @@ async function handleUpdatePriceIfSaved(url: string, price: number, currency: st
       .eq('user_id', user.id).eq('product_url', url).maybeSingle();
 
     if (!existing) return;
-    if (existing.currency !== currency) return;
+    // Skip currency mismatch only when product already has a price —
+    // if price was null the stored currency was a default guess, so update both.
+    if (existing.price !== null && existing.currency !== currency) return;
 
     const now = new Date().toISOString();
 
-    if (existing.price === price) {
+    if (existing.price === price && existing.currency === currency) {
       await supabase.from('products').update({ price_check_failed: false, last_checked_at: now }).eq('id', existing.id);
       return;
     }
@@ -149,6 +151,7 @@ async function handleUpdatePriceIfSaved(url: string, price: number, currency: st
     await supabase.from('products').update({
       previous_price: existing.price,
       price,
+      currency,
       price_updated_at: now,
       last_checked_at: now,
       price_check_failed: false,
