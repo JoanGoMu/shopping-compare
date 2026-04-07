@@ -132,10 +132,18 @@ function init() {
   document.documentElement.appendChild(btn);
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
-} else {
+function initWithRetry() {
   init();
+  // Retry after 2s for SPAs that inject JSON-LD/prices via JavaScript
+  if (!document.getElementById(BUTTON_ID)) {
+    window.setTimeout(init, 2000);
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initWithRetry);
+} else {
+  initWithRetry();
 }
 
 // Auto sign-in: listen for session tokens posted from the web app

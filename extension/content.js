@@ -333,10 +333,16 @@
     btn.addEventListener("click", () => handleSave(btn));
     document.documentElement.appendChild(btn);
   }
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
+  function initWithRetry() {
     init();
+    if (!document.getElementById(BUTTON_ID)) {
+      window.setTimeout(init, 2e3);
+    }
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initWithRetry);
+  } else {
+    initWithRetry();
   }
   var APP_URL = "https://shopping-compare.vercel.app";
   window.addEventListener("message", (event) => {
