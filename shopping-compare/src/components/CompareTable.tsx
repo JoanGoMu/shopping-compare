@@ -76,8 +76,8 @@ export default function CompareTable({ products: initialProducts }: Props) {
                   const images: string[] = (p.images as string[] | null) ?? (p.image_url ? [p.image_url] : []);
                   const idx = getImgIndex(p.id);
                   return (
-                    <th key={p.id} className="text-left pb-4 px-4 min-w-[180px] align-top">
-                      <div className="relative group/col max-w-[140px]">
+                    <th key={p.id} className="text-left pb-4 px-3 w-[160px] min-w-[160px] align-top">
+                      <div className="relative group/col w-full">
                         <div className="aspect-[3/4] w-full bg-cream overflow-hidden">
                           {images.length > 0 ? (
                             // eslint-disable-next-line @next/next/no-img-element
