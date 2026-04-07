@@ -140,6 +140,12 @@ export default function CompareTable({ products: initialProducts }: Props) {
                         {lowest != null && p.price === lowest && (
                           <span className="ml-1.5 text-xs bg-terra-light text-terra px-1.5 py-0.5">Best</span>
                         )}
+                        {p.previous_price != null && p.previous_price !== p.price && (
+                          <span className={`ml-1.5 text-xs ${p.price < p.previous_price ? 'text-green-600' : 'text-red-500'}`}>
+                            {p.price < p.previous_price ? '↓' : '↑'}
+                            <span className="line-through ml-0.5 text-muted">{formatPrice(p.previous_price, p.currency)}</span>
+                          </span>
+                        )}
                       </span>
                     )}
                   </td>

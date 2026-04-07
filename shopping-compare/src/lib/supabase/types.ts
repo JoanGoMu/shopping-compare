@@ -18,6 +18,9 @@ export interface Database {
           specs: Json;
           notes: string | null;
           created_at: string;
+          previous_price: number | null;
+          price_updated_at: string | null;
+          last_checked_at: string | null;
         };
         Insert: {
           id?: string;
@@ -33,6 +36,9 @@ export interface Database {
           specs?: Json;
           notes?: string | null;
           created_at?: string;
+          previous_price?: number | null;
+          price_updated_at?: string | null;
+          last_checked_at?: string | null;
         };
         Update: {
           id?: string;
@@ -48,6 +54,9 @@ export interface Database {
           specs?: Json;
           notes?: string | null;
           created_at?: string;
+          previous_price?: number | null;
+          price_updated_at?: string | null;
+          last_checked_at?: string | null;
         };
         Relationships: [];
       };

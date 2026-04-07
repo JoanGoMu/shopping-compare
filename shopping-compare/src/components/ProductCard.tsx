@@ -150,6 +150,12 @@ export default function ProductCard({ product, selected, onToggleSelect, onDelet
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-ink">
             {formatPrice(product.price, product.currency) ?? <span className="text-muted text-xs font-normal">No price</span>}
+            {product.previous_price != null && product.price != null && product.previous_price !== product.price && (
+              <span className={`ml-1.5 text-xs ${product.price < product.previous_price ? 'text-green-600' : 'text-red-500'}`}>
+                {product.price < product.previous_price ? '↓' : '↑'}
+                <span className="line-through ml-0.5 text-muted">{formatPrice(product.previous_price, product.currency)}</span>
+              </span>
+            )}
           </span>
           <a
             href={product.product_url}

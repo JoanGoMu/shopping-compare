@@ -12,7 +12,7 @@ interface Props {
   groups: (ComparisonGroup & { comparison_items: { product_id: string }[] })[];
 }
 
-type SortKey = 'date' | 'price_asc' | 'price_desc' | 'name';
+type SortKey = 'date' | 'price_asc' | 'price_desc' | 'name' | 'price_drops';
 
 export default function ProductGrid({ products: initialProducts, groups }: Props) {
   const supabase = createClient();
@@ -55,6 +55,11 @@ export default function ProductGrid({ products: initialProducts, groups }: Props
       case 'price_asc': return [...list].sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
       case 'price_desc': return [...list].sort((a, b) => (b.price ?? -Infinity) - (a.price ?? -Infinity));
       case 'name': return [...list].sort((a, b) => a.name.localeCompare(b.name));
+      case 'price_drops': return [...list].sort((a, b) => {
+        const aDrop = a.previous_price != null && a.price != null && a.price < a.previous_price ? a.previous_price - a.price : 0;
+        const bDrop = b.previous_price != null && b.price != null && b.price < b.previous_price ? b.previous_price - b.price : 0;
+        return bDrop - aDrop;
+      });
       default: return list;
     }
   }, [items, search, sort, filterStore]);
@@ -94,7 +99,8 @@ export default function ProductGrid({ products: initialProducts, groups }: Props
           <option value="date">Newest first</option>
           <option value="price_asc">Price: low to high</option>
           <option value="price_desc">Price: high to low</option>
-          <option value="name">Name A–Z</option>
+          <option value="name">Name A-Z</option>
+          <option value="price_drops">Price drops first</option>
         </select>
 
         <div className="flex items-center gap-3 ml-auto">

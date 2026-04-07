@@ -13,7 +13,10 @@ create table if not exists products (
   store_domain text not null,
   specs jsonb not null default '{}',
   notes text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  previous_price numeric(10, 2),
+  price_updated_at timestamptz,
+  last_checked_at timestamptz
 );
 
 -- Comparison groups: named sets of products to compare
