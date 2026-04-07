@@ -64,9 +64,9 @@ export async function GET(request: NextRequest) {
       const html = await res.text();
       const extracted = extractProductFromHtml(html, product.product_url);
 
-      // Skip if no price extracted or currency mismatch (likely extraction failure)
+      // Skip if no price extracted or currency mismatch (extraction failure, not bot-block)
       if (extracted.price == null || extracted.currency !== product.currency) {
-        await supabase.from('products').update({ last_checked_at: now, price_check_failed: true }).eq('id', product.id);
+        await supabase.from('products').update({ last_checked_at: now }).eq('id', product.id);
         return;
       }
 
