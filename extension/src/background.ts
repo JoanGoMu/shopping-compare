@@ -124,30 +124,32 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 async function handleUpdatePriceIfSaved(url: string, price: number, currency: string) {
-  const user = await getUser();
-  if (!user) return;
+  try {
+    const user = await getUser();
+    if (!user) return;
 
-  const { data: existing } = await supabase
-    .from('products').select('id, price, currency')
-    .eq('user_id', user.id).eq('product_url', url).maybeSingle();
+    const { data: existing } = await supabase
+      .from('products').select('id, price, currency')
+      .eq('user_id', user.id).eq('product_url', url).maybeSingle();
 
-  if (!existing) return;
-  if (existing.currency !== currency) return;
+    if (!existing) return;
+    if (existing.currency !== currency) return;
 
-  const now = new Date().toISOString();
+    const now = new Date().toISOString();
 
-  if (existing.price === price) {
-    await supabase.from('products').update({ price_check_failed: false, last_checked_at: now }).eq('id', existing.id);
-    return;
-  }
+    if (existing.price === price) {
+      await supabase.from('products').update({ price_check_failed: false, last_checked_at: now }).eq('id', existing.id);
+      return;
+    }
 
-  await supabase.from('products').update({
-    previous_price: existing.price,
-    price,
-    price_updated_at: now,
-    last_checked_at: now,
-    price_check_failed: false,
-  }).eq('id', existing.id);
+    await supabase.from('products').update({
+      previous_price: existing.price,
+      price,
+      price_updated_at: now,
+      last_checked_at: now,
+      price_check_failed: false,
+    }).eq('id', existing.id);
+  } catch { /* silent - background price sync is best-effort */ }
 }
 
 async function handleSaveProduct(product: {
