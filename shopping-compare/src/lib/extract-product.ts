@@ -40,13 +40,12 @@ function extractFromJsonLd($: cheerio.CheerioAPI): Partial<ExtractedProduct> | n
   for (const script of scripts) {
     try {
       const data = JSON.parse($(script).html() ?? '');
-      const rawItems = Array.isArray(data) ? data : [data];
+      const rawItems: any[] = Array.isArray(data) ? data : [data]; // eslint-disable-line @typescript-eslint/no-explicit-any
       // Flatten @graph (many modern sites wrap everything in @graph)
-      const items: unknown[] = [];
+      const items: any[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
       for (const raw of rawItems) {
-        const r = raw as Record<string, unknown>;
-        if (r['@graph'] && Array.isArray(r['@graph'])) {
-          items.push(...r['@graph']);
+        if (raw?.['@graph'] && Array.isArray(raw['@graph'])) {
+          items.push(...raw['@graph']);
         } else {
           items.push(raw);
         }
