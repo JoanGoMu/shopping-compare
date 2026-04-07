@@ -20,6 +20,7 @@ export default function ProductCard({ product, selected, onToggleSelect, onDelet
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [notes, setNotes] = useState(product.notes ?? '');
+  const [priceAlerts, setPriceAlerts] = useState(product.price_alerts);
   const [editingNotes, setEditingNotes] = useState(false);
   const notesRef = useRef<HTMLTextAreaElement>(null);
   const supabase = createClient();
@@ -48,6 +49,13 @@ export default function ProductCard({ product, selected, onToggleSelect, onDelet
     e.stopPropagation();
     setEditingNotes(true);
     setTimeout(() => notesRef.current?.focus(), 0);
+  }
+
+  async function togglePriceAlerts(e: React.MouseEvent) {
+    e.stopPropagation();
+    const next = !priceAlerts;
+    setPriceAlerts(next);
+    await supabase.from('products').update({ price_alerts: next }).eq('id', product.id);
   }
 
   async function saveNotes() {
@@ -165,15 +173,26 @@ export default function ProductCard({ product, selected, onToggleSelect, onDelet
               </span>
             )}
           </span>
-          <a
-            href={product.product_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="text-xs text-terra hover:underline"
-          >
-            Buy →
-          </a>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={togglePriceAlerts}
+              title={priceAlerts ? 'Disable price alerts' : 'Enable price alerts'}
+              className={`transition-colors ${priceAlerts ? 'text-terra' : 'text-warm-border hover:text-muted'}`}
+            >
+              <svg className="w-3.5 h-3.5" fill={priceAlerts ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+            </button>
+            <a
+              href={product.product_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-xs text-terra hover:underline"
+            >
+              Buy →
+            </a>
+          </div>
         </div>
 
         {/* Notes */}

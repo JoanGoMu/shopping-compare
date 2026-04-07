@@ -3,7 +3,6 @@ import ProductGrid from '@/components/ProductGrid';
 import EmptyState from '@/components/EmptyState';
 import AddByUrlForm from '@/components/AddByUrlForm';
 import ExtensionAuthBridge from '@/components/ExtensionAuthBridge';
-import PriceAlertsToggle from '@/components/PriceAlertsToggle';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -21,10 +20,6 @@ export default async function DashboardPage() {
     .eq('user_id', user!.id)
     .order('created_at', { ascending: false });
 
-  const { data: prefs } = await supabase
-    .from('user_preferences').select('price_alerts').eq('user_id', user!.id).maybeSingle();
-  const priceAlertsEnabled = prefs?.price_alerts !== false;
-
   return (
     <div>
       <ExtensionAuthBridge />
@@ -36,7 +31,6 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <PriceAlertsToggle enabled={priceAlertsEnabled} />
           <AddByUrlForm variant="toolbar" />
         </div>
       </div>

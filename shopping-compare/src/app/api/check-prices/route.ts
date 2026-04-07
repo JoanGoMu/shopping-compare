@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
 
   const { data: products, error } = await supabase
     .from('products')
-    .select('id, user_id, product_url, price, currency, name, store_name')
+    .select('id, user_id, product_url, price, currency, name, store_name, price_alerts')
     .not('product_url', 'is', null)
     .not('price', 'is', null)
     .order('last_checked_at', { ascending: true, nullsFirst: true })
@@ -135,7 +135,8 @@ export async function GET(request: NextRequest) {
         }).eq('id', product.id);
         changed++;
 
-        // Collect for email notification
+        // Collect for email notification (only if per-product alerts enabled)
+        if (product.price_alerts !== false) {
         const userChanges = changesByUser.get(product.user_id) ?? [];
         userChanges.push({
           name: product.name,
@@ -146,6 +147,7 @@ export async function GET(request: NextRequest) {
           currency: product.currency,
         });
         changesByUser.set(product.user_id, userChanges);
+        }
       } else {
         await supabase.from('products').update({ last_checked_at: now, price_check_failed: false }).eq('id', product.id);
       }
