@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import ProductGrid from '@/components/ProductGrid';
 import EmptyState from '@/components/EmptyState';
-import ExtensionBanner from '@/components/ExtensionBanner';
+import AddByUrlForm from '@/components/AddByUrlForm';
+import ExtensionAuthBridge from '@/components/ExtensionAuthBridge';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -21,18 +22,19 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <ExtensionBanner />
-      <div className="flex items-center justify-between mb-6">
+      <ExtensionAuthBridge />
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Your products</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {products?.length ?? 0} saved {products?.length === 1 ? 'product' : 'products'}
           </p>
         </div>
+        <AddByUrlForm variant="toolbar" />
       </div>
 
       {products && products.length > 0 ? (
-        <ProductGrid products={products} groups={groups ?? []} />
+        <ProductGrid key={products.length} products={products} groups={groups ?? []} />
       ) : (
         <EmptyState />
       )}

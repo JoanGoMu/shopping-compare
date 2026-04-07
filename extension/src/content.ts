@@ -138,6 +138,20 @@ if (document.readyState === 'loading') {
   init();
 }
 
+// Auto sign-in: listen for session tokens posted from the web app
+const APP_URL = '__APP_URL__';
+window.addEventListener('message', (event) => {
+  try {
+    if (event.origin !== new URL(APP_URL).origin) return;
+  } catch { return; }
+  if (event.data?.type !== 'COMPARECART_AUTH') return;
+  const { access_token, refresh_token } = event.data;
+  if (typeof access_token !== 'string' || typeof refresh_token !== 'string') return;
+  if (!access_token || !refresh_token) return;
+  if (!chrome.runtime?.id) return;
+  chrome.runtime.sendMessage({ type: 'SHARE_SESSION', access_token, refresh_token });
+});
+
 let lastUrl = location.href;
 const observer = new MutationObserver(() => {
   if (!chrome.runtime?.id) { observer.disconnect(); return; }

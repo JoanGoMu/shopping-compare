@@ -334,6 +334,20 @@
   } else {
     init();
   }
+  var APP_URL = "https://shopping-compare.vercel.app";
+  window.addEventListener("message", (event) => {
+    try {
+      if (event.origin !== new URL(APP_URL).origin) return;
+    } catch {
+      return;
+    }
+    if (event.data?.type !== "COMPARECART_AUTH") return;
+    const { access_token, refresh_token } = event.data;
+    if (typeof access_token !== "string" || typeof refresh_token !== "string") return;
+    if (!access_token || !refresh_token) return;
+    if (!chrome.runtime?.id) return;
+    chrome.runtime.sendMessage({ type: "SHARE_SESSION", access_token, refresh_token });
+  });
   var lastUrl = location.href;
   var observer = new MutationObserver(() => {
     if (!chrome.runtime?.id) {

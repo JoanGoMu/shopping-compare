@@ -19725,6 +19725,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     });
     return true;
   }
+  if (type === "SHARE_SESSION") {
+    const { access_token, refresh_token } = message;
+    supabase.auth.setSession({ access_token, refresh_token }).then(async ({ data, error }) => {
+      if (error || !data.session) {
+        sendResponse({ ok: false });
+        return;
+      }
+      await chrome.storage.local.set({
+        [SESSION_KEY]: JSON.stringify({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token
+        })
+      });
+      sendResponse({ ok: true });
+    });
+    return true;
+  }
   if (type === "SIGN_OUT") {
     supabase.auth.signOut().then(async () => {
       await chrome.storage.local.remove(SESSION_KEY);
