@@ -276,6 +276,10 @@
     setTimeout(() => toast.remove(), 3e3);
   }
   function handleSave(btn) {
+    if (!chrome.runtime?.id) {
+      showToast("Extension was updated - reload the page", "error");
+      return;
+    }
     btn.textContent = "Saving...";
     btn.style.opacity = "0.7";
     const product = extractProduct();
@@ -292,7 +296,11 @@
         window.clearTimeout(timer);
         reset();
         if (chrome.runtime.lastError) {
-          window.setTimeout(() => handleSave(btn), 1500);
+          if (chrome.runtime?.id) {
+            window.setTimeout(() => handleSave(btn), 1500);
+          } else {
+            showToast("Extension was updated - reload the page", "error");
+          }
           return;
         }
         if (!response?.ok) {
@@ -311,7 +319,7 @@
     } catch {
       window.clearTimeout(timer);
       reset();
-      showToast("Extension error - reload the page", "error");
+      showToast("Extension was updated - reload the page", "error");
     }
   }
   function init() {
@@ -328,6 +336,10 @@
   }
   var lastUrl = location.href;
   var observer = new MutationObserver(() => {
+    if (!chrome.runtime?.id) {
+      observer.disconnect();
+      return;
+    }
     if (location.href !== lastUrl) {
       lastUrl = location.href;
       document.getElementById(BUTTON_ID)?.remove();

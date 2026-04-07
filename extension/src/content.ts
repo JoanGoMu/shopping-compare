@@ -70,6 +70,11 @@ function showToast(message: string, type: 'success' | 'error' = 'success') {
 }
 
 function handleSave(btn: HTMLButtonElement) {
+  if (!chrome.runtime?.id) {
+    showToast('Extension was updated - reload the page', 'error');
+    return;
+  }
+
   btn.textContent = 'Saving...';
   btn.style.opacity = '0.7';
 
@@ -92,7 +97,11 @@ function handleSave(btn: HTMLButtonElement) {
 
       if (chrome.runtime.lastError) {
         // Service worker waking up - retry once
-        window.setTimeout(() => handleSave(btn), 1500);
+        if (chrome.runtime?.id) {
+          window.setTimeout(() => handleSave(btn), 1500);
+        } else {
+          showToast('Extension was updated - reload the page', 'error');
+        }
         return;
       }
       if (!response?.ok) {
@@ -111,7 +120,7 @@ function handleSave(btn: HTMLButtonElement) {
   } catch {
     window.clearTimeout(timer);
     reset();
-    showToast('Extension error - reload the page', 'error');
+    showToast('Extension was updated - reload the page', 'error');
   }
 }
 
@@ -131,6 +140,7 @@ if (document.readyState === 'loading') {
 
 let lastUrl = location.href;
 const observer = new MutationObserver(() => {
+  if (!chrome.runtime?.id) { observer.disconnect(); return; }
   if (location.href !== lastUrl) {
     lastUrl = location.href;
     document.getElementById(BUTTON_ID)?.remove();
