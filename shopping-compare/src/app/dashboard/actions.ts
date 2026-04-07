@@ -46,16 +46,19 @@ export async function addProductByUrl(url: string): Promise<{ ok: boolean; error
         'Accept-Language': 'en-US,en;q=0.5',
       },
     });
+    if (res.status === 403 || res.status === 429 || res.status === 401) {
+      return { ok: false, error: 'This site blocks automated access. Visit the product page in Chrome and use the extension button instead.' };
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     html = await res.text();
   } catch {
-    return { ok: false, error: 'Could not fetch that page - check the URL and try again' };
+    return { ok: false, error: 'Could not reach that page. Visit it in Chrome and use the extension button to save it.' };
   }
 
   // Extract product data
   const product = extractProductFromHtml(html, url);
   if (!product.name || product.name === 'Unknown product') {
-    return { ok: false, error: 'Could not find product details on that page - try a direct product URL' };
+    return { ok: false, error: 'Could not read product details from that page - the site may require a browser. Try the extension button instead.' };
   }
 
   // Insert
