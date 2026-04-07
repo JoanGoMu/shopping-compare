@@ -17,6 +17,9 @@ type SortKey = 'date' | 'price_asc' | 'price_desc' | 'name' | 'price_drops';
 export default function ProductGrid({ products: initialProducts, groups }: Props) {
   const supabase = createClient();
   const [items, setItems] = useState(initialProducts);
+  const [alertsMap, setAlertsMap] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(initialProducts.map((p) => [p.id, p.price_alerts]))
+  );
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortKey>('date');
   const [filterStore, setFilterStore] = useState('');
@@ -28,6 +31,18 @@ export default function ProductGrid({ products: initialProducts, groups }: Props
   function handleDeleted(id: string) {
     setItems((prev) => prev.filter((p) => p.id !== id));
     setSelectedIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
+  }
+
+  async function handleAlertToggle(id: string) {
+    const next = !alertsMap[id];
+    setAlertsMap((prev) => ({ ...prev, [id]: next }));
+    await supabase.from('products').update({ price_alerts: next }).eq('id', id);
+  }
+
+  async function handleBulkAlerts(enabled: boolean) {
+    const ids = Array.from(selectedIds);
+    setAlertsMap((prev) => { const n = { ...prev }; ids.forEach((id) => { n[id] = enabled; }); return n; });
+    await supabase.from('products').update({ price_alerts: enabled }).in('id', ids);
   }
 
   async function handleBulkDelete() {
@@ -135,6 +150,22 @@ export default function ProductGrid({ products: initialProducts, groups }: Props
             >
               {selectedIds.size >= 2 ? 'Save group' : 'Add to group'}
             </button>
+            <button
+              onClick={() => handleBulkAlerts(true)}
+              title="Enable price alerts for selected"
+              className="border border-warm-border text-terra px-3 py-2 text-xs tracking-widest uppercase hover:border-muted transition-colors flex items-center gap-1.5"
+            >
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+              On
+            </button>
+            <button
+              onClick={() => handleBulkAlerts(false)}
+              title="Disable price alerts for selected"
+              className="border border-warm-border text-muted px-3 py-2 text-xs tracking-widest uppercase hover:border-muted transition-colors flex items-center gap-1.5"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+              Off
+            </button>
             {confirmBulkDelete ? (
               <>
                 <span className="text-xs text-red-500">Delete {selectedIds.size} items?</span>
@@ -162,7 +193,7 @@ export default function ProductGrid({ products: initialProducts, groups }: Props
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-px">
           {filtered.map((p) => (
-            <ProductCard key={p.id} product={p} selected={selectedIds.has(p.id)} onToggleSelect={() => toggleSelect(p.id)} onDeleted={handleDeleted} />
+            <ProductCard key={p.id} product={p} selected={selectedIds.has(p.id)} priceAlerts={alertsMap[p.id] ?? p.price_alerts} onToggleSelect={() => toggleSelect(p.id)} onDeleted={handleDeleted} onAlertToggle={() => handleAlertToggle(p.id)} />
           ))}
         </div>
       )}
