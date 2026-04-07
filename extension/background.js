@@ -19654,8 +19654,8 @@ function shouldShowDeprecationWarning() {
 if (shouldShowDeprecationWarning()) console.warn("\u26A0\uFE0F  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217");
 
 // src/background.ts
-var SUPABASE_URL = "https://czrvohnvncavpoulivtt.supabase.co";
-var SUPABASE_ANON_KEY = "sb_publishable_ArmBmKscGkvt6_j2P_tI2Q_huwe9gqD";
+var SUPABASE_URL = "https://your-project.supabase.co";
+var SUPABASE_ANON_KEY = "your-anon-key";
 var SESSION_KEY = "comparecart_session";
 var supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
@@ -19749,7 +19749,30 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     });
     return true;
   }
+  if (type === "UPDATE_PRICE_IF_SAVED") {
+    handleUpdatePriceIfSaved(message.url, message.price, message.currency);
+    return false;
+  }
 });
+async function handleUpdatePriceIfSaved(url, price, currency) {
+  const user = await getUser();
+  if (!user) return;
+  const { data: existing } = await supabase.from("products").select("id, price, currency").eq("user_id", user.id).eq("product_url", url).maybeSingle();
+  if (!existing) return;
+  if (existing.currency !== currency) return;
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  if (existing.price === price) {
+    await supabase.from("products").update({ price_check_failed: false, last_checked_at: now }).eq("id", existing.id);
+    return;
+  }
+  await supabase.from("products").update({
+    previous_price: existing.price,
+    price,
+    price_updated_at: now,
+    last_checked_at: now,
+    price_check_failed: false
+  }).eq("id", existing.id);
+}
 async function handleSaveProduct(product) {
   const user = await getUser();
   if (!user) return { ok: false, error: "not logged in" };

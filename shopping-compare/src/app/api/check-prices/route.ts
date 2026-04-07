@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
 
       // Skip if no price extracted or currency mismatch (likely extraction failure)
       if (extracted.price == null || extracted.currency !== product.currency) {
-        await supabase.from('products').update({ last_checked_at: now }).eq('id', product.id);
+        await supabase.from('products').update({ last_checked_at: now, price_check_failed: true }).eq('id', product.id);
         return;
       }
 
@@ -76,15 +76,16 @@ export async function GET(request: NextRequest) {
           price: extracted.price,
           price_updated_at: now,
           last_checked_at: now,
+          price_check_failed: false,
         }).eq('id', product.id);
         changed++;
       } else {
-        await supabase.from('products').update({ last_checked_at: now }).eq('id', product.id);
+        await supabase.from('products').update({ last_checked_at: now, price_check_failed: false }).eq('id', product.id);
       }
     } catch {
       failed++;
       // Still update last_checked_at so this product doesn't block the queue
-      await supabase.from('products').update({ last_checked_at: now }).eq('id', product.id);
+      await supabase.from('products').update({ last_checked_at: now, price_check_failed: true }).eq('id', product.id);
     }
   });
 

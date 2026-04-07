@@ -16,7 +16,8 @@ create table if not exists products (
   created_at timestamptz not null default now(),
   previous_price numeric(10, 2),
   price_updated_at timestamptz,
-  last_checked_at timestamptz
+  last_checked_at timestamptz,
+  price_check_failed boolean not null default false
 );
 
 -- Comparison groups: named sets of products to compare

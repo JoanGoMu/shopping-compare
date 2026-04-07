@@ -145,6 +145,13 @@ export default function ProductCard({ product, selected, onToggleSelect, onDelet
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={`https://www.google.com/s2/favicons?domain=${product.store_domain}&sz=16`} alt="" className="w-3.5 h-3.5" />
           {product.store_name}
+          {product.price_check_failed && (
+            <span title="Auto price updates unavailable for this store. Visit the product page with the extension to refresh." className="ml-auto text-amber-400 flex-shrink-0 cursor-help">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </span>
+          )}
         </p>
         <p className="text-sm text-ink line-clamp-2 leading-snug mb-2">{product.name}</p>
         <div className="flex items-center justify-between">

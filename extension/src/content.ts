@@ -137,12 +137,29 @@ function init() {
   document.documentElement.appendChild(btn);
 }
 
+function tryUpdateSavedPrice() {
+  if (!chrome.runtime?.id) return;
+  if (isOwnApp()) return;
+  try {
+    const product = extractProduct();
+    if (product.price == null) return;
+    chrome.runtime.sendMessage({
+      type: 'UPDATE_PRICE_IF_SAVED',
+      url: product.product_url,
+      price: product.price,
+      currency: product.currency,
+    });
+  } catch { /* silent */ }
+}
+
 function initWithRetry() {
   init();
   // Retry after 2s for SPAs that inject JSON-LD/prices via JavaScript
-  if (!document.getElementById(BUTTON_ID)) {
-    window.setTimeout(init, 2000);
-  }
+  // Also do a silent price update after the page has fully rendered
+  window.setTimeout(() => {
+    init();
+    tryUpdateSavedPrice();
+  }, 2000);
 }
 
 if (document.readyState === 'loading') {

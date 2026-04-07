@@ -21,6 +21,7 @@ export interface Database {
           previous_price: number | null;
           price_updated_at: string | null;
           last_checked_at: string | null;
+          price_check_failed: boolean;
         };
         Insert: {
           id?: string;
@@ -39,6 +40,7 @@ export interface Database {
           previous_price?: number | null;
           price_updated_at?: string | null;
           last_checked_at?: string | null;
+          price_check_failed?: boolean;
         };
         Update: {
           id?: string;
@@ -57,6 +59,7 @@ export interface Database {
           previous_price?: number | null;
           price_updated_at?: string | null;
           last_checked_at?: string | null;
+          price_check_failed?: boolean;
         };
         Relationships: [];
       };

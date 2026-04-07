@@ -341,18 +341,34 @@
     btn.addEventListener("click", () => handleSave(btn));
     document.documentElement.appendChild(btn);
   }
+  function tryUpdateSavedPrice() {
+    if (!chrome.runtime?.id) return;
+    if (isOwnApp()) return;
+    try {
+      const product = extractProduct();
+      if (product.price == null) return;
+      chrome.runtime.sendMessage({
+        type: "UPDATE_PRICE_IF_SAVED",
+        url: product.product_url,
+        price: product.price,
+        currency: product.currency
+      });
+    } catch {
+    }
+  }
   function initWithRetry() {
     init();
-    if (!document.getElementById(BUTTON_ID)) {
-      window.setTimeout(init, 2e3);
-    }
+    window.setTimeout(() => {
+      init();
+      tryUpdateSavedPrice();
+    }, 2e3);
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initWithRetry);
   } else {
     initWithRetry();
   }
-  var APP_URL = "https://shopping-compare.vercel.app";
+  var APP_URL = "http://localhost:3000";
   window.addEventListener("message", (event) => {
     try {
       if (event.origin !== new URL(APP_URL).origin) return;
