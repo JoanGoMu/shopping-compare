@@ -125,6 +125,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 async function handleUpdatePriceIfSaved(url: string, price: number, currency: string) {
   try {
+    // Skip if no stored session to avoid GoTrue making fetch calls that log errors
+    const stored = await chrome.storage.local.get(SESSION_KEY);
+    if (!stored[SESSION_KEY]) return;
+
     const user = await getUser();
     if (!user) return;
 

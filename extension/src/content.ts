@@ -162,13 +162,7 @@ function initWithRetry() {
   }, 2000);
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initWithRetry);
-} else {
-  initWithRetry();
-}
-
-// Auto sign-in: listen for session tokens posted from the web app
+// Auto sign-in: listen for session tokens posted from the web app (runs on all pages)
 const APP_URL = '__APP_URL__';
 window.addEventListener('message', (event) => {
   try {
@@ -182,13 +176,22 @@ window.addEventListener('message', (event) => {
   chrome.runtime.sendMessage({ type: 'SHARE_SESSION', access_token, refresh_token });
 });
 
-let lastUrl = location.href;
-const observer = new MutationObserver(() => {
-  if (!chrome.runtime?.id) { observer.disconnect(); return; }
-  if (location.href !== lastUrl) {
-    lastUrl = location.href;
-    document.getElementById(BUTTON_ID)?.remove();
-    window.setTimeout(init, 600);
+// Skip button injection and observer on our own app
+if (!isOwnApp()) {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initWithRetry);
+  } else {
+    initWithRetry();
   }
-});
-observer.observe(document.documentElement, { childList: true, subtree: true });
+
+  let lastUrl = location.href;
+  const observer = new MutationObserver(() => {
+    if (!chrome.runtime?.id) { observer.disconnect(); return; }
+    if (location.href !== lastUrl) {
+      lastUrl = location.href;
+      document.getElementById(BUTTON_ID)?.remove();
+      window.setTimeout(init, 600);
+    }
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+}

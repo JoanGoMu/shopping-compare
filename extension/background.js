@@ -19756,6 +19756,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 async function handleUpdatePriceIfSaved(url, price, currency) {
   try {
+    const stored = await chrome.storage.local.get(SESSION_KEY);
+    if (!stored[SESSION_KEY]) return;
     const user = await getUser();
     if (!user) return;
     const { data: existing } = await supabase.from("products").select("id, price, currency").eq("user_id", user.id).eq("product_url", url).maybeSingle();

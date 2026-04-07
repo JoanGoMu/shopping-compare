@@ -363,11 +363,6 @@
       tryUpdateSavedPrice();
     }, 2e3);
   }
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initWithRetry);
-  } else {
-    initWithRetry();
-  }
   var APP_URL = "https://shopping-compare.vercel.app";
   window.addEventListener("message", (event) => {
     try {
@@ -382,17 +377,24 @@
     if (!chrome.runtime?.id) return;
     chrome.runtime.sendMessage({ type: "SHARE_SESSION", access_token, refresh_token });
   });
-  var lastUrl = location.href;
-  var observer = new MutationObserver(() => {
-    if (!chrome.runtime?.id) {
-      observer.disconnect();
-      return;
+  if (!isOwnApp()) {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", initWithRetry);
+    } else {
+      initWithRetry();
     }
-    if (location.href !== lastUrl) {
-      lastUrl = location.href;
-      document.getElementById(BUTTON_ID)?.remove();
-      window.setTimeout(init, 600);
-    }
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+    let lastUrl = location.href;
+    const observer = new MutationObserver(() => {
+      if (!chrome.runtime?.id) {
+        observer.disconnect();
+        return;
+      }
+      if (location.href !== lastUrl) {
+        lastUrl = location.href;
+        document.getElementById(BUTTON_ID)?.remove();
+        window.setTimeout(init, 600);
+      }
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+  }
 })();
