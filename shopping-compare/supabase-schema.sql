@@ -37,10 +37,18 @@ create table if not exists comparison_items (
   unique(group_id, product_id)
 );
 
+-- User preferences: notification settings
+create table if not exists user_preferences (
+  user_id uuid references auth.users(id) on delete cascade primary key,
+  price_alerts boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
 -- Row-level security: users can only see and modify their own data
 alter table products enable row level security;
 alter table comparison_groups enable row level security;
 alter table comparison_items enable row level security;
+alter table user_preferences enable row level security;
 
 create policy "Users can manage their own products"
   on products for all
@@ -48,6 +56,10 @@ create policy "Users can manage their own products"
 
 create policy "Users can manage their own groups"
   on comparison_groups for all
+  using (auth.uid() = user_id);
+
+create policy "Users can manage their own preferences"
+  on user_preferences for all
   using (auth.uid() = user_id);
 
 create policy "Users can manage items in their own groups"

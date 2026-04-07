@@ -4,6 +4,14 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { extractProductFromHtml } from '@/lib/extract-product';
 
+export async function togglePriceAlerts(enabled: boolean) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from('user_preferences').upsert({ user_id: user.id, price_alerts: enabled });
+  revalidatePath('/dashboard');
+}
+
 export async function addProductByUrl(url: string): Promise<{ ok: boolean; error?: string }> {
   // Validate URL
   let parsed: URL;

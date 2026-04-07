@@ -84,6 +84,12 @@ export interface Database {
         };
         Relationships: [];
       };
+      user_preferences: {
+        Row: { user_id: string; price_alerts: boolean; created_at: string };
+        Insert: { user_id: string; price_alerts?: boolean; created_at?: string };
+        Update: { user_id?: string; price_alerts?: boolean; created_at?: string };
+        Relationships: [];
+      };
       comparison_items: {
         Row: {
           id: string;
