@@ -368,7 +368,7 @@
   } else {
     initWithRetry();
   }
-  var APP_URL = "http://localhost:3000";
+  var APP_URL = "https://shopping-compare.vercel.app";
   window.addEventListener("message", (event) => {
     try {
       if (event.origin !== new URL(APP_URL).origin) return;

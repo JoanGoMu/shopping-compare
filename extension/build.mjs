@@ -10,7 +10,7 @@ import { readFileSync, writeFileSync } from 'fs';
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? 'https://your-project.supabase.co';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ?? 'your-anon-key';
-const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
+const APP_URL = process.env.APP_URL ?? 'https://shopping-compare.vercel.app';
 
 const replace = {
   '__SUPABASE_URL__': SUPABASE_URL,
