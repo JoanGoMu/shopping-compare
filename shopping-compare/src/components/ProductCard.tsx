@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { Product } from '@/lib/supabase/types';
 
@@ -23,8 +23,18 @@ export default function ProductCard({ product, selected, priceAlerts, onToggleSe
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [notes, setNotes] = useState(product.notes ?? '');
   const [editingNotes, setEditingNotes] = useState(false);
+  const [bellAnimating, setBellAnimating] = useState(false);
+  const isFirstRender = useRef(true);
   const notesRef = useRef<HTMLTextAreaElement>(null);
   const supabase = createClient();
+
+  // Animate bell when priceAlerts changes (individual or bulk toggle)
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    setBellAnimating(true);
+    const t = setTimeout(() => setBellAnimating(false), 350);
+    return () => clearTimeout(t);
+  }, [priceAlerts]);
 
   const images: string[] = (product.images as string[] | null) ?? (product.image_url ? [product.image_url] : []);
   const [imgIndex, setImgIndex] = useState(0);
@@ -61,7 +71,7 @@ export default function ProductCard({ product, selected, priceAlerts, onToggleSe
     <div
       onClick={onToggleSelect}
       className={`
-        bg-surface cursor-pointer transition-all group relative overflow-hidden border
+        bg-surface cursor-pointer transition-all group relative overflow-hidden border flex flex-col
         ${selected ? 'border-terra ring-1 ring-terra' : 'border-warm-border hover:border-muted'}
       `}
     >
@@ -142,22 +152,24 @@ export default function ProductCard({ product, selected, priceAlerts, onToggleSe
       </div>
 
       {/* Info */}
-      <div className="p-3">
-        <p className="text-xs text-muted truncate flex items-center gap-1 mb-1.5">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={`https://www.google.com/s2/favicons?domain=${product.store_domain}&sz=16`} alt="" className="w-3.5 h-3.5" />
-          {product.store_name}
-        </p>
-        {product.price_check_failed && (
-          <p className="text-xs text-amber-500 mb-1 -mt-0.5 flex items-center gap-1">
-            <svg className="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-            Visit product page to refresh price
+      <div className="p-3 flex flex-col flex-1">
+        <div>
+          <p className="text-xs text-muted truncate flex items-center gap-1 mb-1.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={`https://www.google.com/s2/favicons?domain=${product.store_domain}&sz=16`} alt="" className="w-3.5 h-3.5" />
+            {product.store_name}
           </p>
-        )}
-        <p className="text-sm text-ink line-clamp-2 leading-snug mb-2">{product.name}</p>
-        <div className="flex items-center justify-between">
+          {product.price_check_failed && (
+            <p className="text-xs text-amber-500 mb-1 -mt-0.5 flex items-center gap-1">
+              <svg className="w-3 h-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              Visit product page to refresh price
+            </p>
+          )}
+          <p className="text-sm text-ink line-clamp-2 leading-snug mb-2">{product.name}</p>
+        </div>
+        <div className="mt-auto flex items-center justify-between">
           <span className="text-sm font-medium text-ink">
             {formatPrice(product.price, product.currency) ?? <span className="text-muted text-xs font-normal">No price</span>}
             {product.previous_price != null && product.price != null && product.previous_price !== product.price && (
@@ -171,7 +183,7 @@ export default function ProductCard({ product, selected, priceAlerts, onToggleSe
             <div className="relative" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={onAlertToggle}
-                className={`peer p-0.5 transition-colors ${priceAlerts ? 'text-terra' : 'text-warm-border hover:text-muted'}`}
+                className={`peer p-0.5 transition-all duration-200 ${bellAnimating ? 'scale-125' : 'scale-100'} ${priceAlerts ? 'text-terra' : 'text-warm-border hover:text-muted'}`}
               >
                 <svg className="w-4 h-4" fill={priceAlerts ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
