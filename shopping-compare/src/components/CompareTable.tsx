@@ -23,6 +23,10 @@ export default function CompareTable({ products: initialProducts }: Props) {
   const [products, setProducts] = useState(initialProducts);
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
+  const [imgIndexes, setImgIndexes] = useState<Record<string, number>>({});
+
+  function getImgIndex(id: string) { return imgIndexes[id] ?? 0; }
+  function setImgIndex(id: string, i: number) { setImgIndexes((prev) => ({ ...prev, [id]: i })); }
 
   async function handleDelete(id: string) {
     await supabase.from('products').delete().eq('id', id);
@@ -68,29 +72,52 @@ export default function CompareTable({ products: initialProducts }: Props) {
             <thead>
               <tr>
                 <th className="text-left text-xs tracking-widest uppercase text-muted py-3 pr-6 w-28">Field</th>
-                {filtered.map((p) => (
-                  <th key={p.id} className="text-left pb-4 px-4 min-w-[180px] align-top">
-                    <div className="relative group/col max-w-[140px]">
-                      <div className="aspect-[3/4] w-full bg-cream overflow-hidden">
-                        {p.image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-4xl text-warm-border">◻</div>
+                {filtered.map((p) => {
+                  const images: string[] = (p.images as string[] | null) ?? (p.image_url ? [p.image_url] : []);
+                  const idx = getImgIndex(p.id);
+                  return (
+                    <th key={p.id} className="text-left pb-4 px-4 min-w-[180px] align-top">
+                      <div className="relative group/col max-w-[140px]">
+                        <div className="aspect-[3/4] w-full bg-cream overflow-hidden">
+                          {images.length > 0 ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={images[idx]} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-4xl text-warm-border">◻</div>
+                          )}
+                        </div>
+                        {/* Carousel arrows */}
+                        {images.length > 1 && (
+                          <>
+                            <button onClick={() => setImgIndex(p.id, (idx - 1 + images.length) % images.length)}
+                              className="absolute left-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-white/80 flex items-center justify-center opacity-0 group-hover/col:opacity-100 transition-opacity hover:bg-white z-10">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                            </button>
+                            <button onClick={() => setImgIndex(p.id, (idx + 1) % images.length)}
+                              className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-white/80 flex items-center justify-center opacity-0 group-hover/col:opacity-100 transition-opacity hover:bg-white z-10">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                            </button>
+                            <div className="absolute bottom-1.5 left-0 right-0 flex justify-center gap-1">
+                              {images.map((_, i) => (
+                                <button key={i} onClick={() => setImgIndex(p.id, i)}
+                                  className={`w-1.5 h-1.5 rounded-full transition-colors ${i === idx ? 'bg-white' : 'bg-white/40'}`} />
+                              ))}
+                            </div>
+                          </>
                         )}
+                        <button
+                          onClick={() => handleDelete(p.id)}
+                          className="absolute top-1.5 right-1.5 w-6 h-6 bg-white/80 border border-warm-border text-muted hover:text-red-600 hover:border-red-300 flex items-center justify-center opacity-0 group-hover/col:opacity-100 transition-opacity z-20"
+                          title="Remove from comparison"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
                       </div>
-                      <button
-                        onClick={() => handleDelete(p.id)}
-                        className="absolute top-1.5 right-1.5 w-6 h-6 bg-white/80 border border-warm-border text-muted hover:text-red-600 hover:border-red-300 flex items-center justify-center opacity-0 group-hover/col:opacity-100 transition-opacity"
-                        title="Remove from comparison"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  </th>
-                ))}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody className="divide-y divide-warm-border">

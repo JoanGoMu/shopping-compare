@@ -23,6 +23,18 @@ export default function ProductCard({ product, selected, onToggleSelect, onDelet
   const notesRef = useRef<HTMLTextAreaElement>(null);
   const supabase = createClient();
 
+  const images: string[] = (product.images as string[] | null) ?? (product.image_url ? [product.image_url] : []);
+  const [imgIndex, setImgIndex] = useState(0);
+
+  function prevImg(e: React.MouseEvent) {
+    e.stopPropagation();
+    setImgIndex((i) => (i - 1 + images.length) % images.length);
+  }
+  function nextImg(e: React.MouseEvent) {
+    e.stopPropagation();
+    setImgIndex((i) => (i + 1) % images.length);
+  }
+
   async function handleDelete(e: React.MouseEvent) {
     e.stopPropagation();
     setDeleting(true);
@@ -73,18 +85,44 @@ export default function ProductCard({ product, selected, onToggleSelect, onDelet
         </svg>
       </button>
 
-      {/* Image - plain img to avoid Next.js domain restrictions on external CDNs */}
-      <div className="aspect-[3/4] bg-cream overflow-hidden">
-        {product.image_url ? (
+      {/* Image carousel */}
+      <div className="aspect-[3/4] bg-cream overflow-hidden relative">
+        {images.length > 0 ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={product.image_url}
+            src={images[imgIndex]}
             alt={product.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             referrerPolicy="no-referrer"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-4xl text-warm-border">◻</div>
+        )}
+
+        {/* Carousel arrows - only shown when multiple images */}
+        {images.length > 1 && (
+          <>
+            <button
+              onClick={prevImg}
+              className="absolute left-1.5 top-1/2 -translate-y-1/2 w-6 h-6 bg-white/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-white"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <button
+              onClick={nextImg}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 w-6 h-6 bg-white/80 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-white"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+            </button>
+            {/* Dot indicators */}
+            <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
+              {images.map((_, i) => (
+                <button key={i} onClick={(e) => { e.stopPropagation(); setImgIndex(i); }}
+                  className={`w-1.5 h-1.5 rounded-full transition-colors ${i === imgIndex ? 'bg-white' : 'bg-white/40'}`}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
 

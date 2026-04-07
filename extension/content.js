@@ -44,11 +44,13 @@
             }
           }
           const { price, currency } = parsePrice(offer?.price);
+          const images = Array.isArray(item.image) ? item.image.filter((i) => typeof i === "string") : typeof item.image === "string" ? [item.image] : [];
           return {
             name: item.name ?? null,
             price,
             currency: offer?.priceCurrency ?? currency,
-            image_url: typeof item.image === "string" ? item.image : item.image?.[0] ?? null
+            image_url: images[0] ?? null,
+            images
           };
         }
       } catch {
@@ -195,11 +197,13 @@
     const og = extractFromOpenGraph();
     const storeKey = Object.keys(STORE_EXTRACTORS).find((k) => domain.includes(k));
     const storeData = storeKey ? STORE_EXTRACTORS[storeKey]() : {};
+    const allImages = (jsonLd.images ?? []).length > 0 ? jsonLd.images : [storeData.image_url ?? jsonLd.image_url ?? og.image_url].filter((u) => !!u);
     const merged = {
       name: storeData.name ?? jsonLd.name ?? og.name ?? document.title ?? "Unknown product",
       price: storeData.price ?? jsonLd.price ?? og.price ?? null,
       currency: storeData.currency ?? jsonLd.currency ?? og.currency ?? "USD",
-      image_url: storeData.image_url ?? jsonLd.image_url ?? og.image_url ?? null,
+      image_url: allImages[0] ?? storeData.image_url ?? jsonLd.image_url ?? og.image_url ?? null,
+      images: allImages,
       product_url: productUrl,
       store_name: storeName,
       store_domain: domain,

@@ -12,6 +12,7 @@ export interface ExtractedProduct {
   price: number | null;
   currency: string;
   image_url: string | null;
+  images: string[];
   product_url: string;
   store_name: string;
   store_domain: string;
@@ -88,11 +89,16 @@ function extractFromJsonLd(): Partial<ExtractedProduct> | null {
         }
         const { price, currency } = parsePrice(offer?.price);
 
+        const images: string[] = Array.isArray(item.image)
+          ? item.image.filter((i: unknown) => typeof i === 'string')
+          : typeof item.image === 'string' ? [item.image] : [];
+
         return {
           name: item.name ?? null,
           price,
           currency: offer?.priceCurrency ?? currency,
-          image_url: typeof item.image === 'string' ? item.image : item.image?.[0] ?? null,
+          image_url: images[0] ?? null,
+          images,
         };
       }
     } catch {
@@ -267,11 +273,16 @@ export function extractProduct(): ExtractedProduct {
   const storeData = storeKey ? STORE_EXTRACTORS[storeKey]() : {};
 
   // Merge: store-specific > JSON-LD > OG
+  const allImages: string[] = (jsonLd.images ?? []).length > 0
+    ? (jsonLd.images as string[])
+    : [storeData.image_url ?? jsonLd.image_url ?? og.image_url].filter((u): u is string => !!u);
+
   const merged: ExtractedProduct = {
     name: storeData.name ?? jsonLd.name ?? og.name ?? document.title ?? 'Unknown product',
     price: storeData.price ?? jsonLd.price ?? og.price ?? null,
     currency: storeData.currency ?? jsonLd.currency ?? og.currency ?? 'USD',
-    image_url: storeData.image_url ?? jsonLd.image_url ?? og.image_url ?? null,
+    image_url: allImages[0] ?? storeData.image_url ?? jsonLd.image_url ?? og.image_url ?? null,
+    images: allImages,
     product_url: productUrl,
     store_name: storeName,
     store_domain: domain,

@@ -5,6 +5,7 @@ export interface ExtractedProduct {
   price: number | null;
   currency: string;
   image_url: string | null;
+  images: string[];
   product_url: string;
   store_name: string;
   store_domain: string;
@@ -67,11 +68,16 @@ function extractFromJsonLd($: cheerio.CheerioAPI): Partial<ExtractedProduct> | n
         }
         const { price, currency } = parsePrice(offer?.price);
 
+        const images: string[] = Array.isArray(item.image)
+          ? item.image.filter((i: unknown) => typeof i === 'string')
+          : typeof item.image === 'string' ? [item.image] : [];
+
         return {
           name: item.name ?? null,
           price,
           currency: offer?.priceCurrency ?? currency,
-          image_url: typeof item.image === 'string' ? item.image : item.image?.[0] ?? null,
+          image_url: images[0] ?? null,
+          images,
         };
       }
     } catch {
@@ -112,13 +118,18 @@ export function extractProductFromHtml(html: string, url: string): ExtractedProd
   const name = (jsonLd.name ?? og.name ?? $('title').text() ?? 'Unknown product').trim().slice(0, 300);
   const price = jsonLd.price ?? og.price ?? null;
   const currency = jsonLd.currency ?? og.currency ?? 'USD';
-  const image_url = jsonLd.image_url ?? og.image_url ?? null;
+
+  const images: string[] = (jsonLd.images ?? []).length > 0
+    ? (jsonLd.images as string[])
+    : [og.image_url].filter((u): u is string => !!u);
+  const image_url = images[0] ?? null;
 
   return {
     name: name || 'Unknown product',
     price,
     currency,
     image_url,
+    images,
     product_url: url,
     store_name,
     store_domain,

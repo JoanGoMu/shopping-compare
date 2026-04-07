@@ -11,6 +11,7 @@ export interface Database {
           price: number | null;
           currency: string;
           image_url: string | null;
+          images: string[];
           product_url: string;
           store_name: string;
           store_domain: string;
@@ -25,6 +26,7 @@ export interface Database {
           price?: number | null;
           currency?: string;
           image_url?: string | null;
+          images?: string[];
           product_url: string;
           store_name: string;
           store_domain: string;
@@ -39,6 +41,7 @@ export interface Database {
           price?: number | null;
           currency?: string;
           image_url?: string | null;
+          images?: string[];
           product_url?: string;
           store_name?: string;
           store_domain?: string;
