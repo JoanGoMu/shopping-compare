@@ -16,11 +16,14 @@ export default function GroupList({ groups: initialGroups, activeGroupId }: Prop
   const router = useRouter();
   const [groups, setGroups] = useState(initialGroups);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   async function handleDeleteGroup(e: React.MouseEvent, groupId: string) {
     e.preventDefault();
     e.stopPropagation();
+    if (confirmDeleteId !== groupId) { setConfirmDeleteId(groupId); return; }
     setDeletingId(groupId);
+    setConfirmDeleteId(null);
     await supabase.from('comparison_items').delete().eq('group_id', groupId);
     await supabase.from('comparison_groups').delete().eq('id', groupId);
     setGroups((prev) => prev.filter((g) => g.id !== groupId));
@@ -46,16 +49,24 @@ export default function GroupList({ groups: initialGroups, activeGroupId }: Prop
             <span className="truncate tracking-wide">{g.name}</span>
             <span className="text-muted shrink-0 ml-2">{g.comparison_items.length}</span>
           </Link>
-          <button
-            onClick={(e) => handleDeleteGroup(e, g.id)}
-            disabled={deletingId === g.id}
-            className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-muted hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-opacity disabled:opacity-30"
-            title="Delete group"
-          >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          {confirmDeleteId === g.id ? (
+            <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+              <button onClick={(e) => handleDeleteGroup(e, g.id)} disabled={deletingId === g.id} className="text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-50">Yes</button>
+              <span className="text-warm-border text-xs">/</span>
+              <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmDeleteId(null); }} className="text-xs text-muted hover:text-ink">No</button>
+            </div>
+          ) : (
+            <button
+              onClick={(e) => handleDeleteGroup(e, g.id)}
+              disabled={deletingId === g.id}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-muted hover:text-red-500 opacity-0 group-hover/item:opacity-100 transition-opacity disabled:opacity-30"
+              title="Delete group"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
       ))}
     </div>

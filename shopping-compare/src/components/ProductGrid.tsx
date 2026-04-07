@@ -23,6 +23,7 @@ export default function ProductGrid({ products: initialProducts, groups }: Props
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [addingToGroup, setAddingToGroup] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
   function handleDeleted(id: string) {
     setItems((prev) => prev.filter((p) => p.id !== id));
@@ -31,12 +32,14 @@ export default function ProductGrid({ products: initialProducts, groups }: Props
 
   async function handleBulkDelete() {
     if (deleting || selectedIds.size === 0) return;
+    if (!confirmBulkDelete) { setConfirmBulkDelete(true); return; }
     setDeleting(true);
     const ids = Array.from(selectedIds);
     await supabase.from('products').delete().in('id', ids);
     setItems((prev) => prev.filter((p) => !selectedIds.has(p.id)));
     setSelectedIds(new Set());
     setDeleting(false);
+    setConfirmBulkDelete(false);
   }
 
   const stores = useMemo(() => Array.from(new Set(items.map((p) => p.store_name))).sort(), [items]);
@@ -126,14 +129,24 @@ export default function ProductGrid({ products: initialProducts, groups }: Props
             >
               {selectedIds.size >= 2 ? 'Save group' : 'Add to group'}
             </button>
-            <button
-              onClick={handleBulkDelete}
-              disabled={deleting}
-              className="border border-red-200 text-red-500 px-4 py-2 text-xs tracking-widest uppercase hover:bg-red-50 transition-colors disabled:opacity-50"
-            >
-              {deleting ? 'Deleting...' : 'Delete'}
-            </button>
-            <button onClick={() => setSelectedIds(new Set())} className="text-xs text-muted hover:text-ink">Clear</button>
+            {confirmBulkDelete ? (
+              <>
+                <span className="text-xs text-red-500">Delete {selectedIds.size} items?</span>
+                <button onClick={handleBulkDelete} disabled={deleting} className="bg-red-500 text-white px-3 py-2 text-xs tracking-widest uppercase hover:bg-red-600 disabled:opacity-50">
+                  {deleting ? 'Deleting...' : 'Yes, delete'}
+                </button>
+                <button onClick={() => setConfirmBulkDelete(false)} className="text-xs text-muted hover:text-ink">Cancel</button>
+              </>
+            ) : (
+              <button
+                onClick={handleBulkDelete}
+                disabled={deleting}
+                className="border border-red-200 text-red-500 px-4 py-2 text-xs tracking-widest uppercase hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                Delete
+              </button>
+            )}
+            {!confirmBulkDelete && <button onClick={() => setSelectedIds(new Set())} className="text-xs text-muted hover:text-ink">Clear</button>}
           </div>
         )}
       </div>

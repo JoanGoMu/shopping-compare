@@ -18,6 +18,7 @@ function formatPrice(price: number | null, currency: string) {
 
 export default function ProductCard({ product, selected, onToggleSelect, onDeleted }: Props) {
   const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [notes, setNotes] = useState(product.notes ?? '');
   const [editingNotes, setEditingNotes] = useState(false);
   const notesRef = useRef<HTMLTextAreaElement>(null);
@@ -37,6 +38,7 @@ export default function ProductCard({ product, selected, onToggleSelect, onDelet
 
   async function handleDelete(e: React.MouseEvent) {
     e.stopPropagation();
+    if (!confirmDelete) { setConfirmDelete(true); return; }
     setDeleting(true);
     await supabase.from('products').delete().eq('id', product.id);
     onDeleted(product.id);
@@ -74,16 +76,27 @@ export default function ProductCard({ product, selected, onToggleSelect, onDelet
       </div>
 
       {/* Delete button - visible on hover */}
-      <button
-        onClick={handleDelete}
-        disabled={deleting}
-        className="absolute top-2.5 left-2.5 z-10 w-6 h-6 bg-white/80 border border-warm-border text-muted hover:text-red-600 hover:border-red-300 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
-        title="Remove"
-      >
-        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
+      {confirmDelete ? (
+        <div className="absolute top-2 left-2 z-10 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          <button onClick={handleDelete} disabled={deleting} className="bg-red-500 text-white text-xs px-2 py-1 hover:bg-red-600 disabled:opacity-50">
+            {deleting ? '...' : 'Yes'}
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(false); }} className="bg-white/90 text-ink text-xs px-2 py-1 border border-warm-border hover:border-muted">
+            No
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="absolute top-2.5 left-2.5 z-10 w-6 h-6 bg-white/80 border border-warm-border text-muted hover:text-red-600 hover:border-red-300 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+          title="Remove"
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
 
       {/* Image carousel */}
       <div className="aspect-[3/4] bg-cream overflow-hidden relative">
