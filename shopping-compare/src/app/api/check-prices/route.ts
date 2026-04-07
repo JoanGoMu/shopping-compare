@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { extractProductFromHtml } from '@/lib/extract-product';
 
-export const maxDuration = 60;
+export const maxDuration = 10;
 
 const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 const FETCH_HEADERS = {
@@ -15,9 +15,9 @@ const FETCH_HEADERS = {
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
   'Accept-Language': 'en-US,en;q=0.5',
 };
-const BATCH_SIZE = 5;
-const FETCH_TIMEOUT_MS = 8000;
-const PRODUCT_LIMIT = 30;
+const BATCH_SIZE = 3;
+const FETCH_TIMEOUT_MS = 5000;
+const PRODUCT_LIMIT = 10;
 
 async function processBatch<T>(items: T[], batchSize: number, fn: (item: T) => Promise<void>) {
   for (let i = 0; i < items.length; i += batchSize) {
