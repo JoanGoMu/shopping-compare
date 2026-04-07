@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { Product } from '@/lib/supabase/types';
 
-interface Props { products: Product[]; }
+interface Props { products: Product[]; groupId?: string; }
 
 function formatPrice(price: number | null, currency: string) {
   if (price == null) return null;
@@ -18,7 +18,7 @@ function lowestPrice(products: Product[]): number | null {
   return prices.length ? Math.min(...prices) : null;
 }
 
-export default function CompareTable({ products: initialProducts }: Props) {
+export default function CompareTable({ products: initialProducts, groupId }: Props) {
   const supabase = createClient();
   const [products, setProducts] = useState(initialProducts);
   const [minPrice, setMinPrice] = useState('');
@@ -28,8 +28,11 @@ export default function CompareTable({ products: initialProducts }: Props) {
   function getImgIndex(id: string) { return imgIndexes[id] ?? 0; }
   function setImgIndex(id: string, i: number) { setImgIndexes((prev) => ({ ...prev, [id]: i })); }
 
-  async function handleDelete(id: string) {
-    await supabase.from('products').delete().eq('id', id);
+  async function handleRemove(id: string) {
+    // Only remove from the group/view - never delete the product from the collection
+    if (groupId) {
+      await supabase.from('comparison_items').delete().eq('group_id', groupId).eq('product_id', id);
+    }
     setProducts((prev) => prev.filter((p) => p.id !== id));
   }
 
@@ -106,7 +109,7 @@ export default function CompareTable({ products: initialProducts }: Props) {
                           </>
                         )}
                         <button
-                          onClick={() => handleDelete(p.id)}
+                          onClick={() => handleRemove(p.id)}
                           className="absolute top-1.5 right-1.5 w-6 h-6 bg-white/80 border border-warm-border text-muted hover:text-red-600 hover:border-red-300 flex items-center justify-center opacity-0 group-hover/col:opacity-100 transition-opacity z-20"
                           title="Remove from comparison"
                         >

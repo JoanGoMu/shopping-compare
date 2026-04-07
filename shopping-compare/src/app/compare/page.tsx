@@ -59,7 +59,7 @@ export default async function ComparePage({ searchParams }: Props) {
       {/* Main comparison */}
       <div className="flex-1 min-w-0">
         {products && products.length >= 2 ? (
-          <CompareTable products={products} />
+          <CompareTable products={products} groupId={groupId} />
         ) : (
           <div className="text-center py-20 bg-white rounded-2xl border border-gray-200 border-dashed">
             <div className="text-5xl mb-4">⚖️</div>

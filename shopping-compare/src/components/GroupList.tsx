@@ -47,7 +47,7 @@ export default function GroupList({ groups: initialGroups, activeGroupId }: Prop
             `}
           >
             <span className="truncate tracking-wide">{g.name}</span>
-            <span className="text-muted shrink-0 ml-2">{g.comparison_items.length}</span>
+            {confirmDeleteId !== g.id && <span className="text-muted shrink-0 ml-2">{g.comparison_items.length}</span>}
           </Link>
           {confirmDeleteId === g.id ? (
             <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
