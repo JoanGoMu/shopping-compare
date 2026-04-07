@@ -7,6 +7,10 @@ import { extractProduct } from './extractor';
 const BUTTON_ID = 'comparecart-save-btn';
 const TOAST_ID = 'comparecart-toast';
 
+function isOwnApp(): boolean {
+  try { return window.location.origin === new URL(APP_URL).origin; } catch { return false; }
+}
+
 function isLikelyProductPage(): boolean {
   const hasJsonLd = !!document.querySelector('script[type="application/ld+json"]');
   const hasOgProduct = !!document.querySelector('meta[property="og:type"][content="product"]');
@@ -126,6 +130,7 @@ function handleSave(btn: HTMLButtonElement) {
 
 function init() {
   if (document.getElementById(BUTTON_ID)) return;
+  if (isOwnApp()) return;
   if (!isLikelyProductPage()) return;
   const btn = createButton();
   btn.addEventListener('click', () => handleSave(btn));
