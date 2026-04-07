@@ -176,7 +176,7 @@ export async function GET(request: NextRequest) {
           : `${changes.length} price change${changes.length > 1 ? 's' : ''} in your collection`;
 
         await resend.emails.send({
-          from: 'CompareCart <alerts@comparecart.app>',
+          from: 'CompareCart <onboarding@resend.dev>',
           to: user.email,
           subject,
           html: buildEmail(changes),
