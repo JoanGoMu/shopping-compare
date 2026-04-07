@@ -94,6 +94,21 @@ export default function ProductGrid({ products: initialProducts, groups }: Props
           <option value="name">Name A–Z</option>
         </select>
 
+        <div className="flex items-center gap-3 ml-auto">
+          <button
+            onClick={() => {
+              if (selectedIds.size === filtered.length) {
+                setSelectedIds(new Set());
+              } else {
+                setSelectedIds(new Set(filtered.map((p) => p.id)));
+              }
+            }}
+            className="text-xs text-muted hover:text-ink transition-colors"
+          >
+            {selectedIds.size === filtered.length && filtered.length > 0 ? 'Deselect all' : 'Select all'}
+          </button>
+        </div>
+
         {selectedIds.size >= 1 && (
           <div className="flex items-center gap-3 ml-auto">
             <span className="text-xs text-muted">{selectedIds.size} selected</span>
