@@ -4,11 +4,7 @@
   "version": "0.1.0",
   "description": "Save products from any shopping site to CompareCart and compare them side-by-side.",
   "permissions": [
-    "storage",
-    "activeTab"
-  ],
-  "host_permissions": [
-    "<all_urls>"
+    "storage"
   ],
   "background": {
     "service_worker": "background.js",

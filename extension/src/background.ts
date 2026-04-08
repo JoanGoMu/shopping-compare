@@ -48,17 +48,6 @@ async function getUser() {
   return restoreSession();
 }
 
-// When the extension is reloaded/updated, reload all open tabs so content
-// scripts are re-injected and don't end up with a stale extension context.
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.tabs.query({}, (tabs) => {
-    for (const tab of tabs) {
-      if (tab.id && tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
-        chrome.tabs.reload(tab.id);
-      }
-    }
-  });
-});
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   const type = (message as { type: string }).type;

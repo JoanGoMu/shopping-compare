@@ -19688,15 +19688,6 @@ async function getUser() {
   if (user) return user;
   return restoreSession();
 }
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.tabs.query({}, (tabs) => {
-    for (const tab of tabs) {
-      if (tab.id && tab.url && !tab.url.startsWith("chrome://") && !tab.url.startsWith("chrome-extension://")) {
-        chrome.tabs.reload(tab.id);
-      }
-    }
-  });
-});
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   const type = message.type;
   if (type === "SAVE_PRODUCT") {

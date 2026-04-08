@@ -252,8 +252,7 @@
   function isLikelyProductPage() {
     const hasJsonLd = !!document.querySelector('script[type="application/ld+json"]');
     const hasOgProduct = !!document.querySelector('meta[property="og:type"][content="product"]');
-    const hasPriceText = /\$[\d,]+\.?\d{0,2}|€[\d,]+\.?\d{0,2}|£[\d,]+/.test(document.body.innerText.slice(0, 5e3));
-    return hasJsonLd || hasOgProduct || hasPriceText;
+    return hasJsonLd || hasOgProduct;
   }
   function createButton() {
     const btn = document.createElement("button");
