@@ -330,12 +330,36 @@ export function extractProduct(): ExtractedProduct {
     return content ? parsePrice(content) : { price: null, currency: 'USD' };
   }
 
+  // Last-resort: scan visible text for price patterns near the product heading.
+  // Works on any site regardless of class names or structured data.
+  function textScanPrice(): { price: number | null; currency: string } {
+    // Find the main content area (skip header/nav/footer)
+    const main = document.querySelector('main, [role="main"], #content, #main, .product, [class*="product-detail"], [class*="pdp"]') ?? document.body;
+    const text = main.innerText?.slice(0, 3000) ?? '';
+    // Match prices like €140,00  $29.99  £49.95  € 1.234,56
+    const pricePattern = /([€$£])\s?([\d.,]+)/g;
+    const matches: { price: number; currency: string }[] = [];
+    let m;
+    while ((m = pricePattern.exec(text)) !== null) {
+      const symbol = m[1];
+      const currency = symbol === '€' ? 'EUR' : symbol === '£' ? 'GBP' : 'USD';
+      const parsed = parsePrice(m[0]);
+      if (parsed.price != null && parsed.price > 0) {
+        matches.push({ price: parsed.price, currency });
+      }
+    }
+    // Return the lowest price found (sale price is always lower than original)
+    if (matches.length === 0) return { price: null, currency: 'USD' };
+    return matches.reduce((min, p) => p.price < min.price ? p : min);
+  }
+
   const domFallback = (storeData.price ?? jsonLd.price ?? og.price) == null ? genericDomPrice() : null;
+  const textFallback = (storeData.price ?? jsonLd.price ?? og.price ?? domFallback?.price) == null ? textScanPrice() : null;
 
   const merged: ExtractedProduct = {
     name: storeData.name ?? jsonLd.name ?? og.name ?? document.title ?? 'Unknown product',
-    price: storeData.price ?? jsonLd.price ?? og.price ?? domFallback?.price ?? null,
-    currency: storeData.currency ?? jsonLd.currency ?? og.currency ?? domFallback?.currency ?? 'USD',
+    price: storeData.price ?? jsonLd.price ?? og.price ?? domFallback?.price ?? textFallback?.price ?? null,
+    currency: storeData.currency ?? jsonLd.currency ?? og.currency ?? domFallback?.currency ?? textFallback?.currency ?? 'USD',
     image_url: allImages[0] ?? storeData.image_url ?? jsonLd.image_url ?? og.image_url ?? null,
     images: allImages,
     product_url: productUrl,

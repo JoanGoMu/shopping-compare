@@ -242,11 +242,29 @@
       const content = itemprop?.getAttribute("content") ?? itemprop?.getAttribute("data-price") ?? itemprop?.textContent?.trim();
       return content ? parsePrice(content) : { price: null, currency: "USD" };
     }
+    function textScanPrice() {
+      const main = document.querySelector('main, [role="main"], #content, #main, .product, [class*="product-detail"], [class*="pdp"]') ?? document.body;
+      const text = main.innerText?.slice(0, 3e3) ?? "";
+      const pricePattern = /([€$£])\s?([\d.,]+)/g;
+      const matches = [];
+      let m;
+      while ((m = pricePattern.exec(text)) !== null) {
+        const symbol = m[1];
+        const currency = symbol === "\u20AC" ? "EUR" : symbol === "\xA3" ? "GBP" : "USD";
+        const parsed = parsePrice(m[0]);
+        if (parsed.price != null && parsed.price > 0) {
+          matches.push({ price: parsed.price, currency });
+        }
+      }
+      if (matches.length === 0) return { price: null, currency: "USD" };
+      return matches.reduce((min, p) => p.price < min.price ? p : min);
+    }
     const domFallback = (storeData.price ?? jsonLd.price ?? og.price) == null ? genericDomPrice() : null;
+    const textFallback = (storeData.price ?? jsonLd.price ?? og.price ?? domFallback?.price) == null ? textScanPrice() : null;
     const merged = {
       name: storeData.name ?? jsonLd.name ?? og.name ?? document.title ?? "Unknown product",
-      price: storeData.price ?? jsonLd.price ?? og.price ?? domFallback?.price ?? null,
-      currency: storeData.currency ?? jsonLd.currency ?? og.currency ?? domFallback?.currency ?? "USD",
+      price: storeData.price ?? jsonLd.price ?? og.price ?? domFallback?.price ?? textFallback?.price ?? null,
+      currency: storeData.currency ?? jsonLd.currency ?? og.currency ?? domFallback?.currency ?? textFallback?.currency ?? "USD",
       image_url: allImages[0] ?? storeData.image_url ?? jsonLd.image_url ?? og.image_url ?? null,
       images: allImages,
       product_url: productUrl,
