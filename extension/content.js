@@ -243,8 +243,18 @@
       return content ? parsePrice(content) : { price: null, currency: "USD" };
     }
     function textScanPrice() {
-      const main = document.querySelector('main, [role="main"], #content, #main, .product, [class*="product-detail"], [class*="pdp"]') ?? document.body;
-      const text = main.innerText?.slice(0, 3e3) ?? "";
+      const h1 = document.querySelector("h1");
+      if (!h1) return { price: null, currency: "USD" };
+      let scope = h1.parentElement;
+      for (let i = 0; i < 3 && scope; i++) {
+        const text = scope.innerText ?? "";
+        const result = scanTextForPrice(text);
+        if (result.price != null) return result;
+        scope = scope.parentElement;
+      }
+      return { price: null, currency: "USD" };
+    }
+    function scanTextForPrice(text) {
       const pricePattern = /([€$£])\s?([\d.,]+)/g;
       const matches = [];
       let m;

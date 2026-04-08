@@ -330,12 +330,26 @@ export function extractProduct(): ExtractedProduct {
     return content ? parsePrice(content) : { price: null, currency: 'USD' };
   }
 
-  // Last-resort: scan visible text for price patterns near the product heading.
-  // Works on any site regardless of class names or structured data.
+  // Last-resort: scan visible text near the product heading for price patterns.
+  // Scopes to the h1's parent container to avoid picking up recommended product prices.
   function textScanPrice(): { price: number | null; currency: string } {
-    // Find the main content area (skip header/nav/footer)
-    const main = document.querySelector('main, [role="main"], #content, #main, .product, [class*="product-detail"], [class*="pdp"]') ?? document.body;
-    const text = main.innerText?.slice(0, 3000) ?? '';
+    // Walk up from h1 to find the closest product info container
+    const h1 = document.querySelector('h1');
+    if (!h1) return { price: null, currency: 'USD' };
+
+    // Try progressively wider scopes: h1's parent, grandparent, great-grandparent
+    let scope: Element | null = h1.parentElement;
+    for (let i = 0; i < 3 && scope; i++) {
+      const text = (scope as HTMLElement).innerText ?? '';
+      const result = scanTextForPrice(text);
+      if (result.price != null) return result;
+      scope = scope.parentElement;
+    }
+
+    return { price: null, currency: 'USD' };
+  }
+
+  function scanTextForPrice(text: string): { price: number | null; currency: string } {
     // Match prices like €140,00  $29.99  £49.95  € 1.234,56
     const pricePattern = /([€$£])\s?([\d.,]+)/g;
     const matches: { price: number; currency: string }[] = [];
@@ -348,7 +362,7 @@ export function extractProduct(): ExtractedProduct {
         matches.push({ price: parsed.price, currency });
       }
     }
-    // Return the lowest price found (sale price is always lower than original)
+    // Return the lowest price (sale price) from this scoped area
     if (matches.length === 0) return { price: null, currency: 'USD' };
     return matches.reduce((min, p) => p.price < min.price ? p : min);
   }
