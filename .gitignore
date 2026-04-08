@@ -5,3 +5,4 @@ shopping-compare/.next/
 shopping-compare/.env.local
 *.js.map
 *.zip
+.DS_Store
