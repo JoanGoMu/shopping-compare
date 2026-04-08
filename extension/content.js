@@ -49,7 +49,10 @@
             } else if (offersType === "AggregateOffer") {
               offer = { price: source.offers.lowPrice, priceCurrency: source.offers.priceCurrency };
             } else if (Array.isArray(source.offers)) {
-              offer = source.offers[0];
+              const valid = source.offers.filter((o) => o.price != null);
+              if (valid.length > 0) {
+                offer = valid.reduce((min, o) => parseFloat(o.price) < parseFloat(min.price) ? o : min);
+              }
             }
           }
           const { price, currency } = parsePrice(offer?.price);
@@ -217,10 +220,26 @@
     const storeData = storeKey ? STORE_EXTRACTORS[storeKey]() : {};
     const allImages = (jsonLd.images ?? []).length > 0 ? jsonLd.images : [storeData.image_url ?? jsonLd.image_url ?? og.image_url].filter((u) => !!u);
     function genericDomPrice() {
-      const el = document.querySelector(
-        '[itemprop="price"], [data-price], [data-product-price], [class*="current-price"], [class*="sale-price"], [class*="selling-price"], [class*="product-price"]:not([class*="was"]):not([class*="old"]):not([class*="original"]), [class*="price-current"], [class*="price-now"], [class*="price__current"], [data-testid*="price"]:not([data-testid*="original"]):not([data-testid*="was"])'
-      );
-      const content = el?.getAttribute("content") ?? el?.getAttribute("data-price") ?? el?.textContent;
+      const saleSelectors = [
+        '[class*="sale-price"]',
+        '[class*="selling-price"]',
+        '[class*="current-price"]',
+        '[class*="price-current"]',
+        '[class*="price-now"]',
+        '[class*="price__current"]',
+        '[data-testid*="price"]:not([data-testid*="original"]):not([data-testid*="was"])',
+        '[class*="product-price"]:not([class*="was"]):not([class*="old"]):not([class*="original"])'
+      ];
+      for (const sel of saleSelectors) {
+        const el = document.querySelector(sel);
+        const content2 = el?.getAttribute("content") ?? el?.getAttribute("data-price") ?? el?.textContent?.trim();
+        if (content2) {
+          const r = parsePrice(content2);
+          if (r.price != null) return r;
+        }
+      }
+      const itemprop = document.querySelector('[itemprop="price"]');
+      const content = itemprop?.getAttribute("content") ?? itemprop?.getAttribute("data-price") ?? itemprop?.textContent?.trim();
       return content ? parsePrice(content) : { price: null, currency: "USD" };
     }
     const domFallback = (storeData.price ?? jsonLd.price ?? og.price) == null ? genericDomPrice() : null;

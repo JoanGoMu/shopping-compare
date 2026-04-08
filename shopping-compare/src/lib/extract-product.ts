@@ -72,7 +72,11 @@ function extractFromJsonLd($: cheerio.CheerioAPI): Partial<ExtractedProduct> | n
           } else if (offersType === 'AggregateOffer') {
             offer = { price: source.offers.lowPrice, priceCurrency: source.offers.priceCurrency };
           } else if (Array.isArray(source.offers)) {
-            offer = source.offers[0];
+            // Pick the lowest price (sale price beats regular price)
+            const valid = source.offers.filter((o: any) => o.price != null); // eslint-disable-line @typescript-eslint/no-explicit-any
+            if (valid.length > 0) {
+              offer = valid.reduce((min: any, o: any) => parseFloat(o.price) < parseFloat(min.price) ? o : min); // eslint-disable-line @typescript-eslint/no-explicit-any
+            }
           }
         }
         const { price, currency } = parsePrice(offer?.price);

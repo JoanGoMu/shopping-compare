@@ -86,15 +86,21 @@ function extractFromJsonLd(): Partial<ExtractedProduct> | null {
         if (!source) continue;
 
         // Handle Offer, array of Offers, and AggregateOffer
+        // Always prefer the lowest (sale) price when multiple offers exist
         let offer = null;
         if (source.offers) {
           const offersType = source.offers['@type'];
           if (offersType === 'Offer') {
             offer = source.offers;
           } else if (offersType === 'AggregateOffer') {
+            // lowPrice is the sale/current price
             offer = { price: source.offers.lowPrice, priceCurrency: source.offers.priceCurrency };
           } else if (Array.isArray(source.offers)) {
-            offer = source.offers[0];
+            // Pick the offer with the lowest price (sale price beats regular price)
+            const valid = source.offers.filter((o: any) => o.price != null); // eslint-disable-line @typescript-eslint/no-explicit-any
+            if (valid.length > 0) {
+              offer = valid.reduce((min: any, o: any) => parseFloat(o.price) < parseFloat(min.price) ? o : min); // eslint-disable-line @typescript-eslint/no-explicit-any
+            }
           }
         }
         const { price, currency } = parsePrice(offer?.price);
@@ -306,14 +312,21 @@ export function extractProduct(): ExtractedProduct {
 
   // Generic DOM fallback for price - runs when all structured data sources fail
   function genericDomPrice(): { price: number | null; currency: string } {
-    const el = document.querySelector<HTMLElement>(
-      '[itemprop="price"], [data-price], [data-product-price], ' +
-      '[class*="current-price"], [class*="sale-price"], [class*="selling-price"], ' +
-      '[class*="product-price"]:not([class*="was"]):not([class*="old"]):not([class*="original"]), ' +
-      '[class*="price-current"], [class*="price-now"], [class*="price__current"], ' +
-      '[data-testid*="price"]:not([data-testid*="original"]):not([data-testid*="was"])'
-    );
-    const content = el?.getAttribute('content') ?? el?.getAttribute('data-price') ?? el?.textContent;
+    // Try sale/current price selectors first (most specific → least specific)
+    const saleSelectors = [
+      '[class*="sale-price"]', '[class*="selling-price"]', '[class*="current-price"]',
+      '[class*="price-current"]', '[class*="price-now"]', '[class*="price__current"]',
+      '[data-testid*="price"]:not([data-testid*="original"]):not([data-testid*="was"])',
+      '[class*="product-price"]:not([class*="was"]):not([class*="old"]):not([class*="original"])',
+    ];
+    for (const sel of saleSelectors) {
+      const el = document.querySelector<HTMLElement>(sel);
+      const content = el?.getAttribute('content') ?? el?.getAttribute('data-price') ?? el?.textContent?.trim();
+      if (content) { const r = parsePrice(content); if (r.price != null) return r; }
+    }
+    // Fallback: itemprop="price" content attribute (machine-readable, always the current price)
+    const itemprop = document.querySelector<HTMLElement>('[itemprop="price"]');
+    const content = itemprop?.getAttribute('content') ?? itemprop?.getAttribute('data-price') ?? itemprop?.textContent?.trim();
     return content ? parsePrice(content) : { price: null, currency: 'USD' };
   }
 
