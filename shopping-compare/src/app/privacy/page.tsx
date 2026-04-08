@@ -24,6 +24,7 @@ export default function PrivacyPage() {
             <ul className="space-y-2 list-none">
               <li className="pl-4 border-l-2 border-warm-border"><strong>Account information</strong> - your email address, used to identify your account and sync your collection across devices.</li>
               <li className="pl-4 border-l-2 border-warm-border"><strong>Saved products</strong> - product name, price, image, URL, and store name for items you choose to save. This data comes from product pages you visit and is only saved when you click the Save button.</li>
+              <li className="pl-4 border-l-2 border-warm-border"><strong>Automatic price updates</strong> - when you visit a product page that is already in your collection, the extension reads the current price from that page and updates it automatically. This only applies to URLs you have previously saved, and no other page data is collected or transmitted.</li>
               <li className="pl-4 border-l-2 border-warm-border"><strong>Comparison groups</strong> - the groups and collections you create to organise your saved products.</li>
               <li className="pl-4 border-l-2 border-warm-border"><strong>Notes</strong> - any personal notes you add to saved products.</li>
             </ul>
@@ -35,10 +36,9 @@ export default function PrivacyPage() {
             <ul className="space-y-2 list-none">
               <li className="pl-4 border-l-2 border-warm-border">Read or record your browsing history</li>
               <li className="pl-4 border-l-2 border-warm-border">Track which pages you visit</li>
-              <li className="pl-4 border-l-2 border-warm-border">Collect any data from pages where you have not clicked the Save button</li>
+              <li className="pl-4 border-l-2 border-warm-border">Collect any data from pages you have not previously saved to your collection</li>
               <li className="pl-4 border-l-2 border-warm-border">Access payment information or passwords</li>
             </ul>
-            <p className="mt-3">The extension only reads product data from a page at the moment you explicitly click Save. It does not run in the background or observe your activity.</p>
           </section>
 
           <section>
