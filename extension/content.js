@@ -383,10 +383,12 @@
   }
   function initWithRetry() {
     init();
-    window.setTimeout(() => {
-      init();
-      tryUpdateSavedPrice();
-    }, 2e3);
+    for (const delay of [2e3, 5e3, 8e3]) {
+      window.setTimeout(() => {
+        init();
+        tryUpdateSavedPrice();
+      }, delay);
+    }
   }
   var APP_URL = "https://shopping-compare.vercel.app";
   window.addEventListener("message", (event) => {

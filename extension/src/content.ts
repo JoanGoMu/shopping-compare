@@ -153,12 +153,14 @@ function tryUpdateSavedPrice() {
 
 function initWithRetry() {
   init();
-  // Retry after 2s for SPAs that inject JSON-LD/prices via JavaScript
-  // Also do a silent price update after the page has fully rendered
-  window.setTimeout(() => {
-    init();
-    tryUpdateSavedPrice();
-  }, 2000);
+  // Staggered retries for SPAs that inject JSON-LD/prices via JavaScript.
+  // init() is idempotent (bails if button already exists), so extra calls are free.
+  for (const delay of [2000, 5000, 8000]) {
+    window.setTimeout(() => {
+      init();
+      tryUpdateSavedPrice();
+    }, delay);
+  }
 }
 
 // Auto sign-in: listen for session tokens posted from the web app (runs on all pages)
