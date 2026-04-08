@@ -5,8 +5,7 @@
   "description": "Save products from any shopping site to CompareCart and compare them side-by-side.",
   "permissions": [
     "storage",
-    "activeTab",
-    "scripting"
+    "activeTab"
   ],
   "host_permissions": [
     "<all_urls>"
