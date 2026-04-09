@@ -103,6 +103,7 @@ export async function GET(request: NextRequest) {
   let changed = 0;
   let failed = 0;
 
+  const changedProductIds = new Set<string>();
   // Collect price changes per user for batched email
   const changesByUser = new Map<string, PriceChange[]>();
 
@@ -134,6 +135,7 @@ export async function GET(request: NextRequest) {
           price_check_failed: false,
         }).eq('id', product.id);
         changed++;
+        changedProductIds.add(product.id);
 
         // Collect for email notification (only if per-product alerts enabled)
         if (product.price_alerts !== false) {
@@ -184,6 +186,53 @@ export async function GET(request: NextRequest) {
           html: buildEmail(changes),
         });
       } catch { /* silent - don't fail the cron if email fails */ }
+    }
+  }
+
+  // Refresh public snapshots for any groups containing price-changed products
+  if (changedProductIds.size > 0) {
+    const { data: items } = await supabase
+      .from('comparison_items')
+      .select('group_id, product_id')
+      .in('product_id', Array.from(changedProductIds));
+
+    const groupIds = [...new Set((items ?? []).map((i) => i.group_id))];
+
+    for (const groupId of groupIds) {
+      const { data: share } = await supabase
+        .from('shared_comparisons')
+        .select('slug')
+        .eq('group_id', groupId)
+        .maybeSingle();
+
+      if (!share) continue;
+
+      const { data: groupItems } = await supabase
+        .from('comparison_items')
+        .select('product_id')
+        .eq('group_id', groupId);
+
+      const pIds = (groupItems ?? []).map((i) => i.product_id);
+      if (!pIds.length) continue;
+
+      const { data: prods } = await supabase
+        .from('products')
+        .select('name, price, currency, image_url, images, product_url, store_name, store_domain, specs, previous_price')
+        .in('id', pIds);
+
+      if (!prods?.length) continue;
+
+      const snapshot = prods.map((p) => ({
+        name: p.name, price: p.price, currency: p.currency,
+        image_url: p.image_url, images: (p.images as string[]) ?? [],
+        product_url: p.product_url, store_name: p.store_name,
+        store_domain: p.store_domain, specs: p.specs, previous_price: p.previous_price,
+      }));
+
+      await supabase
+        .from('shared_comparisons')
+        .update({ products: snapshot, updated_at: new Date().toISOString() })
+        .eq('slug', share.slug);
     }
   }
 

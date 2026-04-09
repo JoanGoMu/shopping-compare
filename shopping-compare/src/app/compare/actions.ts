@@ -9,17 +9,7 @@ export async function shareComparison(groupId: string): Promise<{ slug: string }
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: 'Not authenticated' };
 
-  // Check if already shared
-  const { data: existing } = await supabase
-    .from('shared_comparisons')
-    .select('slug')
-    .eq('group_id', groupId)
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  if (existing) return { slug: existing.slug };
-
-  // Load group + products
+  // Load group + current products (always re-snapshot to stay in sync)
   type GroupRow = { name: string; comparison_items: { product_id: string }[] };
   const { data: groupRaw } = await supabase
     .from('comparison_groups')
@@ -56,8 +46,29 @@ export async function shareComparison(groupId: string): Promise<{ slug: string }
     previous_price: p.previous_price,
   }));
 
-  const slug = generateSlug();
+  const now = new Date().toISOString();
 
+  // Check if already shared - update snapshot, otherwise create
+  const { data: existing } = await supabase
+    .from('shared_comparisons')
+    .select('slug')
+    .eq('group_id', groupId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (existing) {
+    await supabase
+      .from('shared_comparisons')
+      .update({
+        products: products as unknown as import('@/lib/supabase/types').Json,
+        title: group.name,
+        updated_at: now,
+      })
+      .eq('slug', existing.slug);
+    return { slug: existing.slug };
+  }
+
+  const slug = generateSlug();
   const { error } = await supabase.from('shared_comparisons').insert({
     slug,
     user_id: user.id,
