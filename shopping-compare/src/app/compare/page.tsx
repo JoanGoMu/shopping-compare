@@ -23,6 +23,14 @@ export default async function ComparePage({ searchParams }: Props) {
   type GroupWithItems = { id: string; user_id: string; name: string; created_at: string; comparison_items: { product_id: string }[] };
   const groups = (rawGroups ?? []) as GroupWithItems[];
 
+  // Load full collection for "add more" picker
+  const { data: allProductsData } = await supabase
+    .from('products')
+    .select('*')
+    .eq('user_id', user!.id)
+    .order('created_at', { ascending: false });
+  const allProducts = allProductsData ?? [];
+
   // Determine which products to compare
   let productIds: string[] = [];
 
@@ -65,29 +73,32 @@ export default async function ComparePage({ searchParams }: Props) {
     <div className="flex gap-6">
       {/* Sidebar: saved groups */}
       <aside className="hidden md:block w-56 shrink-0">
-        <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Saved groups</h2>
+        <p className="text-xs tracking-widest uppercase text-muted mb-3">Saved groups</p>
         <GroupList groups={groups ?? []} activeGroupId={groupId} />
         <Link
           href="/dashboard"
-          className="mt-4 block text-center text-sm text-indigo-600 hover:underline"
+          className="mt-4 block text-center text-xs tracking-widest uppercase text-terra hover:underline"
         >
-          + Compare from dashboard
+          + Add from collection
         </Link>
       </aside>
 
       {/* Main comparison */}
       <div className="flex-1 min-w-0">
         {products && products.length >= 2 ? (
-          <CompareTable products={products} groupId={groupId} existingShareSlug={existingShareSlug} />
+          <CompareTable
+            products={products}
+            allProducts={allProducts}
+            groupId={groupId}
+            existingShareSlug={existingShareSlug}
+            groups={groups}
+          />
         ) : (
-          <div className="text-center py-20 bg-white rounded-2xl border border-gray-200 border-dashed">
-            <div className="text-5xl mb-4">⚖️</div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">Select products to compare</h2>
-            <p className="text-sm text-gray-500 max-w-sm mx-auto">
-              Go to your dashboard, select 2 or more products, and click &quot;Compare selected&quot;. Or pick a saved group from the sidebar.
-            </p>
-            <Link href="/dashboard" className="mt-5 inline-block bg-indigo-600 text-white rounded-xl px-5 py-2.5 text-sm font-medium hover:bg-indigo-700 transition-colors">
-              Go to dashboard
+          <div className="text-center py-20 border border-dashed border-warm-border">
+            <p className="text-muted mb-2">No products selected</p>
+            <p className="text-xs text-muted mb-6">Go to your collection, select 2 or more products, and click Compare. Or pick a saved group from the sidebar.</p>
+            <Link href="/dashboard" className="inline-block bg-terra text-white px-6 py-2.5 text-xs tracking-widest uppercase hover:bg-terra-dark transition-colors">
+              Go to collection
             </Link>
           </div>
         )}

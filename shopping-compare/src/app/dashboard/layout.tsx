@@ -14,11 +14,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <header className="bg-surface border-b border-warm-border sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-8">
-            <Link href="/dashboard" className="font-[var(--font-display)] text-xl italic text-ink">{APP_NAME}</Link>
+            <Link href="/" className="font-[var(--font-display)] text-xl italic text-ink">{APP_NAME}</Link>
             <nav className="hidden sm:flex items-center gap-6">
               <Link href="/dashboard" className="text-xs tracking-widest uppercase text-muted hover:text-ink transition-colors">Collection</Link>
               <Link href="/compare" className="text-xs tracking-widest uppercase text-muted hover:text-ink transition-colors">Compare</Link>
-              <a href="/?bypass=1" className="text-xs tracking-widests uppercase text-muted hover:text-ink transition-colors">Home</a>
+              <a href="/" className="text-xs tracking-widest uppercase text-muted hover:text-ink transition-colors">Home</a>
             </nav>
           </div>
           <div className="flex items-center gap-4">

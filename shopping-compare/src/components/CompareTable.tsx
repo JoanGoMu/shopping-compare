@@ -5,7 +5,13 @@ import { createClient } from '@/lib/supabase/client';
 import type { Product } from '@/lib/supabase/types';
 import { shareComparison, unshareComparison } from '@/app/compare/actions';
 
-interface Props { products: Product[]; groupId?: string; existingShareSlug?: string; }
+interface Props {
+  products: Product[];
+  allProducts?: Product[]; // full collection for "add more" picker
+  groupId?: string;
+  existingShareSlug?: string;
+  groups?: { id: string; name: string; comparison_items: { product_id: string }[] }[];
+}
 
 function formatPrice(price: number | null, currency: string) {
   if (price == null) return null;
@@ -14,12 +20,12 @@ function formatPrice(price: number | null, currency: string) {
 
 function lowestPrice(products: Product[]): number | null {
   const currencies = new Set(products.filter((p) => p.price != null).map((p) => p.currency));
-  if (currencies.size !== 1) return null; // mixed currencies - can't compare
+  if (currencies.size !== 1) return null;
   const prices = products.filter((p) => p.price != null).map((p) => p.price as number);
   return prices.length ? Math.min(...prices) : null;
 }
 
-export default function CompareTable({ products: initialProducts, groupId, existingShareSlug }: Props) {
+export default function CompareTable({ products: initialProducts, allProducts = [], groupId, existingShareSlug, groups = [] }: Props) {
   const supabase = createClient();
   const [products, setProducts] = useState(initialProducts);
   const [minPrice, setMinPrice] = useState('');
@@ -28,6 +34,11 @@ export default function CompareTable({ products: initialProducts, groupId, exist
   const [shareSlug, setShareSlug] = useState(existingShareSlug ?? null);
   const [shareLoading, setShareLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showAddPicker, setShowAddPicker] = useState(false);
+  const [showSaveGroup, setShowSaveGroup] = useState(false);
+  const [savingGroup, setSavingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [saveGroupError, setSaveGroupError] = useState('');
 
   const shareUrl = shareSlug ? `${typeof window !== 'undefined' ? window.location.origin : ''}/c/${shareSlug}` : null;
 
@@ -56,11 +67,39 @@ export default function CompareTable({ products: initialProducts, groupId, exist
   function setImgIndex(id: string, i: number) { setImgIndexes((prev) => ({ ...prev, [id]: i })); }
 
   async function handleRemove(id: string) {
-    // Only remove from the group/view - never delete the product from the collection
     if (groupId) {
       await supabase.from('comparison_items').delete().eq('group_id', groupId).eq('product_id', id);
     }
     setProducts((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  async function handleAddProduct(product: Product) {
+    if (products.find((p) => p.id === product.id)) return;
+    if (groupId) {
+      await supabase.from('comparison_items').upsert(
+        { group_id: groupId, product_id: product.id, position: products.length },
+        { onConflict: 'group_id,product_id' }
+      );
+    }
+    setProducts((prev) => [...prev, product]);
+    setShowAddPicker(false);
+  }
+
+  async function handleSaveGroup() {
+    if (!newGroupName.trim()) { setSaveGroupError('Enter a name.'); return; }
+    setSavingGroup(true);
+    setSaveGroupError('');
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: group, error: gErr } = await supabase
+      .from('comparison_groups')
+      .insert({ name: newGroupName.trim(), user_id: user!.id })
+      .select('id').single();
+    if (gErr || !group) { setSaveGroupError('Failed to create group.'); setSavingGroup(false); return; }
+    const items = products.map((p, i) => ({ group_id: group.id, product_id: p.id, position: i }));
+    await supabase.from('comparison_items').insert(items);
+    setSavingGroup(false);
+    setShowSaveGroup(false);
+    window.location.href = `/compare?group=${group.id}`;
   }
 
   const lowest = lowestPrice(products);
@@ -70,11 +109,14 @@ export default function CompareTable({ products: initialProducts, groupId, exist
     return true;
   });
 
+  // Products not yet in this comparison (for add picker)
+  const addableProducts = allProducts.filter((p) => !products.find((cp) => cp.id === p.id));
+
   const specKeys = Array.from(new Set(filtered.flatMap((p) => Object.keys((p.specs as Record<string, unknown>) ?? {}))));
 
   return (
     <div>
-      {/* Price filter + Share */}
+      {/* Toolbar */}
       <div className="flex flex-wrap gap-3 items-center mb-6 pb-5 border-b border-warm-border">
         <span className="text-xs tracking-widest uppercase text-muted">Filter by price</span>
         <div className="flex items-center gap-2">
@@ -82,7 +124,7 @@ export default function CompareTable({ products: initialProducts, groupId, exist
             type="number" placeholder="Min" value={minPrice} onChange={(e) => setMinPrice(e.target.value)}
             className="w-24 border border-warm-border px-3 py-1.5 text-sm focus:outline-none focus:border-terra"
           />
-          <span className="text-muted text-sm">—</span>
+          <span className="text-muted text-sm">-</span>
           <input
             type="number" placeholder="Max" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)}
             className="w-24 border border-warm-border px-3 py-1.5 text-sm focus:outline-none focus:border-terra"
@@ -91,29 +133,51 @@ export default function CompareTable({ products: initialProducts, groupId, exist
         {(minPrice || maxPrice) && (
           <button onClick={() => { setMinPrice(''); setMaxPrice(''); }} className="text-xs text-muted hover:text-ink">Clear</button>
         )}
-        <span className="text-xs text-muted ml-auto">{filtered.length} of {products.length} shown</span>
+        <span className="text-xs text-muted">{filtered.length} of {products.length} shown</span>
 
-        {/* Share controls - only available for saved groups */}
-        {groupId && (
-          <div className="flex items-center gap-2 border-l border-warm-border pl-3">
-            {shareSlug ? (
-              <>
-                <button onClick={handleCopy} className="text-xs text-terra hover:underline">
-                  {copied ? 'Copied!' : 'Copy link'}
+        <div className="ml-auto flex items-center gap-2">
+          {/* Add more - only show if there are products in collection not yet compared */}
+          {addableProducts.length > 0 && (
+            <button
+              onClick={() => setShowAddPicker(true)}
+              className="text-xs tracking-widest uppercase border border-warm-border text-ink px-3 py-1.5 hover:border-muted transition-colors"
+            >
+              + Add
+            </button>
+          )}
+
+          {/* Save as group - only when not already a saved group */}
+          {!groupId && products.length >= 2 && (
+            <button
+              onClick={() => setShowSaveGroup(true)}
+              className="text-xs tracking-widest uppercase border border-warm-border text-ink px-3 py-1.5 hover:border-muted transition-colors"
+            >
+              Save group
+            </button>
+          )}
+
+          {/* Share controls */}
+          {groupId && (
+            <div className="flex items-center gap-2 border-l border-warm-border pl-3">
+              {shareSlug ? (
+                <>
+                  <button onClick={handleCopy} className="text-xs text-terra hover:underline">
+                    {copied ? 'Copied!' : 'Copy link'}
+                  </button>
+                  <button onClick={handleUnshare} className="text-xs text-muted hover:text-red-500">Unshare</button>
+                </>
+              ) : (
+                <button
+                  onClick={handleShare}
+                  disabled={shareLoading}
+                  className="text-xs tracking-widest uppercase bg-terra text-white px-3 py-1.5 hover:bg-terra-dark transition-colors disabled:opacity-50"
+                >
+                  {shareLoading ? 'Sharing...' : 'Share'}
                 </button>
-                <button onClick={handleUnshare} className="text-xs text-muted hover:text-red-500">Unshare</button>
-              </>
-            ) : (
-              <button
-                onClick={handleShare}
-                disabled={shareLoading}
-                className="text-xs tracking-widest uppercase bg-terra text-white px-3 py-1.5 hover:bg-terra-dark transition-colors disabled:opacity-50"
-              >
-                {shareLoading ? 'Sharing...' : 'Share'}
-              </button>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Shared URL banner */}
@@ -147,7 +211,6 @@ export default function CompareTable({ products: initialProducts, groupId, exist
                             <div className="w-full h-full flex items-center justify-center text-4xl text-warm-border">◻</div>
                           )}
                         </div>
-                        {/* Carousel arrows */}
                         {images.length > 1 && (
                           <>
                             <button onClick={() => setImgIndex(p.id, (idx - 1 + images.length) % images.length)}
@@ -233,7 +296,7 @@ export default function CompareTable({ products: initialProducts, groupId, exist
                     const val = ((p.specs as Record<string, unknown>) ?? {})[key];
                     return (
                       <td key={p.id} className="py-3 px-4 text-sm text-ink align-top">
-                        {val != null ? String(val) : <span className="text-warm-border">—</span>}
+                        {val != null ? String(val) : <span className="text-warm-border">-</span>}
                       </td>
                     );
                   })}
@@ -244,7 +307,7 @@ export default function CompareTable({ products: initialProducts, groupId, exist
                 <td className="text-xs tracking-widest uppercase text-muted py-3 pr-6">Notes</td>
                 {filtered.map((p) => (
                   <td key={p.id} className="py-3 px-4 text-sm text-muted italic align-top">
-                    {p.notes ?? <span className="text-warm-border not-italic">—</span>}
+                    {p.notes ?? <span className="text-warm-border not-italic">-</span>}
                   </td>
                 ))}
               </tr>
@@ -263,6 +326,71 @@ export default function CompareTable({ products: initialProducts, groupId, exist
           </table>
         </div>
       )}
+
+      {/* Add more picker */}
+      {showAddPicker && (
+        <div className="fixed inset-0 bg-ink/50 flex items-center justify-center z-50 p-4" onClick={() => setShowAddPicker(false)}>
+          <div className="bg-surface w-full max-w-sm p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="font-[var(--font-display)] italic text-xl text-ink mb-1">Add to comparison</h2>
+            <p className="text-xs text-muted mb-4">{addableProducts.length} products in your collection</p>
+            <div className="space-y-1 max-h-80 overflow-y-auto">
+              {addableProducts.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => handleAddProduct(p)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 border border-warm-border hover:border-terra text-left transition-colors"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {(p.image_url || (p.images as string[])?.[0]) && (
+                    <img
+                      src={(p.images as string[])?.[0] ?? p.image_url!}
+                      alt=""
+                      className="w-10 h-12 object-cover bg-cream shrink-0"
+                      referrerPolicy="no-referrer"
+                    />
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-sm text-ink truncate">{p.name}</p>
+                    <p className="text-xs text-muted">{p.store_name}{p.price != null ? ` - ${formatPrice(p.price, p.currency)}` : ''}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setShowAddPicker(false)} className="mt-4 w-full py-2.5 border border-warm-border text-xs tracking-widest uppercase text-muted hover:border-muted transition-colors">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Save as group modal */}
+      {showSaveGroup && (
+        <div className="fixed inset-0 bg-ink/50 flex items-center justify-center z-50 p-4" onClick={() => setShowSaveGroup(false)}>
+          <div className="bg-surface w-full max-w-sm p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="font-[var(--font-display)] italic text-xl text-ink mb-1">Save as group</h2>
+            <p className="text-xs text-muted mb-4">{products.length} products</p>
+            {saveGroupError && <p className="text-xs text-red-700 bg-red-50 border border-red-200 px-3 py-2 mb-3">{saveGroupError}</p>}
+            <input
+              type="text" autoFocus
+              placeholder="e.g. Summer dresses under €100"
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSaveGroup()}
+              className="w-full border border-warm-border px-3 py-2.5 text-sm focus:outline-none focus:border-terra mb-4"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setShowSaveGroup(false)} className="flex-1 py-2.5 border border-warm-border text-xs tracking-widest uppercase text-muted hover:border-muted transition-colors">Cancel</button>
+              <button
+                onClick={handleSaveGroup} disabled={savingGroup}
+                className="flex-1 py-2.5 bg-terra text-white text-xs tracking-widest uppercase hover:bg-terra-dark transition-colors disabled:opacity-50"
+              >
+                {savingGroup ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
