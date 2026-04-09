@@ -7,10 +7,11 @@ import { shareComparison, unshareComparison } from '@/app/compare/actions';
 
 interface Props {
   products: Product[];
-  allProducts?: Product[]; // full collection for "add more" picker
+  allProducts?: Product[];
   groupId?: string;
   existingShareSlug?: string;
   groups?: { id: string; name: string; comparison_items: { product_id: string }[] }[];
+  onProductsChange?: (products: Product[]) => void;
 }
 
 function formatPrice(price: number | null, currency: string) {
@@ -25,7 +26,7 @@ function lowestPrice(products: Product[]): number | null {
   return prices.length ? Math.min(...prices) : null;
 }
 
-export default function CompareTable({ products: initialProducts, allProducts = [], groupId, existingShareSlug, groups = [] }: Props) {
+export default function CompareTable({ products: initialProducts, allProducts = [], groupId, existingShareSlug, groups = [], onProductsChange }: Props) {
   const supabase = createClient();
   const [products, setProducts] = useState(initialProducts);
   const [minPrice, setMinPrice] = useState('');
@@ -70,7 +71,9 @@ export default function CompareTable({ products: initialProducts, allProducts = 
     if (groupId) {
       await supabase.from('comparison_items').delete().eq('group_id', groupId).eq('product_id', id);
     }
-    setProducts((prev) => prev.filter((p) => p.id !== id));
+    const next = products.filter((p) => p.id !== id);
+    setProducts(next);
+    onProductsChange?.(next);
   }
 
   async function handleAddProduct(product: Product) {
@@ -81,7 +84,9 @@ export default function CompareTable({ products: initialProducts, allProducts = 
         { onConflict: 'group_id,product_id' }
       );
     }
-    setProducts((prev) => [...prev, product]);
+    const next = [...products, product];
+    setProducts(next);
+    onProductsChange?.(next);
     setShowAddPicker(false);
   }
 
@@ -136,15 +141,6 @@ export default function CompareTable({ products: initialProducts, allProducts = 
         <span className="text-xs text-muted">{filtered.length} of {products.length} shown</span>
 
         <div className="ml-auto flex items-center gap-2">
-          {/* Add more - only show if there are products in collection not yet compared */}
-          {addableProducts.length > 0 && (
-            <button
-              onClick={() => setShowAddPicker(true)}
-              className="text-xs tracking-widest uppercase border border-warm-border text-ink px-3 py-1.5 hover:border-muted transition-colors"
-            >
-              + Add
-            </button>
-          )}
 
           {/* Save as group - only when not already a saved group */}
           {!groupId && products.length >= 2 && (
@@ -242,6 +238,20 @@ export default function CompareTable({ products: initialProducts, allProducts = 
                     </th>
                   );
                 })}
+                {/* Ghost "add" column */}
+                {addableProducts.length > 0 && (
+                  <th className="text-left pb-4 px-3 w-[160px] min-w-[160px] align-top">
+                    <button
+                      onClick={() => setShowAddPicker(true)}
+                      className="w-full aspect-[3/4] border-2 border-dashed border-warm-border hover:border-terra transition-colors flex flex-col items-center justify-center gap-2 group/add"
+                    >
+                      <svg className="w-6 h-6 text-warm-border group-hover/add:text-terra transition-colors" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                      <span className="text-xs text-muted group-hover/add:text-terra transition-colors tracking-wide">Add item</span>
+                    </button>
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-warm-border">
@@ -250,6 +260,7 @@ export default function CompareTable({ products: initialProducts, allProducts = 
                 {filtered.map((p) => (
                   <td key={p.id} className="py-3 px-4 text-sm text-ink align-top">{p.name}</td>
                 ))}
+                {addableProducts.length > 0 && <td />}
               </tr>
 
               <tr className="bg-cream/50">
@@ -274,6 +285,7 @@ export default function CompareTable({ products: initialProducts, allProducts = 
                     )}
                   </td>
                 ))}
+                {addableProducts.length > 0 && <td />}
               </tr>
 
               <tr>
@@ -287,6 +299,7 @@ export default function CompareTable({ products: initialProducts, allProducts = 
                     </span>
                   </td>
                 ))}
+                {addableProducts.length > 0 && <td />}
               </tr>
 
               {specKeys.map((key, i) => (
@@ -300,6 +313,7 @@ export default function CompareTable({ products: initialProducts, allProducts = 
                       </td>
                     );
                   })}
+                  {addableProducts.length > 0 && <td />}
                 </tr>
               ))}
 
@@ -310,6 +324,7 @@ export default function CompareTable({ products: initialProducts, allProducts = 
                     {p.notes ?? <span className="text-warm-border not-italic">-</span>}
                   </td>
                 ))}
+                {addableProducts.length > 0 && <td />}
               </tr>
 
               <tr className="bg-cream/50">
@@ -321,6 +336,7 @@ export default function CompareTable({ products: initialProducts, allProducts = 
                     </a>
                   </td>
                 ))}
+                {addableProducts.length > 0 && <td />}
               </tr>
             </tbody>
           </table>

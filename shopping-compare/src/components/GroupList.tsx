@@ -10,9 +10,10 @@ import { shareComparison, unshareComparison } from '@/app/compare/actions';
 interface Props {
   groups: (ComparisonGroup & { comparison_items: { product_id: string }[] })[];
   activeGroupId?: string;
+  activeGroupProductCount?: number; // live count from CompareShell
 }
 
-export default function GroupList({ groups: initialGroups, activeGroupId }: Props) {
+export default function GroupList({ groups: initialGroups, activeGroupId, activeGroupProductCount }: Props) {
   const supabase = createClient();
   const router = useRouter();
   const [groups, setGroups] = useState(initialGroups);
@@ -120,7 +121,13 @@ export default function GroupList({ groups: initialGroups, activeGroupId }: Prop
               `}
             >
               <span className="truncate tracking-wide">{g.name}</span>
-              {confirmDeleteId !== g.id && <span className="text-muted shrink-0 ml-2">{g.comparison_items.length}</span>}
+              {confirmDeleteId !== g.id && (
+                <span className="text-muted shrink-0 ml-2">
+                  {g.id === activeGroupId && activeGroupProductCount !== undefined
+                    ? activeGroupProductCount
+                    : g.comparison_items.length}
+                </span>
+              )}
             </Link>
 
             {confirmDeleteId === g.id ? (
