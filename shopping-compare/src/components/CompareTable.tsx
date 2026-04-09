@@ -331,7 +331,7 @@ export default function CompareTable({ products: initialProducts, allProducts = 
                 <td className="text-xs tracking-widest uppercase text-muted py-3 pr-6">Link</td>
                 {filtered.map((p) => (
                   <td key={p.id} className="py-3 px-4 align-top">
-                    <a href={p.product_url} target="_blank" rel="noopener noreferrer" className="text-xs text-terra hover:underline">
+                    <a href={p.product_url} target="_blank" rel="noopener noreferrer" className="text-xs text-terra hover:underline whitespace-nowrap">
                       Buy on {p.store_name} →
                     </a>
                   </td>
