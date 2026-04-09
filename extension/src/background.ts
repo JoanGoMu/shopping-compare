@@ -4,6 +4,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { normalizeSpecs } from './normalize-specs';
 
 const SUPABASE_URL = '__SUPABASE_URL__';
 const SUPABASE_ANON_KEY = '__SUPABASE_ANON_KEY__';
@@ -110,6 +111,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     handleUpdatePriceIfSaved(message.url, message.price, message.currency, message.specs);
     return false;
   }
+
+  if (type === 'GET_PRODUCTS_BY_DOMAIN') {
+    // Returns saved products from this domain that have no specs yet
+    handleGetProductsByDomain(message.domain).then(sendResponse);
+    return true;
+  }
+
+  if (type === 'UPDATE_SPECS_FOR_URL') {
+    // Fire-and-forget: save specs extracted by content script for a related product
+    handleUpdateSpecsForUrl(message.url, message.specs);
+    return false;
+  }
 });
 
 async function handleUpdatePriceIfSaved(url: string, price: number, currency: string, specs?: Record<string, string>) {
@@ -172,4 +185,38 @@ async function handleSaveProduct(product: {
   });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
+}
+
+// Returns URLs of saved products from a given domain that have no specs yet
+async function handleGetProductsByDomain(domain: string): Promise<{ url: string }[]> {
+  try {
+    const stored = await chrome.storage.local.get(SESSION_KEY);
+    if (!stored[SESSION_KEY]) return [];
+    const user = await getUser();
+    if (!user) return [];
+    const { data } = await supabase
+      .from('products')
+      .select('product_url, specs')
+      .eq('user_id', user.id)
+      .eq('store_domain', domain);
+    return (data ?? [])
+      .filter((p) => !p.specs || Object.keys(p.specs as object).length === 0)
+      .map((p) => ({ url: p.product_url }));
+  } catch { return []; }
+}
+
+// Saves specs (extracted by content script) for a product URL the user didn't visit directly
+async function handleUpdateSpecsForUrl(url: string, specs: Record<string, string>) {
+  try {
+    const stored = await chrome.storage.local.get(SESSION_KEY);
+    if (!stored[SESSION_KEY]) return;
+    const user = await getUser();
+    if (!user) return;
+    const normalized = normalizeSpecs(specs);
+    if (!Object.keys(normalized).length) return;
+    await supabase.from('products')
+      .update({ specs: normalized, last_checked_at: new Date().toISOString() })
+      .eq('user_id', user.id)
+      .eq('product_url', url);
+  } catch { /* silent */ }
 }

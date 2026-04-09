@@ -19653,6 +19653,329 @@ function shouldShowDeprecationWarning() {
 }
 if (shouldShowDeprecationWarning()) console.warn("\u26A0\uFE0F  Node.js 18 and below are deprecated and will no longer be supported in future versions of @supabase/supabase-js. Please upgrade to Node.js 20 or later. For more information, visit: https://github.com/orgs/supabase/discussions/37217");
 
+// src/normalize-specs.ts
+var KEY_MAP = {
+  // Brand
+  "brand": "Brand",
+  "marca": "Brand",
+  "marque": "Brand",
+  "marke": "Brand",
+  "merk": "Brand",
+  "brand name": "Brand",
+  // Color
+  "color": "Color",
+  "colour": "Color",
+  "couleur": "Color",
+  "farbe": "Color",
+  "kleur": "Color",
+  "colore": "Color",
+  "color name": "Color",
+  "colour name": "Color",
+  // Material (outer/main fabric)
+  "material": "Material",
+  "materials": "Material",
+  "matiere": "Material",
+  "materiaal": "Material",
+  "materiale": "Material",
+  "fabric type": "Material",
+  "fabric": "Material",
+  "outer": "Material",
+  "outer shell": "Material",
+  "shell": "Material",
+  "outer material": "Material",
+  "upper": "Material",
+  "upper material": "Material",
+  // Composition (fiber breakdown, often percentage-based)
+  "composition": "Composition",
+  "composicion": "Composition",
+  "zusammensetzung": "Composition",
+  "samenstelling": "Composition",
+  "composizione": "Composition",
+  "fiber content": "Composition",
+  "content": "Composition",
+  // Size
+  "size": "Size",
+  "taille": "Size",
+  "grosse": "Size",
+  "maat": "Size",
+  "taglia": "Size",
+  "size type": "Size",
+  "fit type": "Size",
+  // Fit / Cut
+  "fit": "Fit",
+  "coupe": "Fit",
+  "schnitt": "Fit",
+  "snit": "Fit",
+  "taglio": "Fit",
+  // Sole (shoes)
+  "sole": "Sole",
+  "semelle": "Sole",
+  "sohle": "Sole",
+  "zool": "Sole",
+  "suola": "Sole",
+  "sole material": "Sole",
+  "outsole": "Sole",
+  // Lining
+  "lining": "Lining",
+  "doublure": "Lining",
+  "futter": "Lining",
+  "voering": "Lining",
+  // Weight
+  "weight": "Weight",
+  "poids": "Weight",
+  "gewicht": "Weight",
+  "gewigt": "Weight",
+  "peso": "Weight",
+  // Volume / Size for beauty
+  "volume": "Volume",
+  "net weight": "Volume",
+  "net content": "Volume",
+  // Care instructions
+  "care": "Care",
+  "care instructions": "Care",
+  "pflegehinweise": "Care",
+  "onderhoud": "Care",
+  "washing instructions": "Care",
+  "lavage": "Care",
+  // Country of origin
+  "country of origin": "Country of Origin",
+  "made in": "Country of Origin",
+  "hergestellt in": "Country of Origin",
+  "fabricado en": "Country of Origin",
+  "pays d'origine": "Country of Origin",
+  "land van herkomst": "Country of Origin",
+  // Season / Collection
+  "season": "Season",
+  "collection": "Collection",
+  "saison": "Season",
+  "temporada": "Season",
+  // Type / Category
+  "type": "Type",
+  "product type": "Type",
+  "style": "Style",
+  "style name": "Style",
+  // Gender
+  "gender": "Gender",
+  "department": "Gender",
+  // Pattern
+  "pattern": "Pattern",
+  "motif": "Pattern",
+  "muster": "Pattern",
+  // Closure
+  "closure": "Closure",
+  "fastening": "Closure",
+  "fermeture": "Closure",
+  // Neckline
+  "neckline": "Neckline",
+  "collar": "Neckline",
+  "encolure": "Neckline",
+  // Sleeve
+  "sleeve": "Sleeve",
+  "sleeve length": "Sleeve",
+  "manche": "Sleeve",
+  // Length
+  "length": "Length",
+  "longueur": "Length",
+  "lange": "Length",
+  // Fragrance / Scent
+  "scent": "Scent",
+  "fragrance": "Scent",
+  "parfum": "Scent",
+  "fragrance family": "Scent"
+};
+var KEY_SUBSTRING_MAP = [
+  ["composic", "Composition"],
+  ["zusammensetz", "Composition"],
+  ["samenstell", "Composition"],
+  ["material", "Material"],
+  ["fabric", "Material"],
+  ["fibre", "Material"],
+  ["fiber", "Material"],
+  ["colour", "Color"],
+  ["color", "Color"],
+  ["farbe", "Color"],
+  ["kleur", "Color"],
+  ["composition", "Composition"],
+  ["lining", "Lining"],
+  ["country of origin", "Country of Origin"],
+  ["made in", "Country of Origin"],
+  ["care", "Care"],
+  ["washing", "Care"],
+  ["lavage", "Care"],
+  ["sole", "Sole"],
+  ["brand", "Brand"],
+  ["weight", "Weight"],
+  ["volume", "Volume"],
+  ["season", "Season"],
+  ["closure", "Closure"],
+  ["neckline", "Neckline"],
+  ["sleeve", "Sleeve"],
+  ["pattern", "Pattern"],
+  ["gender", "Gender"]
+];
+function toTitleCase(str) {
+  return str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase());
+}
+function normalizeKey(raw) {
+  const lower = raw.toLowerCase().trim();
+  if (KEY_MAP[lower]) return KEY_MAP[lower];
+  for (const [pattern, canonical] of KEY_SUBSTRING_MAP) {
+    if (lower.includes(pattern)) return canonical;
+  }
+  return toTitleCase(raw.trim());
+}
+var VALUE_MAP = {
+  // Materials - ES
+  "algodon": "Cotton",
+  "algod\xF3n": "Cotton",
+  "poliester": "Polyester",
+  "poli\xE9ster": "Polyester",
+  "cuero": "Leather",
+  "lana": "Wool",
+  "seda": "Silk",
+  "nailon": "Nylon",
+  "lino": "Linen",
+  "viscosa": "Viscose",
+  "elastano": "Elastane",
+  "acrilico": "Acrylic",
+  "acr\xEDlico": "Acrylic",
+  "poliamida": "Polyamide",
+  "ante": "Suede",
+  "terciopelo": "Velvet",
+  "denim": "Denim",
+  "goma": "Rubber",
+  "caucho": "Rubber",
+  "plastico": "Plastic",
+  "pl\xE1stico": "Plastic",
+  "sintetico": "Synthetic",
+  "sint\xE9tico": "Synthetic",
+  // Materials - FR
+  "coton": "Cotton",
+  "polyester": "Polyester",
+  "cuir": "Leather",
+  "laine": "Wool",
+  "soie": "Silk",
+  "nylon": "Nylon",
+  "lin": "Linen",
+  "viscose": "Viscose",
+  "\xE9lasthanne": "Elastane",
+  "elasthanne": "Elastane",
+  "acrylique": "Acrylic",
+  "polyamide": "Polyamide",
+  "daim": "Suede",
+  "velours": "Velvet",
+  "caoutchouc": "Rubber",
+  "synth\xE9tique": "Synthetic",
+  "synthetique": "Synthetic",
+  // Materials - DE
+  "baumwolle": "Cotton",
+  "wolle": "Wool",
+  "seide": "Silk",
+  "leinen": "Linen",
+  "leder": "Leather",
+  "wildleder": "Suede",
+  "samt": "Velvet",
+  "gummi": "Rubber",
+  "kunststoff": "Plastic",
+  "synthetik": "Synthetic",
+  "kunstfaser": "Synthetic",
+  // Materials - NL
+  "katoen": "Cotton",
+  "wol": "Wool",
+  "zijde": "Silk",
+  "linnen": "Linen",
+  "leer": "Leather",
+  "suede": "Suede",
+  "fluweel": "Velvet",
+  "rubber": "Rubber",
+  // Materials - IT (lana/lino already in ES)
+  "cotone": "Cotton",
+  "poliestere": "Polyester",
+  "pelle": "Leather",
+  "seta": "Silk",
+  "gomma": "Rubber",
+  // Colors - ES
+  "rojo": "Red",
+  "azul": "Blue",
+  "verde": "Green",
+  "amarillo": "Yellow",
+  "negro": "Black",
+  "blanco": "White",
+  "gris": "Grey",
+  "naranja": "Orange",
+  "rosa": "Pink",
+  "morado": "Purple",
+  "violeta": "Purple",
+  "marron": "Brown",
+  "marr\xF3n": "Brown",
+  "beige": "Beige",
+  "crema": "Cream",
+  "dorado": "Gold",
+  "plateado": "Silver",
+  "marino": "Navy",
+  "burdeos": "Burgundy",
+  // Colors - FR (gris/marron already in ES)
+  "rouge": "Red",
+  "bleu": "Blue",
+  "vert": "Green",
+  "jaune": "Yellow",
+  "noir": "Black",
+  "blanc": "White",
+  "orange": "Orange",
+  "rose": "Pink",
+  "violet": "Purple",
+  "or": "Gold",
+  "argent": "Silver",
+  "marine": "Navy",
+  "bordeaux": "Burgundy",
+  // Colors - DE (orange/rosa/marine already in FR/ES)
+  "rot": "Red",
+  "blau": "Blue",
+  "grun": "Green",
+  "gr\xFCn": "Green",
+  "gelb": "Yellow",
+  "schwarz": "Black",
+  "weiss": "White",
+  "wei\xDF": "White",
+  "grau": "Grey",
+  "lila": "Purple",
+  "braun": "Brown",
+  "gold": "Gold",
+  "silber": "Silver",
+  // Colors - NL
+  "rood": "Red",
+  "blauw": "Blue",
+  "groen": "Green",
+  "geel": "Yellow",
+  "zwart": "Black",
+  "wit": "White",
+  "grijs": "Grey",
+  "roze": "Pink",
+  "paars": "Purple",
+  "bruin": "Brown",
+  "goud": "Gold",
+  "zilver": "Silver"
+};
+function normalizeValue(value, key) {
+  const isTranslateable = ["Material", "Composition", "Color", "Sole", "Lining", "Upper"].includes(key);
+  if (!isTranslateable) return value;
+  return value.replace(/[a-záéíóúàèìòùâêîôûäëïöüñ]+/gi, (word) => {
+    const lower = word.toLowerCase();
+    return VALUE_MAP[lower] ?? word;
+  });
+}
+function normalizeSpecs(raw) {
+  const result = {};
+  for (const [rawKey, rawValue] of Object.entries(raw)) {
+    const trimmedValue = rawValue.trim();
+    if (!trimmedValue) continue;
+    const canonicalKey = normalizeKey(rawKey);
+    const canonicalValue = normalizeValue(trimmedValue, canonicalKey);
+    result[canonicalKey] = canonicalValue;
+  }
+  return result;
+}
+
 // src/background.ts
 var SUPABASE_URL = "https://czrvohnvncavpoulivtt.supabase.co";
 var SUPABASE_ANON_KEY = "sb_publishable_ArmBmKscGkvt6_j2P_tI2Q_huwe9gqD";
@@ -19744,6 +20067,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     handleUpdatePriceIfSaved(message.url, message.price, message.currency, message.specs);
     return false;
   }
+  if (type === "GET_PRODUCTS_BY_DOMAIN") {
+    handleGetProductsByDomain(message.domain).then(sendResponse);
+    return true;
+  }
+  if (type === "UPDATE_SPECS_FOR_URL") {
+    handleUpdateSpecsForUrl(message.url, message.specs);
+    return false;
+  }
 });
 async function handleUpdatePriceIfSaved(url, price, currency, specs) {
   try {
@@ -19785,4 +20116,28 @@ async function handleSaveProduct(product) {
   });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
+}
+async function handleGetProductsByDomain(domain) {
+  try {
+    const stored = await chrome.storage.local.get(SESSION_KEY);
+    if (!stored[SESSION_KEY]) return [];
+    const user = await getUser();
+    if (!user) return [];
+    const { data } = await supabase.from("products").select("product_url, specs").eq("user_id", user.id).eq("store_domain", domain);
+    return (data ?? []).filter((p) => !p.specs || Object.keys(p.specs).length === 0).map((p) => ({ url: p.product_url }));
+  } catch {
+    return [];
+  }
+}
+async function handleUpdateSpecsForUrl(url, specs) {
+  try {
+    const stored = await chrome.storage.local.get(SESSION_KEY);
+    if (!stored[SESSION_KEY]) return;
+    const user = await getUser();
+    if (!user) return;
+    const normalized = normalizeSpecs(specs);
+    if (!Object.keys(normalized).length) return;
+    await supabase.from("products").update({ specs: normalized, last_checked_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("user_id", user.id).eq("product_url", url);
+  } catch {
+  }
 }

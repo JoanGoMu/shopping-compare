@@ -152,6 +152,74 @@ function tryUpdateSavedPrice() {
   } catch { /* silent */ }
 }
 
+// Extracts JSON-LD specs from raw HTML text using DOMParser (no DOM access needed)
+function extractSpecsFromHtml(html: string): Record<string, string> {
+  const specs: Record<string, string> = {};
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll<HTMLScriptElement>('script[type="application/ld+json"]').forEach((script) => {
+      try {
+        const data = JSON.parse(script.textContent ?? '');
+        const rawItems = Array.isArray(data) ? data : [data];
+        const items: any[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
+        for (const raw of rawItems) {
+          if (raw?.['@graph'] && Array.isArray(raw['@graph'])) items.push(...raw['@graph']);
+          else items.push(raw);
+        }
+        for (const item of items) {
+          const type = item?.['@type'];
+          if (!type) continue;
+          const isProduct = type === 'Product' || (Array.isArray(type) && type.includes('Product'));
+          const isGroup = type === 'ProductGroup';
+          if (!isProduct && !isGroup) continue;
+          // additionalProperty at group and/or variant level
+          const nodes = [item, ...(isGroup && Array.isArray(item.hasVariant) ? [item.hasVariant[0]] : [])];
+          for (const node of nodes) {
+            if (!node) continue;
+            if (Array.isArray(node.additionalProperty)) {
+              for (const p of node.additionalProperty) {
+                if (typeof p.name === 'string' && typeof p.value === 'string') specs[p.name] = p.value;
+              }
+            }
+            for (const field of ['material', 'color', 'size'] as const) {
+              if (typeof node[field] === 'string' && node[field]) specs[field] = node[field];
+            }
+            const brand = node.brand;
+            if (typeof brand === 'string' && brand) specs['brand'] = brand;
+            else if (typeof brand?.name === 'string' && brand.name) specs['brand'] = brand.name;
+          }
+        }
+      } catch { /* skip malformed */ }
+    });
+  } catch { /* silent */ }
+  return specs;
+}
+
+// After visiting one page, silently fetch & update other saved products from the same store
+async function tryUpdateRelatedProducts() {
+  if (!chrome.runtime?.id) return;
+  if (isOwnApp()) return;
+  try {
+    const domain = window.location.hostname.replace('www.', '');
+    chrome.runtime.sendMessage({ type: 'GET_PRODUCTS_BY_DOMAIN', domain }, async (products: { url: string }[]) => {
+      if (!products?.length) return;
+      for (const { url } of products.slice(0, 5)) {
+        try {
+          const res = await fetch(url, { credentials: 'include' });
+          if (!res.ok) continue;
+          const html = await res.text();
+          const specs = extractSpecsFromHtml(html);
+          if (Object.keys(specs).length > 0) {
+            chrome.runtime.sendMessage({ type: 'UPDATE_SPECS_FOR_URL', url, specs });
+          }
+        } catch { /* silent */ }
+        // Small pause between requests to avoid hammering the store
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    });
+  } catch { /* silent */ }
+}
+
 function initWithRetry() {
   init();
   // Staggered retries for SPAs that inject JSON-LD/prices via JavaScript.
@@ -162,6 +230,8 @@ function initWithRetry() {
       tryUpdateSavedPrice();
     }, delay);
   }
+  // After the page has settled, also silently refresh other products from the same store
+  window.setTimeout(() => tryUpdateRelatedProducts(), 10000);
 }
 
 // Auto sign-in: listen for session tokens posted from the web app (runs on all pages)
