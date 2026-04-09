@@ -33,6 +33,8 @@ export default async function ComparePage({ searchParams }: Props) {
   }
 
   let products = null;
+  let existingShareSlug: string | undefined;
+
   if (productIds.length >= 2) {
     const { data } = await supabase
       .from('products')
@@ -40,6 +42,16 @@ export default async function ComparePage({ searchParams }: Props) {
       .in('id', productIds)
       .eq('user_id', user!.id);
     products = data;
+  }
+
+  if (groupId) {
+    const { data: share } = await supabase
+      .from('shared_comparisons')
+      .select('slug')
+      .eq('group_id', groupId)
+      .eq('user_id', user!.id)
+      .maybeSingle();
+    existingShareSlug = share?.slug ?? undefined;
   }
 
   return (
@@ -59,7 +71,7 @@ export default async function ComparePage({ searchParams }: Props) {
       {/* Main comparison */}
       <div className="flex-1 min-w-0">
         {products && products.length >= 2 ? (
-          <CompareTable products={products} groupId={groupId} />
+          <CompareTable products={products} groupId={groupId} existingShareSlug={existingShareSlug} />
         ) : (
           <div className="text-center py-20 bg-white rounded-2xl border border-gray-200 border-dashed">
             <div className="text-5xl mb-4">⚖️</div>

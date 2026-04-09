@@ -88,8 +88,65 @@ export default function ProductGrid({ products: initialProducts, groups }: Props
 
   return (
     <div>
+      {/* Sticky bulk action bar - appears when items are selected */}
+      {selectedIds.size >= 1 && (
+        <div className="sticky top-14 z-30 -mx-6 px-6 py-3 bg-surface border-b border-warm-border flex flex-wrap items-center gap-3">
+          <span className="text-xs text-muted">{selectedIds.size} selected</span>
+          {selectedIds.size >= 2 && (
+            <Link
+              href={`/compare?ids=${Array.from(selectedIds).join(',')}`}
+              className="bg-terra text-white px-4 py-2 text-xs tracking-widest uppercase hover:bg-terra-dark transition-colors"
+            >
+              Compare
+            </Link>
+          )}
+          <button
+            onClick={() => setAddingToGroup(true)}
+            className="border border-warm-border text-ink px-4 py-2 text-xs tracking-widest uppercase hover:border-muted transition-colors"
+          >
+            {selectedIds.size >= 2 ? 'Save group' : 'Add to group'}
+          </button>
+          <button
+            onClick={() => handleBulkAlerts(true)}
+            title="Enable price alerts for selected"
+            className={`border px-3 py-2 text-xs tracking-widest uppercase transition-all duration-200 flex items-center gap-1.5 ${bulkAlertFeedback === 'on' ? 'bg-terra border-terra text-white scale-105' : 'border-warm-border text-terra hover:border-muted'}`}
+          >
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+            Alerts on
+          </button>
+          <button
+            onClick={() => handleBulkAlerts(false)}
+            title="Disable price alerts for selected"
+            className={`border px-3 py-2 text-xs tracking-widest uppercase transition-all duration-200 flex items-center gap-1.5 ${bulkAlertFeedback === 'off' ? 'bg-ink border-ink text-white scale-105' : 'border-warm-border text-muted hover:border-muted'}`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+            Alerts off
+          </button>
+          {confirmBulkDelete ? (
+            <>
+              <span className="text-xs text-red-500">Delete {selectedIds.size} items?</span>
+              <button onClick={handleBulkDelete} disabled={deleting} className="bg-red-500 text-white px-3 py-2 text-xs tracking-widest uppercase hover:bg-red-600 disabled:opacity-50">
+                {deleting ? 'Deleting...' : 'Yes, delete'}
+              </button>
+              <button onClick={() => setConfirmBulkDelete(false)} className="text-xs text-muted hover:text-ink">Cancel</button>
+            </>
+          ) : (
+            <button
+              onClick={handleBulkDelete}
+              disabled={deleting}
+              className="border border-red-200 text-red-500 px-4 py-2 text-xs tracking-widest uppercase hover:bg-red-50 transition-colors disabled:opacity-50"
+            >
+              Delete
+            </button>
+          )}
+          <button onClick={() => { setSelectedIds(new Set()); setConfirmBulkDelete(false); }} className="text-xs text-muted hover:text-ink ml-auto">
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Toolbar */}
-      <div className="flex flex-wrap gap-3 items-center mb-6 pb-5 border-b border-warm-border">
+      <div className="flex flex-wrap gap-3 items-center mb-6 pb-5 border-b border-warm-border mt-4">
         <input
           type="text"
           placeholder="Search your collection..."
@@ -135,60 +192,6 @@ export default function ProductGrid({ products: initialProducts, groups }: Props
             {selectedIds.size === filtered.length && filtered.length > 0 ? 'Deselect all' : 'Select all'}
           </button>
         </div>
-
-        {selectedIds.size >= 1 && (
-          <div className="flex items-center gap-3 ml-auto">
-            <span className="text-xs text-muted">{selectedIds.size} selected</span>
-            {selectedIds.size >= 2 && (
-              <Link
-                href={`/compare?ids=${Array.from(selectedIds).join(',')}`}
-                className="bg-terra text-white px-4 py-2 text-xs tracking-widest uppercase hover:bg-terra-dark transition-colors"
-              >
-                Compare
-              </Link>
-            )}
-            <button
-              onClick={() => setAddingToGroup(true)}
-              className="border border-warm-border text-ink px-4 py-2 text-xs tracking-widest uppercase hover:border-muted transition-colors"
-            >
-              {selectedIds.size >= 2 ? 'Save group' : 'Add to group'}
-            </button>
-            <button
-              onClick={() => handleBulkAlerts(true)}
-              title="Enable price alerts for selected"
-              className={`border px-3 py-2 text-xs tracking-widest uppercase transition-all duration-200 flex items-center gap-1.5 ${bulkAlertFeedback === 'on' ? 'bg-terra border-terra text-white scale-105' : 'border-warm-border text-terra hover:border-muted'}`}
-            >
-              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-              On
-            </button>
-            <button
-              onClick={() => handleBulkAlerts(false)}
-              title="Disable price alerts for selected"
-              className={`border px-3 py-2 text-xs tracking-widest uppercase transition-all duration-200 flex items-center gap-1.5 ${bulkAlertFeedback === 'off' ? 'bg-ink border-ink text-white scale-105' : 'border-warm-border text-muted hover:border-muted'}`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.75} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-              Off
-            </button>
-            {confirmBulkDelete ? (
-              <>
-                <span className="text-xs text-red-500">Delete {selectedIds.size} items?</span>
-                <button onClick={handleBulkDelete} disabled={deleting} className="bg-red-500 text-white px-3 py-2 text-xs tracking-widest uppercase hover:bg-red-600 disabled:opacity-50">
-                  {deleting ? 'Deleting...' : 'Yes, delete'}
-                </button>
-                <button onClick={() => setConfirmBulkDelete(false)} className="text-xs text-muted hover:text-ink">Cancel</button>
-              </>
-            ) : (
-              <button
-                onClick={handleBulkDelete}
-                disabled={deleting}
-                className="border border-red-200 text-red-500 px-4 py-2 text-xs tracking-widest uppercase hover:bg-red-50 transition-colors disabled:opacity-50"
-              >
-                Delete
-              </button>
-            )}
-            {!confirmBulkDelete && <button onClick={() => setSelectedIds(new Set())} className="text-xs text-muted hover:text-ink">Clear</button>}
-          </div>
-        )}
       </div>
 
       {filtered.length === 0 ? (

@@ -93,6 +93,42 @@ export interface Database {
         Update: { user_id?: string; price_alerts?: boolean; created_at?: string };
         Relationships: [];
       };
+      shared_comparisons: {
+        Row: {
+          id: string;
+          slug: string;
+          user_id: string;
+          group_id: string | null;
+          title: string;
+          products: Json;
+          created_at: string;
+          updated_at: string;
+          view_count: number;
+        };
+        Insert: {
+          id?: string;
+          slug: string;
+          user_id: string;
+          group_id?: string | null;
+          title: string;
+          products: Json;
+          created_at?: string;
+          updated_at?: string;
+          view_count?: number;
+        };
+        Update: {
+          id?: string;
+          slug?: string;
+          user_id?: string;
+          group_id?: string | null;
+          title?: string;
+          products?: Json;
+          created_at?: string;
+          updated_at?: string;
+          view_count?: number;
+        };
+        Relationships: [];
+      };
       comparison_items: {
         Row: {
           id: string;
@@ -131,4 +167,21 @@ export type ComparisonItem = Database['public']['Tables']['comparison_items']['R
 export type ProductWithGroup = Product & {
   group_id?: string;
   group_name?: string;
+};
+
+export type SharedProduct = {
+  name: string;
+  price: number | null;
+  currency: string;
+  image_url: string | null;
+  images: string[];
+  product_url: string;
+  store_name: string;
+  store_domain: string;
+  specs: Json;
+  previous_price: number | null;
+};
+
+export type SharedComparison = Omit<Database['public']['Tables']['shared_comparisons']['Row'], 'products'> & {
+  products: SharedProduct[];
 };

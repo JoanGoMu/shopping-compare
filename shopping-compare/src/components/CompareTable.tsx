@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { Product } from '@/lib/supabase/types';
+import { shareComparison, unshareComparison } from '@/app/compare/actions';
 
-interface Props { products: Product[]; groupId?: string; }
+interface Props { products: Product[]; groupId?: string; existingShareSlug?: string; }
 
 function formatPrice(price: number | null, currency: string) {
   if (price == null) return null;
@@ -18,12 +19,38 @@ function lowestPrice(products: Product[]): number | null {
   return prices.length ? Math.min(...prices) : null;
 }
 
-export default function CompareTable({ products: initialProducts, groupId }: Props) {
+export default function CompareTable({ products: initialProducts, groupId, existingShareSlug }: Props) {
   const supabase = createClient();
   const [products, setProducts] = useState(initialProducts);
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [imgIndexes, setImgIndexes] = useState<Record<string, number>>({});
+  const [shareSlug, setShareSlug] = useState(existingShareSlug ?? null);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const shareUrl = shareSlug ? `${typeof window !== 'undefined' ? window.location.origin : ''}/c/${shareSlug}` : null;
+
+  async function handleShare() {
+    if (!groupId) return;
+    setShareLoading(true);
+    const result = await shareComparison(groupId);
+    setShareLoading(false);
+    if ('slug' in result) setShareSlug(result.slug);
+  }
+
+  async function handleUnshare() {
+    if (!shareSlug) return;
+    await unshareComparison(shareSlug);
+    setShareSlug(null);
+  }
+
+  async function handleCopy() {
+    if (!shareUrl) return;
+    await navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   function getImgIndex(id: string) { return imgIndexes[id] ?? 0; }
   function setImgIndex(id: string, i: number) { setImgIndexes((prev) => ({ ...prev, [id]: i })); }
@@ -47,7 +74,7 @@ export default function CompareTable({ products: initialProducts, groupId }: Pro
 
   return (
     <div>
-      {/* Price filter */}
+      {/* Price filter + Share */}
       <div className="flex flex-wrap gap-3 items-center mb-6 pb-5 border-b border-warm-border">
         <span className="text-xs tracking-widest uppercase text-muted">Filter by price</span>
         <div className="flex items-center gap-2">
@@ -65,7 +92,38 @@ export default function CompareTable({ products: initialProducts, groupId }: Pro
           <button onClick={() => { setMinPrice(''); setMaxPrice(''); }} className="text-xs text-muted hover:text-ink">Clear</button>
         )}
         <span className="text-xs text-muted ml-auto">{filtered.length} of {products.length} shown</span>
+
+        {/* Share controls - only available for saved groups */}
+        {groupId && (
+          <div className="flex items-center gap-2 border-l border-warm-border pl-3">
+            {shareSlug ? (
+              <>
+                <button onClick={handleCopy} className="text-xs text-terra hover:underline">
+                  {copied ? 'Copied!' : 'Copy link'}
+                </button>
+                <button onClick={handleUnshare} className="text-xs text-muted hover:text-red-500">Unshare</button>
+              </>
+            ) : (
+              <button
+                onClick={handleShare}
+                disabled={shareLoading}
+                className="text-xs tracking-widest uppercase bg-terra text-white px-3 py-1.5 hover:bg-terra-dark transition-colors disabled:opacity-50"
+              >
+                {shareLoading ? 'Sharing...' : 'Share'}
+              </button>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Shared URL banner */}
+      {shareUrl && (
+        <div className="mb-5 flex items-center gap-3 bg-surface border border-warm-border px-4 py-3 text-sm">
+          <span className="text-muted text-xs uppercase tracking-widest">Public link</span>
+          <a href={shareUrl} target="_blank" rel="noopener noreferrer" className="text-terra hover:underline text-xs truncate flex-1">{shareUrl}</a>
+          <button onClick={handleCopy} className="text-xs text-muted hover:text-ink shrink-0">{copied ? 'Copied!' : 'Copy'}</button>
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <p className="text-sm text-muted text-center py-16">No products match the price filter.</p>
