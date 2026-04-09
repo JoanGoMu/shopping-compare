@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
 
   const { data: products, error } = await supabase
     .from('products')
-    .select('id, user_id, product_url, price, currency, name, store_name, price_alerts')
+    .select('id, user_id, product_url, price, currency, name, store_name, price_alerts, specs')
     .not('product_url', 'is', null)
     .not('price', 'is', null)
     .order('last_checked_at', { ascending: true, nullsFirst: true })
@@ -121,8 +121,14 @@ export async function GET(request: NextRequest) {
       const html = await res.text();
       const extracted = extractProductFromHtml(html, product.product_url);
 
+      // Backfill specs if product currently has none
+      const currentSpecs = product.specs as Record<string, string> | null;
+      const hasNoSpecs = !currentSpecs || Object.keys(currentSpecs).length === 0;
+      const newSpecsHaveData = Object.keys(extracted.specs ?? {}).length > 0;
+      const specsUpdate = hasNoSpecs && newSpecsHaveData ? { specs: extracted.specs } : {};
+
       if (extracted.price == null || extracted.currency !== product.currency) {
-        await supabase.from('products').update({ last_checked_at: now }).eq('id', product.id);
+        await supabase.from('products').update({ last_checked_at: now, ...specsUpdate }).eq('id', product.id);
         return;
       }
 
@@ -133,25 +139,26 @@ export async function GET(request: NextRequest) {
           price_updated_at: now,
           last_checked_at: now,
           price_check_failed: false,
+          ...specsUpdate,
         }).eq('id', product.id);
         changed++;
         changedProductIds.add(product.id);
 
         // Collect for email notification (only if per-product alerts enabled)
         if (product.price_alerts !== false) {
-        const userChanges = changesByUser.get(product.user_id) ?? [];
-        userChanges.push({
-          name: product.name,
-          store_name: product.store_name,
-          product_url: product.product_url,
-          old_price: product.price as number,
-          new_price: extracted.price,
-          currency: product.currency,
-        });
-        changesByUser.set(product.user_id, userChanges);
+          const userChanges = changesByUser.get(product.user_id) ?? [];
+          userChanges.push({
+            name: product.name,
+            store_name: product.store_name,
+            product_url: product.product_url,
+            old_price: product.price as number,
+            new_price: extracted.price,
+            currency: product.currency,
+          });
+          changesByUser.set(product.user_id, userChanges);
         }
       } else {
-        await supabase.from('products').update({ last_checked_at: now, price_check_failed: false }).eq('id', product.id);
+        await supabase.from('products').update({ last_checked_at: now, price_check_failed: false, ...specsUpdate }).eq('id', product.id);
       }
     } catch {
       failed++;
@@ -234,6 +241,37 @@ export async function GET(request: NextRequest) {
         .update({ products: snapshot, updated_at: new Date().toISOString() })
         .eq('slug', share.slug);
     }
+  }
+
+  // Specs-only backfill: products with no price (skipped above) that have no specs yet
+  const { data: nopriceProducts } = await supabase
+    .from('products')
+    .select('id, product_url, specs')
+    .not('product_url', 'is', null)
+    .is('price', null)
+    .order('last_checked_at', { ascending: true, nullsFirst: true })
+    .limit(5);
+
+  if (nopriceProducts?.length) {
+    await processBatch(nopriceProducts, BATCH_SIZE, async (product) => {
+      const currentSpecs = product.specs as Record<string, string> | null;
+      if (currentSpecs && Object.keys(currentSpecs).length > 0) return; // already has specs
+      try {
+        const res = await fetch(product.product_url, {
+          headers: FETCH_HEADERS,
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        });
+        if (!res.ok) return;
+        const html = await res.text();
+        const extracted = extractProductFromHtml(html, product.product_url);
+        if (Object.keys(extracted.specs ?? {}).length > 0) {
+          await supabase.from('products').update({
+            specs: extracted.specs,
+            last_checked_at: new Date().toISOString(),
+          }).eq('id', product.id);
+        }
+      } catch { /* silent */ }
+    });
   }
 
   return NextResponse.json({ checked, changed, failed });

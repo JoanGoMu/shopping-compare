@@ -19741,22 +19741,25 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
   if (type === "UPDATE_PRICE_IF_SAVED") {
-    handleUpdatePriceIfSaved(message.url, message.price, message.currency);
+    handleUpdatePriceIfSaved(message.url, message.price, message.currency, message.specs);
     return false;
   }
 });
-async function handleUpdatePriceIfSaved(url, price, currency) {
+async function handleUpdatePriceIfSaved(url, price, currency, specs) {
   try {
     const stored = await chrome.storage.local.get(SESSION_KEY);
     if (!stored[SESSION_KEY]) return;
     const user = await getUser();
     if (!user) return;
-    const { data: existing } = await supabase.from("products").select("id, price, currency").eq("user_id", user.id).eq("product_url", url).maybeSingle();
+    const { data: existing } = await supabase.from("products").select("id, price, currency, specs").eq("user_id", user.id).eq("product_url", url).maybeSingle();
     if (!existing) return;
     if (existing.price !== null && existing.currency !== currency) return;
     const now = (/* @__PURE__ */ new Date()).toISOString();
+    const currentSpecs = existing.specs;
+    const hasNoSpecs = !currentSpecs || Object.keys(currentSpecs).length === 0;
+    const specsUpdate = hasNoSpecs && specs && Object.keys(specs).length > 0 ? { specs } : {};
     if (existing.price === price && existing.currency === currency) {
-      await supabase.from("products").update({ price_check_failed: false, last_checked_at: now }).eq("id", existing.id);
+      await supabase.from("products").update({ price_check_failed: false, last_checked_at: now, ...specsUpdate }).eq("id", existing.id);
       return;
     }
     await supabase.from("products").update({
@@ -19765,7 +19768,8 @@ async function handleUpdatePriceIfSaved(url, price, currency) {
       currency,
       price_updated_at: now,
       last_checked_at: now,
-      price_check_failed: false
+      price_check_failed: false,
+      ...specsUpdate
     }).eq("id", existing.id);
   } catch {
   }

@@ -141,12 +141,13 @@ function tryUpdateSavedPrice() {
   if (isOwnApp()) return;
   try {
     const product = extractProduct();
-    if (product.price == null) return;
+    if (product.price == null && Object.keys(product.specs ?? {}).length === 0) return;
     chrome.runtime.sendMessage({
       type: 'UPDATE_PRICE_IF_SAVED',
       url: product.product_url,
       price: product.price,
       currency: product.currency,
+      specs: product.specs,
     });
   } catch { /* silent */ }
 }

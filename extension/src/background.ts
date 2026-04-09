@@ -106,13 +106,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (type === 'UPDATE_PRICE_IF_SAVED') {
-    // Fire-and-forget: silently update price if this URL is already saved
-    handleUpdatePriceIfSaved(message.url, message.price, message.currency);
+    // Fire-and-forget: silently update price + specs if this URL is already saved
+    handleUpdatePriceIfSaved(message.url, message.price, message.currency, message.specs);
     return false;
   }
 });
 
-async function handleUpdatePriceIfSaved(url: string, price: number, currency: string) {
+async function handleUpdatePriceIfSaved(url: string, price: number, currency: string, specs?: Record<string, string>) {
   try {
     // Skip if no stored session to avoid GoTrue making fetch calls that log errors
     const stored = await chrome.storage.local.get(SESSION_KEY);
@@ -122,7 +122,7 @@ async function handleUpdatePriceIfSaved(url: string, price: number, currency: st
     if (!user) return;
 
     const { data: existing } = await supabase
-      .from('products').select('id, price, currency')
+      .from('products').select('id, price, currency, specs')
       .eq('user_id', user.id).eq('product_url', url).maybeSingle();
 
     if (!existing) return;
@@ -132,8 +132,13 @@ async function handleUpdatePriceIfSaved(url: string, price: number, currency: st
 
     const now = new Date().toISOString();
 
+    // Backfill specs if product has none and we extracted some
+    const currentSpecs = existing.specs as Record<string, string> | null;
+    const hasNoSpecs = !currentSpecs || Object.keys(currentSpecs).length === 0;
+    const specsUpdate = hasNoSpecs && specs && Object.keys(specs).length > 0 ? { specs } : {};
+
     if (existing.price === price && existing.currency === currency) {
-      await supabase.from('products').update({ price_check_failed: false, last_checked_at: now }).eq('id', existing.id);
+      await supabase.from('products').update({ price_check_failed: false, last_checked_at: now, ...specsUpdate }).eq('id', existing.id);
       return;
     }
 
@@ -144,6 +149,7 @@ async function handleUpdatePriceIfSaved(url: string, price: number, currency: st
       price_updated_at: now,
       last_checked_at: now,
       price_check_failed: false,
+      ...specsUpdate,
     }).eq('id', existing.id);
   } catch { /* silent - background price sync is best-effort */ }
 }
