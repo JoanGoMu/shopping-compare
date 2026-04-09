@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import type { ComparisonGroup } from '@/lib/supabase/types';
+import { shareComparison, unshareComparison } from '@/app/compare/actions';
 
 interface Props {
   groups: (ComparisonGroup & { comparison_items: { product_id: string }[] })[];
@@ -18,6 +19,8 @@ export default function GroupList({ groups: initialGroups, activeGroupId }: Prop
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
 
   function toggleCheck(e: React.MouseEvent, groupId: string) {
     e.preventDefault();
@@ -27,6 +30,7 @@ export default function GroupList({ groups: initialGroups, activeGroupId }: Prop
       next.has(groupId) ? next.delete(groupId) : next.add(groupId);
       return next;
     });
+    setConfirmBatchDelete(false);
   }
 
   function handleCompareSelected() {
@@ -34,6 +38,42 @@ export default function GroupList({ groups: initialGroups, activeGroupId }: Prop
       .flatMap((gId) => groups.find((g) => g.id === gId)?.comparison_items.map((i) => i.product_id) ?? []);
     const unique = [...new Set(ids)];
     router.push(`/compare?ids=${unique.join(',')}`);
+  }
+
+  async function handleBatchShare() {
+    setBatchLoading(true);
+    await Promise.all(Array.from(checkedIds).map((gId) => shareComparison(gId)));
+    setBatchLoading(false);
+    setCheckedIds(new Set());
+    router.refresh();
+  }
+
+  async function handleBatchUnshare() {
+    setBatchLoading(true);
+    // Find slugs for checked groups
+    const { data } = await supabase
+      .from('shared_comparisons')
+      .select('slug')
+      .in('group_id', Array.from(checkedIds));
+    await Promise.all((data ?? []).map((row) => unshareComparison(row.slug)));
+    setBatchLoading(false);
+    setCheckedIds(new Set());
+    router.refresh();
+  }
+
+  async function handleBatchDelete() {
+    if (!confirmBatchDelete) { setConfirmBatchDelete(true); return; }
+    setBatchLoading(true);
+    const ids = Array.from(checkedIds);
+    for (const gId of ids) {
+      await supabase.from('comparison_items').delete().eq('group_id', gId);
+      await supabase.from('comparison_groups').delete().eq('id', gId);
+    }
+    setGroups((prev) => prev.filter((g) => !checkedIds.has(g.id)));
+    setCheckedIds(new Set());
+    setConfirmBatchDelete(false);
+    setBatchLoading(false);
+    if (activeGroupId && checkedIds.has(activeGroupId)) router.push('/compare');
   }
 
   async function handleDeleteGroup(e: React.MouseEvent, groupId: string) {
@@ -105,20 +145,67 @@ export default function GroupList({ groups: initialGroups, activeGroupId }: Prop
         ))}
       </div>
 
-      {checkedIds.size >= 2 && (
-        <div className="mt-3 border-t border-warm-border pt-3">
-          <p className="text-xs text-muted mb-2">{checkedIds.size} groups selected</p>
+      {checkedIds.size >= 1 && (
+        <div className="mt-3 border-t border-warm-border pt-3 space-y-1">
+          <p className="text-xs text-muted mb-2">{checkedIds.size} selected</p>
+
+          {checkedIds.size >= 2 && (
+            <button
+              onClick={handleCompareSelected}
+              disabled={batchLoading}
+              className="w-full bg-terra text-white py-2 text-xs tracking-widest uppercase hover:bg-terra-dark transition-colors disabled:opacity-50"
+            >
+              Compare together
+            </button>
+          )}
+
           <button
-            onClick={handleCompareSelected}
-            className="w-full bg-terra text-white py-2 text-xs tracking-widest uppercase hover:bg-terra-dark transition-colors"
+            onClick={handleBatchShare}
+            disabled={batchLoading}
+            className="w-full border border-warm-border text-ink py-2 text-xs tracking-widest uppercase hover:border-muted transition-colors disabled:opacity-50"
           >
-            Compare together
+            {batchLoading ? 'Working...' : 'Share all'}
           </button>
+
           <button
-            onClick={() => setCheckedIds(new Set())}
-            className="w-full mt-1 text-xs text-muted hover:text-ink py-1"
+            onClick={handleBatchUnshare}
+            disabled={batchLoading}
+            className="w-full border border-warm-border text-muted py-2 text-xs tracking-widest uppercase hover:border-muted transition-colors disabled:opacity-50"
           >
-            Clear
+            {batchLoading ? 'Working...' : 'Unshare all'}
+          </button>
+
+          {confirmBatchDelete ? (
+            <div className="flex gap-1">
+              <button
+                onClick={handleBatchDelete}
+                disabled={batchLoading}
+                className="flex-1 bg-red-500 text-white py-2 text-xs tracking-widest uppercase hover:bg-red-600 disabled:opacity-50"
+              >
+                {batchLoading ? 'Deleting...' : 'Yes, delete'}
+              </button>
+              <button
+                onClick={() => setConfirmBatchDelete(false)}
+                className="flex-1 border border-warm-border text-muted py-2 text-xs tracking-widest uppercase hover:border-muted"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleBatchDelete}
+              disabled={batchLoading}
+              className="w-full border border-red-200 text-red-500 py-2 text-xs tracking-widest uppercase hover:bg-red-50 transition-colors disabled:opacity-50"
+            >
+              Delete all
+            </button>
+          )}
+
+          <button
+            onClick={() => { setCheckedIds(new Set()); setConfirmBatchDelete(false); }}
+            className="w-full text-xs text-muted hover:text-ink py-1"
+          >
+            Clear selection
           </button>
         </div>
       )}

@@ -33,8 +33,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  const bypass = request.nextUrl.searchParams.get('bypass');
-  if ((isAuthPage || pathname === '/') && user && !bypass) {
+  if (isAuthPage && user) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
