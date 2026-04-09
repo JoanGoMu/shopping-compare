@@ -7,6 +7,8 @@
  * 4. Generic heuristics
  */
 
+import { normalizeSpecs } from './normalize-specs';
+
 export interface ExtractedProduct {
   name: string;
   price: number | null;
@@ -109,12 +111,46 @@ function extractFromJsonLd(): Partial<ExtractedProduct> | null {
           ? item.image.filter((i: unknown) => typeof i === 'string')
           : typeof item.image === 'string' ? [item.image] : [];
 
+        // Extract specs from Schema.org additionalProperty and direct fields
+        const rawSpecs: Record<string, string> = {};
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const extractAdditionalProps = (node: any) => {
+          if (!Array.isArray(node?.additionalProperty)) return;
+          for (const prop of node.additionalProperty) {
+            const name = typeof prop.name === 'string' ? prop.name : null;
+            const val = typeof prop.value === 'string' ? prop.value
+              : typeof prop.value === 'number' ? String(prop.value) : null;
+            if (name && val) rawSpecs[name] = val;
+          }
+        };
+
+        // additionalProperty may live at group level or variant level - check both
+        extractAdditionalProps(item);
+        if (source !== item) extractAdditionalProps(source);
+
+        // Direct Schema.org properties: material, color, size, brand
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tryStr = (v: any): string | null =>
+          typeof v === 'string' && v ? v
+          : typeof v === 'object' && v !== null ? (typeof v.value === 'string' ? v.value : typeof v.name === 'string' ? v.name : null)
+          : null;
+
+        for (const field of ['material', 'color', 'size'] as const) {
+          const v = tryStr(item[field] ?? source[field]);
+          if (v) rawSpecs[field] = v;
+        }
+
+        const brandStr = tryStr(item.brand ?? source.brand);
+        if (brandStr) rawSpecs['brand'] = brandStr;
+
         return {
           name: item.name ?? null,
           price,
           currency: offer?.priceCurrency ?? currency,
           image_url: images[0] ?? null,
           images,
+          specs: rawSpecs,
         };
       }
     } catch {
@@ -178,6 +214,16 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
     })(),
     currency: 'USD',
     image_url: document.querySelector<HTMLImageElement>('.ux-image-carousel img, #icImg')?.src ?? null,
+    specs: (() => {
+      const specs: Record<string, string> = {};
+      // Item Specifics section - label/value pairs
+      document.querySelectorAll<HTMLElement>('.ux-labels-values, .itemAttr').forEach((row) => {
+        const label = row.querySelector('.ux-labels-values__labels, .attrLabels')?.textContent?.trim().replace(/:$/, '');
+        const value = row.querySelector('.ux-labels-values__values, .attrValues')?.textContent?.trim();
+        if (label && value && label.length < 60) specs[label] = value;
+      });
+      return specs;
+    })(),
   }),
 
   'aliexpress.com': () => ({
@@ -188,6 +234,16 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
     })(),
     currency: 'USD',
     image_url: document.querySelector<HTMLImageElement>('.slider--img--K0YbWQO img')?.src ?? null,
+    specs: (() => {
+      const specs: Record<string, string> = {};
+      // Specification section - class names contain hash suffixes, use partial matches
+      document.querySelectorAll<HTMLElement>('[class*="specification--prop"], [class*="ProductProps"] [class*="item"]').forEach((prop) => {
+        const label = prop.querySelector<HTMLElement>('[class*="title"], [class*="label"]')?.textContent?.trim();
+        const value = prop.querySelector<HTMLElement>('[class*="value"], [class*="desc"]')?.textContent?.trim();
+        if (label && value && label.length < 60) specs[label] = value;
+      });
+      return specs;
+    })(),
   }),
 
   'etsy.com': () => ({
@@ -198,6 +254,18 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
     })(),
     currency: 'USD',
     image_url: document.querySelector<HTMLImageElement>('[data-carousel-first-image]')?.src ?? null,
+    specs: (() => {
+      const specs: Record<string, string> = {};
+      // Item Details section - "Key: Value" list items
+      document.querySelectorAll<HTMLElement>('[class*="product-details"] li, [class*="listing-page-overview"] li, [data-region="product_details"] li').forEach((li) => {
+        const text = li.textContent?.trim() ?? '';
+        const colonIdx = text.indexOf(':');
+        if (colonIdx > 0 && colonIdx < 60) {
+          specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+        }
+      });
+      return specs;
+    })(),
   }),
 
   'zalando.': () => ({
@@ -212,6 +280,18 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
       const first = srcset.split(',')[0]?.trim().split(' ')[0];
       return first || document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content || null;
     })(),
+    specs: (() => {
+      const specs: Record<string, string> = {};
+      // Details accordion - split "Key: Value" list items
+      document.querySelectorAll<HTMLElement>('[class*="Detail"] li, [data-testid*="detail"] li, [class*="details"] li').forEach((li) => {
+        const text = li.textContent?.trim() ?? '';
+        const colonIdx = text.indexOf(':');
+        if (colonIdx > 0 && colonIdx < 60) {
+          specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+        }
+      });
+      return specs;
+    })(),
   }),
 
   'zara.': () => ({
@@ -224,6 +304,21 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
     // og:image is always the product image on Zara - much more reliable than DOM selectors
     // which pick up campaign/editorial banners instead of the actual item photo.
     image_url: document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? null,
+    specs: (() => {
+      const specs: Record<string, string> = {};
+      // Composition/care text block
+      const compositionEl = document.querySelector<HTMLElement>('[class*="product-detail-extra-detail"], [class*="composition"]');
+      if (compositionEl?.textContent?.trim()) specs['Composition'] = compositionEl.textContent.trim();
+      // Additional detail list items (care, origin, etc.)
+      document.querySelectorAll<HTMLElement>('[class*="expandable-text"] li, [class*="product-detail-extra-detail"] li').forEach((li) => {
+        const text = li.textContent?.trim() ?? '';
+        const colonIdx = text.indexOf(':');
+        if (colonIdx > 0 && colonIdx < 60) {
+          specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+        }
+      });
+      return specs;
+    })(),
   }),
 
   'sephora.': () => ({
@@ -236,6 +331,18 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
     })(),
     currency: window.location.hostname.includes('.fr') ? 'EUR' : window.location.hostname.includes('.co.uk') ? 'GBP' : 'USD',
     image_url: document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? null,
+    specs: (() => {
+      const specs: Record<string, string> = {};
+      // Product details / About tabs - list items with key: value
+      document.querySelectorAll<HTMLElement>('[data-comp*="Detail"] li, [class*="product-details"] li, [class*="ProductDetails"] li').forEach((li) => {
+        const text = li.textContent?.trim() ?? '';
+        const colonIdx = text.indexOf(':');
+        if (colonIdx > 0 && colonIdx < 60) {
+          specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+        }
+      });
+      return specs;
+    })(),
   }),
 
   'thenorthface.': () => ({
@@ -259,6 +366,18 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
       if (img?.src && img.src.startsWith('http')) return img.src;
       return document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? null;
     })(),
+    specs: (() => {
+      const specs: Record<string, string> = {};
+      // Product details bullet list - "Material: 100% Polyester" format
+      document.querySelectorAll<HTMLElement>('[class*="product-details"] li, [class*="pdp-description"] li, [class*="description-content"] li').forEach((li) => {
+        const text = li.textContent?.trim() ?? '';
+        const colonIdx = text.indexOf(':');
+        if (colonIdx > 0 && colonIdx < 60) {
+          specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+        }
+      });
+      return specs;
+    })(),
   }),
 
   'asos.': () => ({
@@ -269,6 +388,18 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
     })(),
     currency: 'EUR',
     image_url: document.querySelector<HTMLImageElement>('[class*="product-photo"] img, #hero-image')?.src ?? null,
+    specs: (() => {
+      const specs: Record<string, string> = {};
+      // Product description list items - "Fabric: 100% Cotton" format
+      document.querySelectorAll<HTMLElement>('[class*="product-description"] li, [data-testid*="description"] li, [class*="ProductDescription"] li').forEach((li) => {
+        const text = li.textContent?.trim() ?? '';
+        const colonIdx = text.indexOf(':');
+        if (colonIdx > 0 && colonIdx < 60) {
+          specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+        }
+      });
+      return specs;
+    })(),
   }),
 
   'hm.': () => ({
@@ -279,6 +410,18 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
     })(),
     currency: 'EUR',
     image_url: document.querySelector<HTMLImageElement>('[class*="product-detail-main-image-container"] img')?.src ?? null,
+    specs: (() => {
+      const specs: Record<string, string> = {};
+      // Product description accordion - "Composition: 100% Cotton" list items
+      document.querySelectorAll<HTMLElement>('[class*="description-accordion"] [class*="description-item"], [class*="product-description"] li, [data-testid*="description"] li').forEach((el) => {
+        const text = el.textContent?.trim() ?? '';
+        const colonIdx = text.indexOf(':');
+        if (colonIdx > 0 && colonIdx < 60) {
+          specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+        }
+      });
+      return specs;
+    })(),
   }),
 };
 
@@ -379,7 +522,10 @@ export function extractProduct(): ExtractedProduct {
     product_url: productUrl,
     store_name: storeName,
     store_domain: domain,
-    specs: (storeData.specs as Record<string, string>) ?? {},
+    specs: normalizeSpecs({
+      ...(jsonLd.specs ?? {}),     // JSON-LD as base (generic, works on any site)
+      ...(storeData.specs ?? {}),  // Store-specific overrides (more precise)
+    }),
   };
 
   // Clean up name

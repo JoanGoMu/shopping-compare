@@ -1,5 +1,328 @@
 "use strict";
 (() => {
+  // src/normalize-specs.ts
+  var KEY_MAP = {
+    // Brand
+    "brand": "Brand",
+    "marca": "Brand",
+    "marque": "Brand",
+    "marke": "Brand",
+    "merk": "Brand",
+    "brand name": "Brand",
+    // Color
+    "color": "Color",
+    "colour": "Color",
+    "couleur": "Color",
+    "farbe": "Color",
+    "kleur": "Color",
+    "colore": "Color",
+    "color name": "Color",
+    "colour name": "Color",
+    // Material (outer/main fabric)
+    "material": "Material",
+    "materials": "Material",
+    "matiere": "Material",
+    "materiaal": "Material",
+    "materiale": "Material",
+    "fabric type": "Material",
+    "fabric": "Material",
+    "outer": "Material",
+    "outer shell": "Material",
+    "shell": "Material",
+    "outer material": "Material",
+    "upper": "Material",
+    "upper material": "Material",
+    // Composition (fiber breakdown, often percentage-based)
+    "composition": "Composition",
+    "composicion": "Composition",
+    "zusammensetzung": "Composition",
+    "samenstelling": "Composition",
+    "composizione": "Composition",
+    "fiber content": "Composition",
+    "content": "Composition",
+    // Size
+    "size": "Size",
+    "taille": "Size",
+    "grosse": "Size",
+    "maat": "Size",
+    "taglia": "Size",
+    "size type": "Size",
+    "fit type": "Size",
+    // Fit / Cut
+    "fit": "Fit",
+    "coupe": "Fit",
+    "schnitt": "Fit",
+    "snit": "Fit",
+    "taglio": "Fit",
+    // Sole (shoes)
+    "sole": "Sole",
+    "semelle": "Sole",
+    "sohle": "Sole",
+    "zool": "Sole",
+    "suola": "Sole",
+    "sole material": "Sole",
+    "outsole": "Sole",
+    // Lining
+    "lining": "Lining",
+    "doublure": "Lining",
+    "futter": "Lining",
+    "voering": "Lining",
+    // Weight
+    "weight": "Weight",
+    "poids": "Weight",
+    "gewicht": "Weight",
+    "gewigt": "Weight",
+    "peso": "Weight",
+    // Volume / Size for beauty
+    "volume": "Volume",
+    "net weight": "Volume",
+    "net content": "Volume",
+    // Care instructions
+    "care": "Care",
+    "care instructions": "Care",
+    "pflegehinweise": "Care",
+    "onderhoud": "Care",
+    "washing instructions": "Care",
+    "lavage": "Care",
+    // Country of origin
+    "country of origin": "Country of Origin",
+    "made in": "Country of Origin",
+    "hergestellt in": "Country of Origin",
+    "fabricado en": "Country of Origin",
+    "pays d'origine": "Country of Origin",
+    "land van herkomst": "Country of Origin",
+    // Season / Collection
+    "season": "Season",
+    "collection": "Collection",
+    "saison": "Season",
+    "temporada": "Season",
+    // Type / Category
+    "type": "Type",
+    "product type": "Type",
+    "style": "Style",
+    "style name": "Style",
+    // Gender
+    "gender": "Gender",
+    "department": "Gender",
+    // Pattern
+    "pattern": "Pattern",
+    "motif": "Pattern",
+    "muster": "Pattern",
+    // Closure
+    "closure": "Closure",
+    "fastening": "Closure",
+    "fermeture": "Closure",
+    // Neckline
+    "neckline": "Neckline",
+    "collar": "Neckline",
+    "encolure": "Neckline",
+    // Sleeve
+    "sleeve": "Sleeve",
+    "sleeve length": "Sleeve",
+    "manche": "Sleeve",
+    // Length
+    "length": "Length",
+    "longueur": "Length",
+    "lange": "Length",
+    // Fragrance / Scent
+    "scent": "Scent",
+    "fragrance": "Scent",
+    "parfum": "Scent",
+    "fragrance family": "Scent"
+  };
+  var KEY_SUBSTRING_MAP = [
+    ["composic", "Composition"],
+    ["zusammensetz", "Composition"],
+    ["samenstell", "Composition"],
+    ["material", "Material"],
+    ["fabric", "Material"],
+    ["fibre", "Material"],
+    ["fiber", "Material"],
+    ["colour", "Color"],
+    ["color", "Color"],
+    ["farbe", "Color"],
+    ["kleur", "Color"],
+    ["composition", "Composition"],
+    ["lining", "Lining"],
+    ["country of origin", "Country of Origin"],
+    ["made in", "Country of Origin"],
+    ["care", "Care"],
+    ["washing", "Care"],
+    ["lavage", "Care"],
+    ["sole", "Sole"],
+    ["brand", "Brand"],
+    ["weight", "Weight"],
+    ["volume", "Volume"],
+    ["season", "Season"],
+    ["closure", "Closure"],
+    ["neckline", "Neckline"],
+    ["sleeve", "Sleeve"],
+    ["pattern", "Pattern"],
+    ["gender", "Gender"]
+  ];
+  function toTitleCase(str) {
+    return str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase());
+  }
+  function normalizeKey(raw) {
+    const lower = raw.toLowerCase().trim();
+    if (KEY_MAP[lower]) return KEY_MAP[lower];
+    for (const [pattern, canonical] of KEY_SUBSTRING_MAP) {
+      if (lower.includes(pattern)) return canonical;
+    }
+    return toTitleCase(raw.trim());
+  }
+  var VALUE_MAP = {
+    // Materials - ES
+    "algodon": "Cotton",
+    "algod\xF3n": "Cotton",
+    "poliester": "Polyester",
+    "poli\xE9ster": "Polyester",
+    "cuero": "Leather",
+    "lana": "Wool",
+    "seda": "Silk",
+    "nailon": "Nylon",
+    "lino": "Linen",
+    "viscosa": "Viscose",
+    "elastano": "Elastane",
+    "acrilico": "Acrylic",
+    "acr\xEDlico": "Acrylic",
+    "poliamida": "Polyamide",
+    "ante": "Suede",
+    "terciopelo": "Velvet",
+    "denim": "Denim",
+    "goma": "Rubber",
+    "caucho": "Rubber",
+    "plastico": "Plastic",
+    "pl\xE1stico": "Plastic",
+    "sintetico": "Synthetic",
+    "sint\xE9tico": "Synthetic",
+    // Materials - FR
+    "coton": "Cotton",
+    "polyester": "Polyester",
+    "cuir": "Leather",
+    "laine": "Wool",
+    "soie": "Silk",
+    "nylon": "Nylon",
+    "lin": "Linen",
+    "viscose": "Viscose",
+    "\xE9lasthanne": "Elastane",
+    "elasthanne": "Elastane",
+    "acrylique": "Acrylic",
+    "polyamide": "Polyamide",
+    "daim": "Suede",
+    "velours": "Velvet",
+    "caoutchouc": "Rubber",
+    "synth\xE9tique": "Synthetic",
+    "synthetique": "Synthetic",
+    // Materials - DE
+    "baumwolle": "Cotton",
+    "wolle": "Wool",
+    "seide": "Silk",
+    "leinen": "Linen",
+    "leder": "Leather",
+    "wildleder": "Suede",
+    "samt": "Velvet",
+    "gummi": "Rubber",
+    "kunststoff": "Plastic",
+    "synthetik": "Synthetic",
+    "kunstfaser": "Synthetic",
+    // Materials - NL
+    "katoen": "Cotton",
+    "wol": "Wool",
+    "zijde": "Silk",
+    "linnen": "Linen",
+    "leer": "Leather",
+    "suede": "Suede",
+    "fluweel": "Velvet",
+    "rubber": "Rubber",
+    // Materials - IT (lana/lino already in ES)
+    "cotone": "Cotton",
+    "poliestere": "Polyester",
+    "pelle": "Leather",
+    "seta": "Silk",
+    "gomma": "Rubber",
+    // Colors - ES
+    "rojo": "Red",
+    "azul": "Blue",
+    "verde": "Green",
+    "amarillo": "Yellow",
+    "negro": "Black",
+    "blanco": "White",
+    "gris": "Grey",
+    "naranja": "Orange",
+    "rosa": "Pink",
+    "morado": "Purple",
+    "violeta": "Purple",
+    "marron": "Brown",
+    "marr\xF3n": "Brown",
+    "beige": "Beige",
+    "crema": "Cream",
+    "dorado": "Gold",
+    "plateado": "Silver",
+    "marino": "Navy",
+    "burdeos": "Burgundy",
+    // Colors - FR (gris/marron already in ES)
+    "rouge": "Red",
+    "bleu": "Blue",
+    "vert": "Green",
+    "jaune": "Yellow",
+    "noir": "Black",
+    "blanc": "White",
+    "orange": "Orange",
+    "rose": "Pink",
+    "violet": "Purple",
+    "or": "Gold",
+    "argent": "Silver",
+    "marine": "Navy",
+    "bordeaux": "Burgundy",
+    // Colors - DE (orange/rosa/marine already in FR/ES)
+    "rot": "Red",
+    "blau": "Blue",
+    "grun": "Green",
+    "gr\xFCn": "Green",
+    "gelb": "Yellow",
+    "schwarz": "Black",
+    "weiss": "White",
+    "wei\xDF": "White",
+    "grau": "Grey",
+    "lila": "Purple",
+    "braun": "Brown",
+    "gold": "Gold",
+    "silber": "Silver",
+    // Colors - NL
+    "rood": "Red",
+    "blauw": "Blue",
+    "groen": "Green",
+    "geel": "Yellow",
+    "zwart": "Black",
+    "wit": "White",
+    "grijs": "Grey",
+    "roze": "Pink",
+    "paars": "Purple",
+    "bruin": "Brown",
+    "goud": "Gold",
+    "zilver": "Silver"
+  };
+  function normalizeValue(value, key) {
+    const isTranslateable = ["Material", "Composition", "Color", "Sole", "Lining", "Upper"].includes(key);
+    if (!isTranslateable) return value;
+    return value.replace(/[a-záéíóúàèìòùâêîôûäëïöüñ]+/gi, (word) => {
+      const lower = word.toLowerCase();
+      return VALUE_MAP[lower] ?? word;
+    });
+  }
+  function normalizeSpecs(raw) {
+    const result = {};
+    for (const [rawKey, rawValue] of Object.entries(raw)) {
+      const trimmedValue = rawValue.trim();
+      if (!trimmedValue) continue;
+      const canonicalKey = normalizeKey(rawKey);
+      const canonicalValue = normalizeValue(trimmedValue, canonicalKey);
+      result[canonicalKey] = canonicalValue;
+    }
+    return result;
+  }
+
   // src/extractor.ts
   function getMetaContent(property) {
     return document.querySelector(`meta[property="${property}"]`)?.content ?? document.querySelector(`meta[name="${property}"]`)?.content ?? null;
@@ -57,12 +380,31 @@
           }
           const { price, currency } = parsePrice(offer?.price);
           const images = Array.isArray(item.image) ? item.image.filter((i) => typeof i === "string") : typeof item.image === "string" ? [item.image] : [];
+          const rawSpecs = {};
+          const extractAdditionalProps = (node) => {
+            if (!Array.isArray(node?.additionalProperty)) return;
+            for (const prop of node.additionalProperty) {
+              const name = typeof prop.name === "string" ? prop.name : null;
+              const val = typeof prop.value === "string" ? prop.value : typeof prop.value === "number" ? String(prop.value) : null;
+              if (name && val) rawSpecs[name] = val;
+            }
+          };
+          extractAdditionalProps(item);
+          if (source !== item) extractAdditionalProps(source);
+          const tryStr = (v) => typeof v === "string" && v ? v : typeof v === "object" && v !== null ? typeof v.value === "string" ? v.value : typeof v.name === "string" ? v.name : null : null;
+          for (const field of ["material", "color", "size"]) {
+            const v = tryStr(item[field] ?? source[field]);
+            if (v) rawSpecs[field] = v;
+          }
+          const brandStr = tryStr(item.brand ?? source.brand);
+          if (brandStr) rawSpecs["brand"] = brandStr;
           return {
             name: item.name ?? null,
             price,
             currency: offer?.priceCurrency ?? currency,
             image_url: images[0] ?? null,
-            images
+            images,
+            specs: rawSpecs
           };
         }
       } catch {
@@ -115,7 +457,16 @@
         return raw ? parsePrice(raw).price : null;
       })(),
       currency: "USD",
-      image_url: document.querySelector(".ux-image-carousel img, #icImg")?.src ?? null
+      image_url: document.querySelector(".ux-image-carousel img, #icImg")?.src ?? null,
+      specs: (() => {
+        const specs = {};
+        document.querySelectorAll(".ux-labels-values, .itemAttr").forEach((row) => {
+          const label = row.querySelector(".ux-labels-values__labels, .attrLabels")?.textContent?.trim().replace(/:$/, "");
+          const value = row.querySelector(".ux-labels-values__values, .attrValues")?.textContent?.trim();
+          if (label && value && label.length < 60) specs[label] = value;
+        });
+        return specs;
+      })()
     }),
     "aliexpress.com": () => ({
       name: document.querySelector(".title--wrap--UUHae_g h1")?.textContent?.trim() ?? null,
@@ -124,7 +475,16 @@
         return raw ? parsePrice(raw).price : null;
       })(),
       currency: "USD",
-      image_url: document.querySelector(".slider--img--K0YbWQO img")?.src ?? null
+      image_url: document.querySelector(".slider--img--K0YbWQO img")?.src ?? null,
+      specs: (() => {
+        const specs = {};
+        document.querySelectorAll('[class*="specification--prop"], [class*="ProductProps"] [class*="item"]').forEach((prop) => {
+          const label = prop.querySelector('[class*="title"], [class*="label"]')?.textContent?.trim();
+          const value = prop.querySelector('[class*="value"], [class*="desc"]')?.textContent?.trim();
+          if (label && value && label.length < 60) specs[label] = value;
+        });
+        return specs;
+      })()
     }),
     "etsy.com": () => ({
       name: document.querySelector("h1[data-buy-box-listing-title]")?.textContent?.trim() ?? null,
@@ -133,7 +493,18 @@
         return raw ? parsePrice(raw).price : null;
       })(),
       currency: "USD",
-      image_url: document.querySelector("[data-carousel-first-image]")?.src ?? null
+      image_url: document.querySelector("[data-carousel-first-image]")?.src ?? null,
+      specs: (() => {
+        const specs = {};
+        document.querySelectorAll('[class*="product-details"] li, [class*="listing-page-overview"] li, [data-region="product_details"] li').forEach((li) => {
+          const text = li.textContent?.trim() ?? "";
+          const colonIdx = text.indexOf(":");
+          if (colonIdx > 0 && colonIdx < 60) {
+            specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+          }
+        });
+        return specs;
+      })()
     }),
     "zalando.": () => ({
       name: document.querySelector('h1[class*="Title"], span[class*="title"], h1')?.textContent?.trim() ?? null,
@@ -146,6 +517,17 @@
         const srcset = img?.getAttribute("srcset") ?? "";
         const first = srcset.split(",")[0]?.trim().split(" ")[0];
         return first || document.querySelector('meta[property="og:image"]')?.content || null;
+      })(),
+      specs: (() => {
+        const specs = {};
+        document.querySelectorAll('[class*="Detail"] li, [data-testid*="detail"] li, [class*="details"] li').forEach((li) => {
+          const text = li.textContent?.trim() ?? "";
+          const colonIdx = text.indexOf(":");
+          if (colonIdx > 0 && colonIdx < 60) {
+            specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+          }
+        });
+        return specs;
       })()
     }),
     "zara.": () => ({
@@ -157,7 +539,20 @@
       currency: "EUR",
       // og:image is always the product image on Zara - much more reliable than DOM selectors
       // which pick up campaign/editorial banners instead of the actual item photo.
-      image_url: document.querySelector('meta[property="og:image"]')?.content ?? null
+      image_url: document.querySelector('meta[property="og:image"]')?.content ?? null,
+      specs: (() => {
+        const specs = {};
+        const compositionEl = document.querySelector('[class*="product-detail-extra-detail"], [class*="composition"]');
+        if (compositionEl?.textContent?.trim()) specs["Composition"] = compositionEl.textContent.trim();
+        document.querySelectorAll('[class*="expandable-text"] li, [class*="product-detail-extra-detail"] li').forEach((li) => {
+          const text = li.textContent?.trim() ?? "";
+          const colonIdx = text.indexOf(":");
+          if (colonIdx > 0 && colonIdx < 60) {
+            specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+          }
+        });
+        return specs;
+      })()
     }),
     "sephora.": () => ({
       name: document.querySelector('h1[class*="product"], h1[data-comp*="Name"], .product-name h1, h1')?.textContent?.trim() ?? null,
@@ -166,7 +561,18 @@
         return raw ? parsePrice(raw).price : null;
       })(),
       currency: window.location.hostname.includes(".fr") ? "EUR" : window.location.hostname.includes(".co.uk") ? "GBP" : "USD",
-      image_url: document.querySelector('meta[property="og:image"]')?.content ?? null
+      image_url: document.querySelector('meta[property="og:image"]')?.content ?? null,
+      specs: (() => {
+        const specs = {};
+        document.querySelectorAll('[data-comp*="Detail"] li, [class*="product-details"] li, [class*="ProductDetails"] li').forEach((li) => {
+          const text = li.textContent?.trim() ?? "";
+          const colonIdx = text.indexOf(":");
+          if (colonIdx > 0 && colonIdx < 60) {
+            specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+          }
+        });
+        return specs;
+      })()
     }),
     "thenorthface.": () => ({
       name: document.querySelector('h1[class*="product-name"], h1[class*="ProductName"], h1[class*="pdp"], h1')?.textContent?.trim() ?? null,
@@ -182,6 +588,17 @@
         if (first) return first;
         if (img?.src && img.src.startsWith("http")) return img.src;
         return document.querySelector('meta[property="og:image"]')?.content ?? null;
+      })(),
+      specs: (() => {
+        const specs = {};
+        document.querySelectorAll('[class*="product-details"] li, [class*="pdp-description"] li, [class*="description-content"] li').forEach((li) => {
+          const text = li.textContent?.trim() ?? "";
+          const colonIdx = text.indexOf(":");
+          if (colonIdx > 0 && colonIdx < 60) {
+            specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+          }
+        });
+        return specs;
       })()
     }),
     "asos.": () => ({
@@ -191,7 +608,18 @@
         return raw ? parsePrice(raw).price : null;
       })(),
       currency: "EUR",
-      image_url: document.querySelector('[class*="product-photo"] img, #hero-image')?.src ?? null
+      image_url: document.querySelector('[class*="product-photo"] img, #hero-image')?.src ?? null,
+      specs: (() => {
+        const specs = {};
+        document.querySelectorAll('[class*="product-description"] li, [data-testid*="description"] li, [class*="ProductDescription"] li').forEach((li) => {
+          const text = li.textContent?.trim() ?? "";
+          const colonIdx = text.indexOf(":");
+          if (colonIdx > 0 && colonIdx < 60) {
+            specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+          }
+        });
+        return specs;
+      })()
     }),
     "hm.": () => ({
       name: document.querySelector('h1[class*="product-item-headline"]')?.textContent?.trim() ?? null,
@@ -200,7 +628,18 @@
         return raw ? parsePrice(raw).price : null;
       })(),
       currency: "EUR",
-      image_url: document.querySelector('[class*="product-detail-main-image-container"] img')?.src ?? null
+      image_url: document.querySelector('[class*="product-detail-main-image-container"] img')?.src ?? null,
+      specs: (() => {
+        const specs = {};
+        document.querySelectorAll('[class*="description-accordion"] [class*="description-item"], [class*="product-description"] li, [data-testid*="description"] li').forEach((el) => {
+          const text = el.textContent?.trim() ?? "";
+          const colonIdx = text.indexOf(":");
+          if (colonIdx > 0 && colonIdx < 60) {
+            specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+          }
+        });
+        return specs;
+      })()
     })
   };
   function getStoreDomain() {
@@ -280,7 +719,12 @@
       product_url: productUrl,
       store_name: storeName,
       store_domain: domain,
-      specs: storeData.specs ?? {}
+      specs: normalizeSpecs({
+        ...jsonLd.specs ?? {},
+        // JSON-LD as base (generic, works on any site)
+        ...storeData.specs ?? {}
+        // Store-specific overrides (more precise)
+      })
     };
     merged.name = merged.name.trim().slice(0, 300);
     return merged;

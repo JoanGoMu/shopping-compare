@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import { normalizeSpecs } from './normalize-specs';
 
 export interface ExtractedProduct {
   name: string;
@@ -85,12 +86,44 @@ function extractFromJsonLd($: cheerio.CheerioAPI): Partial<ExtractedProduct> | n
           ? item.image.filter((i: unknown) => typeof i === 'string')
           : typeof item.image === 'string' ? [item.image] : [];
 
+        // Extract specs from Schema.org additionalProperty and direct fields
+        const rawSpecs: Record<string, string> = {};
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const extractAdditionalProps = (node: any) => {
+          if (!Array.isArray(node?.additionalProperty)) return;
+          for (const prop of node.additionalProperty) {
+            const name = typeof prop.name === 'string' ? prop.name : null;
+            const val = typeof prop.value === 'string' ? prop.value
+              : typeof prop.value === 'number' ? String(prop.value) : null;
+            if (name && val) rawSpecs[name] = val;
+          }
+        };
+
+        extractAdditionalProps(item);
+        if (source !== item) extractAdditionalProps(source);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tryStr = (v: any): string | null =>
+          typeof v === 'string' && v ? v
+          : typeof v === 'object' && v !== null ? (typeof v.value === 'string' ? v.value : typeof v.name === 'string' ? v.name : null)
+          : null;
+
+        for (const field of ['material', 'color', 'size'] as const) {
+          const v = tryStr(item[field] ?? source[field]);
+          if (v) rawSpecs[field] = v;
+        }
+
+        const brandStr = tryStr(item.brand ?? source.brand);
+        if (brandStr) rawSpecs['brand'] = brandStr;
+
         return {
           name: item.name ?? null,
           price,
           currency: offer?.priceCurrency ?? currency,
           image_url: images[0] ?? null,
           images,
+          specs: rawSpecs,
         };
       }
     } catch {
@@ -117,6 +150,88 @@ function extractFromOpenGraph($: cheerio.CheerioAPI): Partial<ExtractedProduct> 
   };
 }
 
+// Server-side store-specific spec extractors (Cheerio). Mirrors the extension's STORE_EXTRACTORS.
+// JSON-LD covers most cases; these fill in what JSON-LD misses on each site.
+const STORE_SPEC_EXTRACTORS: Array<[string, ($: cheerio.CheerioAPI) => Record<string, string>]> = [
+  ['amazon.', ($) => {
+    const specs: Record<string, string> = {};
+    $('#productDetails_techSpec_section_1 tr, #productDetails_detailBullets_sections1 tr').each((_, row) => {
+      const cells = $(row).find('td, th');
+      if (cells.length >= 2) {
+        const key = $(cells[0]).text().trim().replace(/\s+/g, ' ');
+        const val = $(cells[1]).text().trim().replace(/\s+/g, ' ');
+        if (key && val && key.length < 60) specs[key] = val;
+      }
+    });
+    return specs;
+  }],
+  ['ebay.', ($) => {
+    const specs: Record<string, string> = {};
+    $('.ux-labels-values, .itemAttr').each((_, row) => {
+      const label = $(row).find('.ux-labels-values__labels, .attrLabels').text().trim().replace(/:$/, '');
+      const value = $(row).find('.ux-labels-values__values, .attrValues').text().trim();
+      if (label && value && label.length < 60) specs[label] = value;
+    });
+    return specs;
+  }],
+  ['zalando.', ($) => {
+    const specs: Record<string, string> = {};
+    $('[class*="Detail"] li, [data-testid*="detail"] li, [class*="details"] li').each((_, li) => {
+      const text = $(li).text().trim();
+      const colonIdx = text.indexOf(':');
+      if (colonIdx > 0 && colonIdx < 60) specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+    });
+    return specs;
+  }],
+  ['zara.', ($) => {
+    const specs: Record<string, string> = {};
+    const compositionEl = $('[class*="product-detail-extra-detail"], [class*="composition"]').first();
+    if (compositionEl.length) specs['Composition'] = compositionEl.text().trim();
+    $('[class*="expandable-text"] li, [class*="product-detail-extra-detail"] li').each((_, li) => {
+      const text = $(li).text().trim();
+      const colonIdx = text.indexOf(':');
+      if (colonIdx > 0 && colonIdx < 60) specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+    });
+    return specs;
+  }],
+  ['asos.', ($) => {
+    const specs: Record<string, string> = {};
+    $('[class*="product-description"] li, [data-testid*="description"] li, [class*="ProductDescription"] li').each((_, li) => {
+      const text = $(li).text().trim();
+      const colonIdx = text.indexOf(':');
+      if (colonIdx > 0 && colonIdx < 60) specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+    });
+    return specs;
+  }],
+  ['hm.', ($) => {
+    const specs: Record<string, string> = {};
+    $('[class*="description-accordion"] [class*="description-item"], [class*="product-description"] li').each((_, el) => {
+      const text = $(el).text().trim();
+      const colonIdx = text.indexOf(':');
+      if (colonIdx > 0 && colonIdx < 60) specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+    });
+    return specs;
+  }],
+  ['thenorthface.', ($) => {
+    const specs: Record<string, string> = {};
+    $('[class*="product-details"] li, [class*="pdp-description"] li').each((_, li) => {
+      const text = $(li).text().trim();
+      const colonIdx = text.indexOf(':');
+      if (colonIdx > 0 && colonIdx < 60) specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+    });
+    return specs;
+  }],
+  ['etsy.com', ($) => {
+    const specs: Record<string, string> = {};
+    $('[class*="product-details"] li, [data-region="product_details"] li').each((_, li) => {
+      const text = $(li).text().trim();
+      const colonIdx = text.indexOf(':');
+      if (colonIdx > 0 && colonIdx < 60) specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+    });
+    return specs;
+  }],
+];
+
 export function extractProductFromHtml(html: string, url: string): ExtractedProduct {
   const $ = cheerio.load(html);
 
@@ -137,6 +252,10 @@ export function extractProductFromHtml(html: string, url: string): ExtractedProd
     : [og.image_url].filter((u): u is string => !!u);
   const image_url = images[0] ?? null;
 
+  // Store-specific DOM specs (fallback for what JSON-LD doesn't cover)
+  const storeKey = STORE_SPEC_EXTRACTORS.find(([k]) => store_domain.includes(k));
+  const domSpecs = storeKey ? storeKey[1]($) : {};
+
   return {
     name: name || 'Unknown product',
     price,
@@ -146,6 +265,9 @@ export function extractProductFromHtml(html: string, url: string): ExtractedProd
     product_url: url,
     store_name,
     store_domain,
-    specs: {},
+    specs: normalizeSpecs({
+      ...(jsonLd.specs ?? {}),
+      ...domSpecs,
+    }),
   };
 }

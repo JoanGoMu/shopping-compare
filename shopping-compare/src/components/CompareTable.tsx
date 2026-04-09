@@ -37,6 +37,7 @@ export default function CompareTable({ products: initialProducts, allProducts = 
   const [copied, setCopied] = useState(false);
   const [showAddPicker, setShowAddPicker] = useState(false);
   const [showSaveGroup, setShowSaveGroup] = useState(false);
+  const [showAllSpecs, setShowAllSpecs] = useState(false);
   const [savingGroup, setSavingGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [saveGroupError, setSaveGroupError] = useState('');
@@ -117,7 +118,27 @@ export default function CompareTable({ products: initialProducts, allProducts = 
   // Products not yet in this comparison (for add picker)
   const addableProducts = allProducts.filter((p) => !products.find((cp) => cp.id === p.id));
 
-  const specKeys = Array.from(new Set(filtered.flatMap((p) => Object.keys((p.specs as Record<string, unknown>) ?? {}))));
+  // Spec key ordering and coverage filtering
+  const PRIORITY_SPEC_KEYS = ['Brand', 'Color', 'Material', 'Composition', 'Size', 'Fit'];
+  const allSpecKeys = Array.from(new Set(filtered.flatMap((p) => Object.keys((p.specs as Record<string, unknown>) ?? {}))));
+  const n = filtered.length;
+  const minCoverage = n <= 1 ? 1 : n <= 6 ? 2 : Math.ceil(n * 0.3);
+
+  type SpecEntry = { key: string; count: number };
+  const keysWithCoverage: SpecEntry[] = allSpecKeys.map((key) => ({
+    key,
+    count: filtered.filter((p) => ((p.specs as Record<string, unknown>) ?? {})[key] != null).length,
+  }));
+  const sortSpecKeys = (a: SpecEntry, b: SpecEntry) => {
+    const ai = PRIORITY_SPEC_KEYS.indexOf(a.key), bi = PRIORITY_SPEC_KEYS.indexOf(b.key);
+    if (ai >= 0 && bi >= 0) return ai - bi;
+    if (ai >= 0) return -1;
+    if (bi >= 0) return 1;
+    return b.count - a.count;
+  };
+  const visibleSpecKeys = keysWithCoverage.filter((e) => e.count >= minCoverage).sort(sortSpecKeys);
+  const hiddenSpecKeys = keysWithCoverage.filter((e) => e.count < minCoverage).sort(sortSpecKeys);
+  const displayedSpecKeys = showAllSpecs ? [...visibleSpecKeys, ...hiddenSpecKeys] : visibleSpecKeys;
 
   return (
     <div>
@@ -302,9 +323,9 @@ export default function CompareTable({ products: initialProducts, allProducts = 
                 {addableProducts.length > 0 && <td />}
               </tr>
 
-              {specKeys.map((key, i) => (
+              {displayedSpecKeys.map(({ key }, i) => (
                 <tr key={key} className={i % 2 === 0 ? '' : 'bg-cream/50'}>
-                  <td className="text-xs tracking-widest uppercase text-muted py-3 pr-6 capitalize">{key}</td>
+                  <td className="text-xs tracking-widest uppercase text-muted py-3 pr-6">{key}</td>
                   {filtered.map((p) => {
                     const val = ((p.specs as Record<string, unknown>) ?? {})[key];
                     return (
@@ -316,6 +337,20 @@ export default function CompareTable({ products: initialProducts, allProducts = 
                   {addableProducts.length > 0 && <td />}
                 </tr>
               ))}
+
+              {/* Collapsible toggle for low-coverage specs */}
+              {hiddenSpecKeys.length > 0 && (
+                <tr>
+                  <td colSpan={filtered.length + (addableProducts.length > 0 ? 2 : 1)} className="py-2">
+                    <button
+                      onClick={() => setShowAllSpecs((v) => !v)}
+                      className="text-xs text-muted hover:text-ink transition-colors tracking-wide"
+                    >
+                      {showAllSpecs ? 'Show fewer details' : `Show ${hiddenSpecKeys.length} more detail${hiddenSpecKeys.length === 1 ? '' : 's'}`}
+                    </button>
+                  </td>
+                </tr>
+              )}
 
               <tr>
                 <td className="text-xs tracking-widest uppercase text-muted py-3 pr-6">Notes</td>
