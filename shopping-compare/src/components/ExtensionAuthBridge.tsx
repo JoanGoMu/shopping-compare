@@ -14,11 +14,13 @@ export default function ExtensionAuthBridge() {
       );
     }
 
-    // Wait 1s for content script to initialize, then share session
-    let timer: ReturnType<typeof setTimeout>;
+    // Post tokens at 500ms, 1.5s, and 4s to handle variable content-script load times
+    const timers: ReturnType<typeof setTimeout>[] = [];
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) return;
-      timer = setTimeout(() => postTokens(session.access_token, session.refresh_token), 1000);
+      for (const delay of [500, 1500, 4000]) {
+        timers.push(setTimeout(() => postTokens(session.access_token, session.refresh_token), delay));
+      }
     });
 
     // Re-share on token refresh
@@ -27,7 +29,7 @@ export default function ExtensionAuthBridge() {
     });
 
     return () => {
-      clearTimeout(timer);
+      timers.forEach(clearTimeout);
       subscription.unsubscribe();
     };
   }, []);
