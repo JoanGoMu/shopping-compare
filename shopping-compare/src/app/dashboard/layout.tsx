@@ -3,6 +3,7 @@ import { APP_NAME } from '@/lib/constants';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import SignOutButton from '@/components/SignOutButton';
+import ExtensionAuthBridge from '@/components/ExtensionAuthBridge';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -39,6 +40,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-8">
         {children}
       </main>
+      <ExtensionAuthBridge />
     </div>
   );
 }

@@ -2,8 +2,6 @@ import { createClient } from '@/lib/supabase/server';
 import ProductGrid from '@/components/ProductGrid';
 import EmptyState from '@/components/EmptyState';
 import AddByUrlForm from '@/components/AddByUrlForm';
-import ExtensionAuthBridge from '@/components/ExtensionAuthBridge';
-
 export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -22,7 +20,6 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <ExtensionAuthBridge />
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Your products</h1>
