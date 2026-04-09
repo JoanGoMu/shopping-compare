@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import CompareTable from '@/components/CompareTable';
 import GroupList from '@/components/GroupList';
 import Link from 'next/link';
+import { shareComparison } from './actions';
 
 interface Props {
   searchParams: Promise<{ ids?: string; group?: string }>;
@@ -52,6 +53,12 @@ export default async function ComparePage({ searchParams }: Props) {
       .eq('user_id', user!.id)
       .maybeSingle();
     existingShareSlug = share?.slug ?? undefined;
+
+    // Auto-share when a group with 2+ products is viewed for the first time
+    if (!existingShareSlug && products && products.length >= 2) {
+      const result = await shareComparison(groupId);
+      if ('slug' in result) existingShareSlug = result.slug;
+    }
   }
 
   return (

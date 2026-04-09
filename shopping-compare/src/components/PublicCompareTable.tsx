@@ -6,7 +6,6 @@ import type { SharedProduct } from '@/lib/supabase/types';
 
 interface Props {
   products: SharedProduct[];
-  title: string;
   updatedAt: string;
 }
 
@@ -22,7 +21,7 @@ function lowestPrice(products: SharedProduct[]): number | null {
   return prices.length ? Math.min(...prices) : null;
 }
 
-export default function PublicCompareTable({ products, title, updatedAt }: Props) {
+export default function PublicCompareTable({ products, updatedAt }: Props) {
   const [imgIndexes, setImgIndexes] = useState<Record<number, number>>({});
 
   function getImgIndex(i: number) { return imgIndexes[i] ?? 0; }
@@ -33,12 +32,9 @@ export default function PublicCompareTable({ products, title, updatedAt }: Props
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="font-[var(--font-display)] italic text-3xl text-ink mb-2">{title}</h1>
-        <p className="text-xs text-muted tracking-wide uppercase">
-          {products.length} products compared - prices as of {new Date(updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-        </p>
-      </div>
+      <p className="text-xs text-muted tracking-wide uppercase mb-6">
+        {products.length} products compared - prices as of {new Date(updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+      </p>
 
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">

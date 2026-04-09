@@ -52,7 +52,6 @@ export default async function SharedComparisonPage({ params }: Props) {
     <div className="max-w-5xl mx-auto px-6 py-12">
       <PublicCompareTable
         products={comparison.products}
-        title={comparison.title}
         updatedAt={comparison.updated_at}
       />
     </div>
