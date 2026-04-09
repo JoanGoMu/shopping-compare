@@ -87,6 +87,7 @@ export default async function ComparePage({ searchParams }: Props) {
       <div className="flex-1 min-w-0">
         {products && products.length >= 2 ? (
           <CompareTable
+            key={groupId ?? ids ?? 'adhoc'}
             products={products}
             allProducts={allProducts}
             groupId={groupId}
