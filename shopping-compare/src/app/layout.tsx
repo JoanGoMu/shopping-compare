@@ -7,7 +7,7 @@ const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-displa
 
 export const metadata: Metadata = {
   title: 'CompareCart - Compare products across any store',
-  description: 'Save products from any shopping website and compare them side-by-side. Find the best deal across Amazon, eBay, and 1000+ stores.',
+  description: 'Save products from any shopping website and compare them side-by-side. Find the best deal across all your favorite stores.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

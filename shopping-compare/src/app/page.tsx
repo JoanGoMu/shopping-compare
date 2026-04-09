@@ -6,7 +6,7 @@ const FEATURES = [
   {
     icon: '✦',
     title: 'Save from any store',
-    body: 'Install the browser extension and click "Save to Compare" on any product page. Works on ASOS, Zara, Amazon, eBay and thousands more.',
+    body: 'Install the browser extension and click "Save to Compare" on any product page. Works on any online store.',
   },
   {
     icon: '✦',
@@ -55,7 +55,7 @@ export default async function HomePage() {
             Compare products<br />across every store
           </h1>
           <p className="text-muted max-w-xl mx-auto leading-relaxed mb-10">
-            Stop drowning in browser tabs. Save pieces from Zara, ASOS, Amazon, or wherever you shop, and compare them all in one clean view.
+            Stop drowning in browser tabs. Save items from any store and compare them all in one clean view.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             {user ? (
