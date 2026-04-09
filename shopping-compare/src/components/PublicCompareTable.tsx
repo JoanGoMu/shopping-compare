@@ -158,11 +158,31 @@ export default function PublicCompareTable({ products, updatedAt }: Props) {
       </div>
 
       {/* CTA */}
-      <div className="mt-12 border-t border-warm-border pt-8 text-center">
-        <p className="text-muted text-sm mb-3">Want to compare products from your favourite stores?</p>
-        <a href="/signup" className="inline-block bg-terra text-white px-8 py-3 text-sm tracking-widest uppercase hover:bg-terra-dark transition-colors">
-          Create your free CompareCart account
-        </a>
+      <div className="mt-16 bg-surface border border-warm-border p-8 sm:p-12">
+        <div className="max-w-xl mx-auto text-center">
+          <p className="text-xs tracking-[0.3em] uppercase text-terra mb-4">Build your own in minutes</p>
+          <p className="font-[var(--font-display)] italic text-2xl sm:text-3xl text-ink mb-3">
+            Stop juggling tabs.<br />Compare anything, side by side.
+          </p>
+          <p className="text-muted text-sm mb-8 leading-relaxed">
+            Install the browser extension, click &ldquo;Save&rdquo; on any product page, and compare. Free, no credit card.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center mb-8">
+            <a href="/signup" className="bg-terra text-white px-8 py-3.5 text-sm tracking-widest uppercase hover:bg-terra-dark transition-colors w-full sm:w-auto text-center">
+              Start for free
+            </a>
+            <a href="/login" className="border border-warm-border text-ink px-8 py-3.5 text-sm tracking-widest uppercase hover:bg-cream transition-colors w-full sm:w-auto text-center">
+              Sign in
+            </a>
+          </div>
+          <div className="flex items-center justify-center gap-6 sm:gap-10 text-xs text-muted">
+            <span className="flex items-center gap-2"><span className="text-terra font-medium">01</span> Install extension</span>
+            <span className="text-warm-border">·</span>
+            <span className="flex items-center gap-2"><span className="text-terra font-medium">02</span> Save products</span>
+            <span className="text-warm-border">·</span>
+            <span className="flex items-center gap-2"><span className="text-terra font-medium">03</span> Compare</span>
+          </div>
+        </div>
       </div>
     </div>
   );
