@@ -47,8 +47,7 @@ export default async function ExplorePage() {
                   )}
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-ink leading-snug">{c.title}</p>
-                  <p className="text-xs text-muted mt-1">{c.products.length} products - {stores}</p>
+                  <p className="text-xs text-muted">{c.products.length} products - {stores}</p>
                 </div>
                 <span className="text-xs text-terra tracking-wide uppercase">See comparison →</span>
               </Link>

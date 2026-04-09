@@ -114,8 +114,7 @@ export default async function HomePage() {
                         {thumbs.length === 0 && <div className="w-full h-20 bg-cream flex items-center justify-center text-2xl text-warm-border">◻</div>}
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-ink leading-snug">{c.title}</p>
-                        <p className="text-xs text-muted mt-1">{c.products.length} products - {stores}</p>
+                        <p className="text-xs text-muted">{c.products.length} products - {stores}</p>
                       </div>
                       <span className="text-xs text-terra tracking-wide uppercase">See comparison →</span>
                     </Link>
