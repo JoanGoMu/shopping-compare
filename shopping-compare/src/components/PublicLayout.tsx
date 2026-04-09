@@ -10,9 +10,19 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             {APP_NAME}
           </Link>
           <nav className="flex items-center gap-6">
-            <Link href="/explore" className="text-sm text-muted hover:text-ink transition-colors tracking-wide uppercase">Explore</Link>
-            <Link href="/stores" className="text-sm text-muted hover:text-ink transition-colors tracking-wide uppercase">Stores</Link>
-            <Link href="/deals" className="text-sm text-muted hover:text-ink transition-colors tracking-wide uppercase">Deals</Link>
+            <Link href="/explore" className="text-sm text-muted hover:text-ink transition-colors tracking-wide uppercase hidden sm:block">Explore</Link>
+            <Link href="/stores" className="text-sm text-muted hover:text-ink transition-colors tracking-wide uppercase hidden sm:block">Stores</Link>
+            <Link href="/deals" className="text-sm text-muted hover:text-ink transition-colors tracking-wide uppercase hidden sm:block">Deals</Link>
+            <a
+              href="https://buymeacoffee.com/joangm"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="CompareCart is free - if it saves you money, buy me a coffee!"
+              className="hidden sm:flex items-center gap-1.5 text-sm text-muted hover:text-terra transition-colors"
+            >
+              <span>☕</span>
+              <span className="tracking-wide">Support</span>
+            </a>
             <Link href="/signup" className="text-sm bg-terra text-white px-5 py-2 tracking-widest uppercase hover:bg-terra-dark transition-colors">
               Start free
             </Link>
@@ -32,7 +42,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             <Link href="/stores" className="hover:text-ink transition-colors">Stores</Link>
             <Link href="/deals" className="hover:text-ink transition-colors">Deals</Link>
             <Link href="/privacy" className="hover:text-ink transition-colors">Privacy</Link>
-            <a href="https://buymeacoffee.com/comparecart" target="_blank" rel="noopener noreferrer" className="hover:text-ink transition-colors">
+            <a href="https://buymeacoffee.com/joangm" target="_blank" rel="noopener noreferrer" className="hover:text-ink transition-colors">
               Buy me a coffee ☕
             </a>
           </div>

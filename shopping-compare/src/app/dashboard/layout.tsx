@@ -18,10 +18,19 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <nav className="hidden sm:flex items-center gap-6">
               <Link href="/dashboard" className="text-xs tracking-widest uppercase text-muted hover:text-ink transition-colors">Collection</Link>
               <Link href="/compare" className="text-xs tracking-widest uppercase text-muted hover:text-ink transition-colors">Compare</Link>
-              <a href="/" className="text-xs tracking-widest uppercase text-muted hover:text-ink transition-colors">Home</a>
             </nav>
           </div>
           <div className="flex items-center gap-4">
+            <a
+              href="https://buymeacoffee.com/joangm"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="CompareCart is free - if it saves you money, buy me a coffee!"
+              className="hidden sm:flex items-center gap-1.5 text-xs text-muted hover:text-terra transition-colors"
+            >
+              <span>☕</span>
+              <span className="tracking-wide">Support</span>
+            </a>
             <span className="hidden sm:block text-xs text-muted">{user.email}</span>
             <SignOutButton />
           </div>
