@@ -104,7 +104,7 @@ export default function PublicCompareTable({ products, updatedAt }: Props) {
             <tr>
               <td className="text-xs tracking-widest uppercase text-muted py-3 pr-6">Name</td>
               {products.map((p, i) => (
-                <td key={i} className="py-3 px-4 text-sm text-ink align-top">{p.name}</td>
+                <td key={i} className="py-3 px-4 text-sm text-ink align-top break-words overflow-hidden">{p.name}</td>
               ))}
             </tr>
 
@@ -151,7 +151,7 @@ export default function PublicCompareTable({ products, updatedAt }: Props) {
                 {products.map((p, i) => {
                   const val = ((p.specs as Record<string, unknown>) ?? {})[key];
                   return (
-                    <td key={i} className="py-3 px-4 text-sm text-ink align-top">
+                    <td key={i} className="py-3 px-4 text-sm text-ink align-top break-words overflow-hidden">
                       {val != null ? String(val) : <span className="text-warm-border">-</span>}
                     </td>
                   );

@@ -799,10 +799,21 @@ export function extractProduct(): ExtractedProduct {
     product_url: productUrl,
     store_name: storeName,
     store_domain: domain,
-    specs: normalizeSpecs({
-      ...(jsonLd.specs ?? {}),     // JSON-LD as base (generic, works on any site)
-      ...(storeData.specs ?? {}),  // Store-specific overrides (more precise)
-    }),
+    specs: (() => {
+      const jsonLdSpecs = jsonLd.specs ?? {};
+      const domSpecs = storeData.specs ?? {};
+      const merged = { ...jsonLdSpecs, ...domSpecs };
+      // For size: prefer whichever source found MORE options (DOM often only captures
+      // the currently-selected value while JSON-LD has the full variant list)
+      const jsonLdSize = jsonLdSpecs['size'] ?? '';
+      const domSize = domSpecs['size'] ?? '';
+      if (jsonLdSize && domSize) {
+        const jsonLdCount = jsonLdSize.split(',').length;
+        const domCount = domSize.split(',').length;
+        if (jsonLdCount > domCount) merged['size'] = jsonLdSize;
+      }
+      return normalizeSpecs(merged);
+    })(),
   };
 
   // Clean up name

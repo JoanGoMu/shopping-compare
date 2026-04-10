@@ -236,7 +236,7 @@ async function tryUpdateRelatedProducts() {
     const domain = window.location.hostname.replace('www.', '');
     chrome.runtime.sendMessage({ type: 'GET_PRODUCTS_BY_DOMAIN', domain }, async (products: { url: string }[]) => {
       if (!products?.length) return;
-      for (const { url } of products.slice(0, 5)) {
+      for (const { url } of products) {
         try {
           const res = await fetch(url, { credentials: 'include' });
           if (!res.ok) continue;

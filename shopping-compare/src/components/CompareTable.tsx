@@ -279,7 +279,7 @@ export default function CompareTable({ products: initialProducts, allProducts = 
               <tr>
                 <td className="text-xs tracking-widest uppercase text-muted py-3 pr-6">Name</td>
                 {filtered.map((p) => (
-                  <td key={p.id} className="py-3 px-4 text-sm text-ink align-top">{p.name}</td>
+                  <td key={p.id} className="py-3 px-4 text-sm text-ink align-top break-words overflow-hidden">{p.name}</td>
                 ))}
                 {addableProducts.length > 0 && <td />}
               </tr>
@@ -329,7 +329,7 @@ export default function CompareTable({ products: initialProducts, allProducts = 
                   {filtered.map((p) => {
                     const val = ((p.specs as Record<string, unknown>) ?? {})[key];
                     return (
-                      <td key={p.id} className="py-3 px-4 text-sm text-ink align-top">
+                      <td key={p.id} className="py-3 px-4 text-sm text-ink align-top break-words overflow-hidden">
                         {val != null ? String(val) : <span className="text-warm-border">-</span>}
                       </td>
                     );

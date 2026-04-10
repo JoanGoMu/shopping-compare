@@ -919,12 +919,19 @@
       product_url: productUrl,
       store_name: storeName,
       store_domain: domain,
-      specs: normalizeSpecs({
-        ...jsonLd.specs ?? {},
-        // JSON-LD as base (generic, works on any site)
-        ...storeData.specs ?? {}
-        // Store-specific overrides (more precise)
-      })
+      specs: (() => {
+        const jsonLdSpecs = jsonLd.specs ?? {};
+        const domSpecs = storeData.specs ?? {};
+        const merged2 = { ...jsonLdSpecs, ...domSpecs };
+        const jsonLdSize = jsonLdSpecs["size"] ?? "";
+        const domSize = domSpecs["size"] ?? "";
+        if (jsonLdSize && domSize) {
+          const jsonLdCount = jsonLdSize.split(",").length;
+          const domCount = domSize.split(",").length;
+          if (jsonLdCount > domCount) merged2["size"] = jsonLdSize;
+        }
+        return normalizeSpecs(merged2);
+      })()
     };
     merged.name = merged.name.trim().slice(0, 300);
     if (!merged.specs["Size"] || !merged.specs["Color"]) {
@@ -1151,7 +1158,7 @@
       const domain = window.location.hostname.replace("www.", "");
       chrome.runtime.sendMessage({ type: "GET_PRODUCTS_BY_DOMAIN", domain }, async (products) => {
         if (!products?.length) return;
-        for (const { url } of products.slice(0, 5)) {
+        for (const { url } of products) {
           try {
             const res = await fetch(url, { credentials: "include" });
             if (!res.ok) continue;
