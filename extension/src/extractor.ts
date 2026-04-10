@@ -55,6 +55,158 @@ function parsePrice(raw: string | number | undefined | null): { price: number | 
   return { price: isNaN(price) ? null : price, currency };
 }
 
+// --- Availability helpers (used by JSON-LD and store extractors) ---
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isOfferAvailable(offer: any): boolean {
+  const avail = typeof offer?.availability === 'string' ? offer.availability.toLowerCase() : '';
+  if (!avail) return true; // No availability info = assume available
+  if (avail.includes('outofstock') || avail.includes('soldout') || avail.includes('discontinued')) return false;
+  return true;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isVariantAvailable(variant: any): boolean {
+  if (!variant?.offers) return true;
+  const offers = Array.isArray(variant.offers) ? variant.offers : [variant.offers];
+  return offers.some(isOfferAvailable);
+}
+
+// --- DOM extraction helpers (extension-only, not available server-side) ---
+
+function extractAvailableSizes(selectors: string): string[] {
+  const sizes: string[] = [];
+  document.querySelectorAll<HTMLElement>(selectors).forEach((el) => {
+    const text = el.textContent?.trim();
+    if (!text || text.length > 20) return; // Skip empty or long label text
+    const isUnavailable =
+      (el as HTMLButtonElement).disabled === true
+      || el.getAttribute('aria-disabled') === 'true'
+      || el.hasAttribute('data-disabled')
+      || /disabled|unavailable|sold-?out|out-of-stock|notify/i.test(el.className)
+      || /disabled|unavailable|sold-?out|out-of-stock/i.test(el.getAttribute('data-state') ?? '')
+      || /herinnering/i.test(el.textContent ?? '') // Dutch "Herinnering instellen" = OOS on Zalando
+      || el.querySelector('del, s') !== null;
+    if (!isUnavailable) sizes.push(text);
+  });
+  return sizes;
+}
+
+function extractSelectedColor(): string | null {
+  const selectors = [
+    '[class*="color-swatch"][aria-checked="true"]',
+    '[class*="color-swatch"][aria-selected="true"]',
+    '[class*="color"][aria-current="true"]',
+    '[class*="selected-color"]',
+    '[class*="color-name"]',
+  ];
+  for (const sel of selectors) {
+    const el = document.querySelector<HTMLElement>(sel);
+    const text = el?.getAttribute('aria-label') || el?.getAttribute('title') || el?.textContent?.trim();
+    if (text && text.length < 60) return text;
+  }
+  return null;
+}
+
+// Generic size/color extractor — works on any store by scanning interactive UI elements.
+// Runs as a fallback after JSON-LD and store-specific extraction.
+// Returns available values found; caller decides whether to use them.
+function extractGenericSizeColor(): { size: string | null; color: string | null } {
+  const SIZE_KW = /\b(size|maat|taille|taglia|gr[öo](?:ss?|ße?)|tamaño|rozmiar)\b/i;
+  const COLOR_KW = /\b(colou?r|kleur|couleur|farbe|colore|cor|renk)\b/i;
+
+  let size: string | null = null;
+  let color: string | null = null;
+
+  // Get the human-readable label associated with a form control or container
+  function getLabelText(el: Element): string {
+    // aria-labelledby points to the label element by id
+    const labelledBy = el.getAttribute('aria-labelledby');
+    if (labelledBy) {
+      const labelEl = document.getElementById(labelledBy);
+      if (labelEl) return labelEl.textContent?.trim() ?? '';
+    }
+    const ariaLabel = el.getAttribute('aria-label');
+    if (ariaLabel) return ariaLabel;
+    // <label for="id">
+    const id = el.id;
+    if (id) {
+      try {
+        const label = document.querySelector<HTMLLabelElement>(`label[for="${CSS.escape(id)}"]`);
+        if (label) return label.textContent?.trim() ?? '';
+      } catch { /* ignore invalid id chars */ }
+    }
+    // Nearest legend / label inside parent (covers fieldset + button groups)
+    const parent = el.parentElement;
+    if (parent) {
+      const heading = parent.querySelector<HTMLElement>('legend, label, [class*="label"], [class*="title"], [class*="heading"]');
+      if (heading && !heading.contains(el)) return heading.textContent?.trim() ?? '';
+    }
+    return '';
+  }
+
+  // Check whether a button/option element is available (not OOS/disabled)
+  function isAvailable(el: HTMLElement): boolean {
+    return !(el as HTMLButtonElement).disabled
+      && el.getAttribute('aria-disabled') !== 'true'
+      && !el.hasAttribute('data-disabled')
+      && !/disabled|unavailable|sold-?out|out-of-stock|notify/i.test(el.className)
+      && !/herinnering/i.test(el.textContent ?? '')
+      && el.querySelector('del, s') === null;
+  }
+
+  // Strategy 1: native <select> elements
+  document.querySelectorAll<HTMLSelectElement>('select').forEach((select) => {
+    if (size && color) return;
+    const label = getLabelText(select)
+      || select.getAttribute('name') || select.getAttribute('data-option-name') || '';
+    const available = Array.from(select.options)
+      .filter((o) => !o.disabled && o.value !== '' && o.textContent?.trim())
+      .map((o) => o.textContent!.trim());
+    if (available.length === 0) return;
+    if (!size && SIZE_KW.test(label)) size = available.join(', ');
+    if (!color && COLOR_KW.test(label)) color = available[0]; // color: currently selected
+  });
+
+  // Strategy 2: button groups / radiogroups / listboxes
+  const CONTAINER_SEL = [
+    '[role="radiogroup"]', '[role="listbox"]',
+    '[class*="size-selector"]', '[class*="size-picker"]', '[class*="size-options"]', '[class*="size-list"]',
+    '[class*="color-selector"]', '[class*="color-picker"]', '[class*="color-options"]',
+    '[class*="variant-selector"]', '[class*="swatch-container"]', '[class*="swatches"]',
+  ].join(', ');
+
+  document.querySelectorAll<HTMLElement>(CONTAINER_SEL).forEach((container) => {
+    if (size && color) return;
+    // Combine aria label + class name so class patterns like "size-selector" also match
+    const label = getLabelText(container) + ' ' + container.className;
+    const items = Array.from(container.querySelectorAll<HTMLElement>(
+      'button, [role="radio"], [role="option"], [role="menuitem"], li'
+    )).filter((el) => isAvailable(el));
+    const values = items
+      .map((el) => el.getAttribute('aria-label') || el.textContent?.trim())
+      .filter((v): v is string => !!v && v.length > 0 && v.length <= 20);
+    if (values.length === 0) return;
+    if (!size && SIZE_KW.test(label)) size = values.join(', ');
+    if (!color && COLOR_KW.test(label)) color = values[0];
+  });
+
+  // Strategy 3: Shopify / generic data-option-name pattern
+  document.querySelectorAll<HTMLElement>('[data-option-name], [data-attribute-name]').forEach((container) => {
+    if (size && color) return;
+    const name = container.getAttribute('data-option-name') ?? container.getAttribute('data-attribute-name') ?? '';
+    const items = Array.from(container.querySelectorAll<HTMLElement>('[data-value], input[type="radio"]'))
+      .filter((el) => isAvailable(el))
+      .map((el) => el.getAttribute('data-value') || (el as HTMLInputElement).value || el.textContent?.trim())
+      .filter((v): v is string => !!v && v.length <= 20);
+    if (items.length === 0) return;
+    if (!size && SIZE_KW.test(name)) size = items.join(', ');
+    if (!color && COLOR_KW.test(name)) color = items[0];
+  });
+
+  return { size, color };
+}
+
 function extractFromJsonLd(): Partial<ExtractedProduct> | null {
   const scripts = document.querySelectorAll<HTMLScriptElement>('script[type="application/ld+json"]');
 
@@ -81,10 +233,57 @@ function extractFromJsonLd(): Partial<ExtractedProduct> | null {
         const isProductGroup = type === 'ProductGroup';
         if (!isProduct && !isProductGroup) continue;
 
-        // ProductGroup (e.g. Zalando): price lives in hasVariant[0].offers
-        const source = isProductGroup
-          ? (Array.isArray(item.hasVariant) ? item.hasVariant[0] : null)
-          : item;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tryStr = (v: any): string | null =>
+          typeof v === 'string' && v ? v
+          : typeof v === 'object' && v !== null ? (typeof v.value === 'string' ? v.value : typeof v.name === 'string' ? v.name : null)
+          : null;
+
+        // Extract specs from Schema.org additionalProperty and direct fields
+        const rawSpecs: Record<string, string> = {};
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const extractAdditionalProps = (node: any) => {
+          if (!Array.isArray(node?.additionalProperty)) return;
+          for (const prop of node.additionalProperty) {
+            const name = typeof prop.name === 'string' ? prop.name : null;
+            const val = typeof prop.value === 'string' ? prop.value
+              : typeof prop.value === 'number' ? String(prop.value) : null;
+            if (name && val) rawSpecs[name] = val;
+          }
+        };
+
+        // additionalProperty may live at group level
+        extractAdditionalProps(item);
+
+        // ProductGroup: iterate ALL variants to collect available sizes/colors
+        // and pick a source variant for price extraction
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let source: any = isProductGroup ? null : item;
+        if (isProductGroup && Array.isArray(item.hasVariant)) { // eslint-disable-line @typescript-eslint/no-explicit-any
+          const variants: any[] = item.hasVariant; // eslint-disable-line @typescript-eslint/no-explicit-any
+          const availableSizes = new Set<string>();
+          const availableColors = new Set<string>();
+          for (const v of variants) {
+            const available = isVariantAvailable(v);
+            if (available) {
+              const sz = tryStr(v.size);
+              if (sz) availableSizes.add(sz);
+              const col = tryStr(v.color);
+              if (col) availableColors.add(col);
+            }
+            // Pick first available variant as source for price; fall back to [0]
+            if (!source && available) source = v;
+          }
+          if (!source) source = variants[0]; // fallback
+          if (availableSizes.size > 0) rawSpecs['size'] = Array.from(availableSizes).join(', ');
+          if (availableColors.size > 0) rawSpecs['color'] = Array.from(availableColors).join(', ');
+          // additionalProperty from the chosen source variant
+          extractAdditionalProps(source);
+        } else if (source !== item) {
+          extractAdditionalProps(source);
+        }
+
         if (!source) continue;
 
         // Handle Offer, array of Offers, and AggregateOffer
@@ -111,34 +310,12 @@ function extractFromJsonLd(): Partial<ExtractedProduct> | null {
           ? item.image.filter((i: unknown) => typeof i === 'string')
           : typeof item.image === 'string' ? [item.image] : [];
 
-        // Extract specs from Schema.org additionalProperty and direct fields
-        const rawSpecs: Record<string, string> = {};
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const extractAdditionalProps = (node: any) => {
-          if (!Array.isArray(node?.additionalProperty)) return;
-          for (const prop of node.additionalProperty) {
-            const name = typeof prop.name === 'string' ? prop.name : null;
-            const val = typeof prop.value === 'string' ? prop.value
-              : typeof prop.value === 'number' ? String(prop.value) : null;
-            if (name && val) rawSpecs[name] = val;
+        // For non-group products, still extract material/color/size from item and source
+        if (!isProductGroup) {
+          for (const field of ['material', 'color', 'size'] as const) {
+            const v = tryStr(item[field] ?? source[field]);
+            if (v) rawSpecs[field] = v;
           }
-        };
-
-        // additionalProperty may live at group level or variant level - check both
-        extractAdditionalProps(item);
-        if (source !== item) extractAdditionalProps(source);
-
-        // Direct Schema.org properties: material, color, size, brand
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const tryStr = (v: any): string | null =>
-          typeof v === 'string' && v ? v
-          : typeof v === 'object' && v !== null ? (typeof v.value === 'string' ? v.value : typeof v.name === 'string' ? v.name : null)
-          : null;
-
-        for (const field of ['material', 'color', 'size'] as const) {
-          const v = tryStr(item[field] ?? source[field]);
-          if (v) rawSpecs[field] = v;
         }
 
         const brandStr = tryStr(item.brand ?? source.brand);
@@ -270,7 +447,7 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
 
   'zalando.': () => ({
     name: document.querySelector<HTMLElement>('h1[class*="Title"], span[class*="title"], h1')?.textContent?.trim() ?? null,
-    // Price handled by extractFromJsonLd() via ProductGroup > hasVariant[0] > offers
+    // Price handled by extractFromJsonLd() via ProductGroup > hasVariant offers
     price: null,
     currency: 'EUR',
     image_url: (() => {
@@ -290,6 +467,32 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
           specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
         }
       });
+      // Size: read from size dropdown/button list (filters OOS via extractAvailableSizes)
+      const sizes = extractAvailableSizes(
+        '[data-testid*="size"] option, [class*="size"] select option, ' +
+        '[class*="SizeSelector"] [role="option"], button[class*="size"], ' +
+        '[class*="size-selector"] button, [data-testid*="size-selector"] button'
+      );
+      if (sizes.length > 0) specs['size'] = sizes.join(', ');
+      // Color: "Kleur: X" text or selected swatch aria-label
+      if (!specs['kleur'] && !specs['Kleur'] && !specs['color'] && !specs['Color']) {
+        const colorFromText = (() => {
+          let found: string | null = null;
+          document.querySelectorAll<HTMLElement>('[class*="Detail"] span, [data-testid*="detail"] span, [class*="color"] span').forEach((el) => {
+            if (found) return;
+            const text = el.textContent?.trim() ?? '';
+            if (/^kleur:/i.test(text)) found = text.replace(/^kleur:\s*/i, '').trim();
+          });
+          return found;
+        })();
+        const colorFromSwatch = document.querySelector<HTMLElement>(
+          '[class*="color-swatch"][aria-checked="true"], [class*="color-swatch"][aria-selected="true"]'
+        );
+        const color = colorFromText
+          || colorFromSwatch?.getAttribute('aria-label')
+          || colorFromSwatch?.getAttribute('title');
+        if (color) specs['color'] = color;
+      }
       return specs;
     })(),
   }),
@@ -317,6 +520,24 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
           specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
         }
       });
+      // Size: read from size button selectors (filters disabled/crossed-out)
+      const sizes = extractAvailableSizes(
+        '[class*="size-selector"] button, [class*="size-selector"] li, ' +
+        '[data-qa-action*="size"] button, [class*="product-detail-size"] button, ' +
+        '[class*="size-list"] button, [class*="size-list"] li'
+      );
+      if (sizes.length > 0) specs['size'] = sizes.join(', ');
+      // Color: from color selector active element or product-detail-info__color label
+      if (!specs['color'] && !specs['Color']) {
+        const colorEl = document.querySelector<HTMLElement>(
+          '[class*="product-detail-info__color"], [class*="color-selector"] [aria-checked="true"], ' +
+          '[data-qa-qualifier*="color"]'
+        );
+        const color = colorEl?.getAttribute('aria-label')
+          || colorEl?.getAttribute('title')
+          || colorEl?.textContent?.replace(/^colou?r[:\s]*/i, '').trim();
+        if (color && color.length < 60) specs['color'] = color;
+      }
       return specs;
     })(),
   }),
@@ -376,6 +597,56 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
           specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
         }
       });
+      // Size: read from button grid (filters disabled buttons)
+      const sizes = extractAvailableSizes(
+        '[class*="size-selector"] button, [class*="SizeSelector"] button, ' +
+        '[class*="pdp-size"] button, [data-testid*="size"] button, ' +
+        '[class*="size-picker"] button, [class*="size-grid"] button'
+      );
+      if (sizes.length > 0) specs['size'] = sizes.join(', ');
+      // Color: "Kleur:" in detail items is captured above by colon parser;
+      // also try selected color swatch as fallback
+      if (!specs['kleur'] && !specs['Kleur'] && !specs['color'] && !specs['Color']) {
+        const color = extractSelectedColor();
+        if (color) specs['color'] = color;
+      }
+      return specs;
+    })(),
+  }),
+
+  'vans.': () => ({
+    name: document.querySelector<HTMLElement>('h1[class*="product-name"], h1[class*="ProductName"], h1[data-testid*="product-title"], h1')?.textContent?.trim() ?? null,
+    price: (() => {
+      const raw = document.querySelector<HTMLElement>('[class*="product-price__value"], [class*="ProductPrice"], [data-testid*="price"], [itemprop="price"], .price')?.textContent
+        ?? document.querySelector<HTMLMetaElement>('meta[itemprop="price"]')?.content
+        ?? document.querySelector<HTMLMetaElement>('meta[property="product:price:amount"]')?.content;
+      return raw ? parsePrice(raw).price : null;
+    })(),
+    currency: 'EUR',
+    image_url: document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content
+      ?? document.querySelector<HTMLImageElement>('[class*="product-image"] img, [class*="pdp"] img')?.src ?? null,
+    specs: (() => {
+      const specs: Record<string, string> = {};
+      // Detail list items - "Material: Suede/Canvas" format
+      document.querySelectorAll<HTMLElement>('[class*="product-details"] li, [class*="pdp-description"] li, [class*="description-content"] li').forEach((li) => {
+        const text = li.textContent?.trim() ?? '';
+        const colonIdx = text.indexOf(':');
+        if (colonIdx > 0 && colonIdx < 60) specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+      });
+      // Size: Vans uses a size picker drawer/modal with buttons
+      // "Nog Maar Een Paar" = low stock but still available, so those are NOT filtered
+      const sizes = extractAvailableSizes(
+        '[class*="size-selector"] button, [class*="size-picker"] button, ' +
+        '[data-testid*="size"] button, [class*="pdp-size"] button, ' +
+        '[class*="SizeButton"], [class*="size-option"]'
+      );
+      if (sizes.length > 0) specs['size'] = sizes.join(', ');
+      // Color: from swatch selectors or color label
+      if (!specs['color'] && !specs['Color']) {
+        const color = extractSelectedColor()
+          || document.querySelector<HTMLElement>('[class*="color-name"], [class*="product-color"]')?.textContent?.trim();
+        if (color && color.length < 60) specs['color'] = color;
+      }
       return specs;
     })(),
   }),
@@ -530,6 +801,13 @@ export function extractProduct(): ExtractedProduct {
 
   // Clean up name
   merged.name = merged.name.trim().slice(0, 300);
+
+  // Generic fallback: fill in Size/Color if neither JSON-LD nor store-specific extraction found them
+  if (!merged.specs['Size'] || !merged.specs['Color']) {
+    const generic = extractGenericSizeColor();
+    if (!merged.specs['Size'] && generic.size) merged.specs['Size'] = generic.size;
+    if (!merged.specs['Color'] && generic.color) merged.specs['Color'] = generic.color;
+  }
 
   return merged;
 }

@@ -20086,9 +20086,9 @@ async function handleUpdatePriceIfSaved(url, price, currency, specs) {
     if (!existing) return;
     if (existing.price !== null && existing.currency !== currency) return;
     const now = (/* @__PURE__ */ new Date()).toISOString();
-    const currentSpecs = existing.specs;
-    const hasNoSpecs = !currentSpecs || Object.keys(currentSpecs).length === 0;
-    const specsUpdate = hasNoSpecs && specs && Object.keys(specs).length > 0 ? { specs } : {};
+    const currentSpecs = existing.specs ?? {};
+    const mergedSpecs = specs && Object.keys(specs).length > 0 ? { ...currentSpecs, ...specs } : null;
+    const specsUpdate = mergedSpecs ? { specs: mergedSpecs } : {};
     if (existing.price === price && existing.currency === currency) {
       await supabase.from("products").update({ price_check_failed: false, last_checked_at: now, ...specsUpdate }).eq("id", existing.id);
       return;

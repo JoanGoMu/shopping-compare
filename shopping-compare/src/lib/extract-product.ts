@@ -35,6 +35,21 @@ function parsePrice(raw: string | number | undefined | null): { price: number | 
   return { price: isNaN(price) ? null : price, currency };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isOfferAvailable(offer: any): boolean {
+  const avail = typeof offer?.availability === 'string' ? offer.availability.toLowerCase() : '';
+  if (!avail) return true;
+  if (avail.includes('outofstock') || avail.includes('soldout') || avail.includes('discontinued')) return false;
+  return true;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isVariantAvailable(variant: any): boolean {
+  if (!variant?.offers) return true;
+  const offers = Array.isArray(variant.offers) ? variant.offers : [variant.offers];
+  return offers.some(isOfferAvailable);
+}
+
 function extractFromJsonLd($: cheerio.CheerioAPI): Partial<ExtractedProduct> | null {
   const scripts = $('script[type="application/ld+json"]').toArray();
 
@@ -60,9 +75,47 @@ function extractFromJsonLd($: cheerio.CheerioAPI): Partial<ExtractedProduct> | n
         const isProductGroup = type === 'ProductGroup';
         if (!isProduct && !isProductGroup) continue;
 
-        const source = isProductGroup
-          ? (Array.isArray(item.hasVariant) ? item.hasVariant[0] : null)
-          : item;
+        // Extract specs from Schema.org additionalProperty and direct fields
+        const rawSpecs: Record<string, string> = {};
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const extractAdditionalProps = (node: any) => {
+          if (!Array.isArray(node?.additionalProperty)) return;
+          for (const prop of node.additionalProperty) {
+            const name = typeof prop.name === 'string' ? prop.name : null;
+            const val = typeof prop.value === 'string' ? prop.value
+              : typeof prop.value === 'number' ? String(prop.value) : null;
+            if (name && val) rawSpecs[name] = val;
+          }
+        };
+        extractAdditionalProps(item);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let source: any = isProductGroup ? null : item;
+        if (isProductGroup && Array.isArray(item.hasVariant)) {
+          const variants: any[] = item.hasVariant; // eslint-disable-line @typescript-eslint/no-explicit-any
+          const availableSizes = new Set<string>();
+          const availableColors = new Set<string>();
+          for (const v of variants) {
+            const available = isVariantAvailable(v);
+            if (available) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const tryStr = (val: any): string | null =>
+                typeof val === 'string' && val ? val
+                : typeof val === 'object' && val !== null ? (typeof val.value === 'string' ? val.value : typeof val.name === 'string' ? val.name : null)
+                : null;
+              const sz = tryStr(v.size);
+              if (sz) availableSizes.add(sz);
+              const col = tryStr(v.color);
+              if (col) availableColors.add(col);
+            }
+            if (!source && available) source = v;
+            extractAdditionalProps(v);
+          }
+          if (!source) source = variants[0];
+          if (availableSizes.size > 0) rawSpecs['size'] = Array.from(availableSizes).join(', ');
+          if (availableColors.size > 0) rawSpecs['color'] = Array.from(availableColors).join(', ');
+        }
         if (!source) continue;
 
         let offer = null;
@@ -86,32 +139,18 @@ function extractFromJsonLd($: cheerio.CheerioAPI): Partial<ExtractedProduct> | n
           ? item.image.filter((i: unknown) => typeof i === 'string')
           : typeof item.image === 'string' ? [item.image] : [];
 
-        // Extract specs from Schema.org additionalProperty and direct fields
-        const rawSpecs: Record<string, string> = {};
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const extractAdditionalProps = (node: any) => {
-          if (!Array.isArray(node?.additionalProperty)) return;
-          for (const prop of node.additionalProperty) {
-            const name = typeof prop.name === 'string' ? prop.name : null;
-            const val = typeof prop.value === 'string' ? prop.value
-              : typeof prop.value === 'number' ? String(prop.value) : null;
-            if (name && val) rawSpecs[name] = val;
-          }
-        };
-
-        extractAdditionalProps(item);
-        if (source !== item) extractAdditionalProps(source);
-
+        // For non-group products, extract material/color/size from item directly
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const tryStr = (v: any): string | null =>
           typeof v === 'string' && v ? v
           : typeof v === 'object' && v !== null ? (typeof v.value === 'string' ? v.value : typeof v.name === 'string' ? v.name : null)
           : null;
 
-        for (const field of ['material', 'color', 'size'] as const) {
-          const v = tryStr(item[field] ?? source[field]);
-          if (v) rawSpecs[field] = v;
+        if (!isProductGroup) {
+          for (const field of ['material', 'color', 'size'] as const) {
+            const v = tryStr(item[field] ?? source[field]);
+            if (v) rawSpecs[field] = v;
+          }
         }
 
         const brandStr = tryStr(item.brand ?? source.brand);

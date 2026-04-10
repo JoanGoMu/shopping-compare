@@ -145,10 +145,12 @@ async function handleUpdatePriceIfSaved(url: string, price: number, currency: st
 
     const now = new Date().toISOString();
 
-    // Backfill specs if product has none and we extracted some
-    const currentSpecs = existing.specs as Record<string, string> | null;
-    const hasNoSpecs = !currentSpecs || Object.keys(currentSpecs).length === 0;
-    const specsUpdate = hasNoSpecs && specs && Object.keys(specs).length > 0 ? { specs } : {};
+    // Merge fresh specs over existing — new data wins, existing keys not in new extraction are preserved
+    const currentSpecs = (existing.specs ?? {}) as Record<string, string>;
+    const mergedSpecs = specs && Object.keys(specs).length > 0
+      ? { ...currentSpecs, ...specs }
+      : null;
+    const specsUpdate = mergedSpecs ? { specs: mergedSpecs } : {};
 
     if (existing.price === price && existing.currency === currency) {
       await supabase.from('products').update({ price_check_failed: false, last_checked_at: now, ...specsUpdate }).eq('id', existing.id);

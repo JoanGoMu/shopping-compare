@@ -341,6 +341,116 @@
     const price = parseFloat(cleaned);
     return { price: isNaN(price) ? null : price, currency };
   }
+  function isOfferAvailable(offer) {
+    const avail = typeof offer?.availability === "string" ? offer.availability.toLowerCase() : "";
+    if (!avail) return true;
+    if (avail.includes("outofstock") || avail.includes("soldout") || avail.includes("discontinued")) return false;
+    return true;
+  }
+  function isVariantAvailable(variant) {
+    if (!variant?.offers) return true;
+    const offers = Array.isArray(variant.offers) ? variant.offers : [variant.offers];
+    return offers.some(isOfferAvailable);
+  }
+  function extractAvailableSizes(selectors) {
+    const sizes = [];
+    document.querySelectorAll(selectors).forEach((el) => {
+      const text = el.textContent?.trim();
+      if (!text || text.length > 20) return;
+      const isUnavailable = el.disabled === true || el.getAttribute("aria-disabled") === "true" || el.hasAttribute("data-disabled") || /disabled|unavailable|sold-?out|out-of-stock|notify/i.test(el.className) || /disabled|unavailable|sold-?out|out-of-stock/i.test(el.getAttribute("data-state") ?? "") || /herinnering/i.test(el.textContent ?? "") || el.querySelector("del, s") !== null;
+      if (!isUnavailable) sizes.push(text);
+    });
+    return sizes;
+  }
+  function extractSelectedColor() {
+    const selectors = [
+      '[class*="color-swatch"][aria-checked="true"]',
+      '[class*="color-swatch"][aria-selected="true"]',
+      '[class*="color"][aria-current="true"]',
+      '[class*="selected-color"]',
+      '[class*="color-name"]'
+    ];
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      const text = el?.getAttribute("aria-label") || el?.getAttribute("title") || el?.textContent?.trim();
+      if (text && text.length < 60) return text;
+    }
+    return null;
+  }
+  function extractGenericSizeColor() {
+    const SIZE_KW = /\b(size|maat|taille|taglia|gr[öo](?:ss?|ße?)|tamaño|rozmiar)\b/i;
+    const COLOR_KW = /\b(colou?r|kleur|couleur|farbe|colore|cor|renk)\b/i;
+    let size = null;
+    let color = null;
+    function getLabelText(el) {
+      const labelledBy = el.getAttribute("aria-labelledby");
+      if (labelledBy) {
+        const labelEl = document.getElementById(labelledBy);
+        if (labelEl) return labelEl.textContent?.trim() ?? "";
+      }
+      const ariaLabel = el.getAttribute("aria-label");
+      if (ariaLabel) return ariaLabel;
+      const id = el.id;
+      if (id) {
+        try {
+          const label = document.querySelector(`label[for="${CSS.escape(id)}"]`);
+          if (label) return label.textContent?.trim() ?? "";
+        } catch {
+        }
+      }
+      const parent = el.parentElement;
+      if (parent) {
+        const heading = parent.querySelector('legend, label, [class*="label"], [class*="title"], [class*="heading"]');
+        if (heading && !heading.contains(el)) return heading.textContent?.trim() ?? "";
+      }
+      return "";
+    }
+    function isAvailable(el) {
+      return !el.disabled && el.getAttribute("aria-disabled") !== "true" && !el.hasAttribute("data-disabled") && !/disabled|unavailable|sold-?out|out-of-stock|notify/i.test(el.className) && !/herinnering/i.test(el.textContent ?? "") && el.querySelector("del, s") === null;
+    }
+    document.querySelectorAll("select").forEach((select) => {
+      if (size && color) return;
+      const label = getLabelText(select) || select.getAttribute("name") || select.getAttribute("data-option-name") || "";
+      const available = Array.from(select.options).filter((o) => !o.disabled && o.value !== "" && o.textContent?.trim()).map((o) => o.textContent.trim());
+      if (available.length === 0) return;
+      if (!size && SIZE_KW.test(label)) size = available.join(", ");
+      if (!color && COLOR_KW.test(label)) color = available[0];
+    });
+    const CONTAINER_SEL = [
+      '[role="radiogroup"]',
+      '[role="listbox"]',
+      '[class*="size-selector"]',
+      '[class*="size-picker"]',
+      '[class*="size-options"]',
+      '[class*="size-list"]',
+      '[class*="color-selector"]',
+      '[class*="color-picker"]',
+      '[class*="color-options"]',
+      '[class*="variant-selector"]',
+      '[class*="swatch-container"]',
+      '[class*="swatches"]'
+    ].join(", ");
+    document.querySelectorAll(CONTAINER_SEL).forEach((container) => {
+      if (size && color) return;
+      const label = getLabelText(container) + " " + container.className;
+      const items = Array.from(container.querySelectorAll(
+        'button, [role="radio"], [role="option"], [role="menuitem"], li'
+      )).filter((el) => isAvailable(el));
+      const values = items.map((el) => el.getAttribute("aria-label") || el.textContent?.trim()).filter((v) => !!v && v.length > 0 && v.length <= 20);
+      if (values.length === 0) return;
+      if (!size && SIZE_KW.test(label)) size = values.join(", ");
+      if (!color && COLOR_KW.test(label)) color = values[0];
+    });
+    document.querySelectorAll("[data-option-name], [data-attribute-name]").forEach((container) => {
+      if (size && color) return;
+      const name = container.getAttribute("data-option-name") ?? container.getAttribute("data-attribute-name") ?? "";
+      const items = Array.from(container.querySelectorAll('[data-value], input[type="radio"]')).filter((el) => isAvailable(el)).map((el) => el.getAttribute("data-value") || el.value || el.textContent?.trim()).filter((v) => !!v && v.length <= 20);
+      if (items.length === 0) return;
+      if (!size && SIZE_KW.test(name)) size = items.join(", ");
+      if (!color && COLOR_KW.test(name)) color = items[0];
+    });
+    return { size, color };
+  }
   function extractFromJsonLd() {
     const scripts = document.querySelectorAll('script[type="application/ld+json"]');
     for (const script of scripts) {
@@ -362,7 +472,39 @@
           const isProduct = type === "Product" || Array.isArray(type) && type.includes("Product");
           const isProductGroup = type === "ProductGroup";
           if (!isProduct && !isProductGroup) continue;
-          const source = isProductGroup ? Array.isArray(item.hasVariant) ? item.hasVariant[0] : null : item;
+          const tryStr = (v) => typeof v === "string" && v ? v : typeof v === "object" && v !== null ? typeof v.value === "string" ? v.value : typeof v.name === "string" ? v.name : null : null;
+          const rawSpecs = {};
+          const extractAdditionalProps = (node) => {
+            if (!Array.isArray(node?.additionalProperty)) return;
+            for (const prop of node.additionalProperty) {
+              const name = typeof prop.name === "string" ? prop.name : null;
+              const val = typeof prop.value === "string" ? prop.value : typeof prop.value === "number" ? String(prop.value) : null;
+              if (name && val) rawSpecs[name] = val;
+            }
+          };
+          extractAdditionalProps(item);
+          let source = isProductGroup ? null : item;
+          if (isProductGroup && Array.isArray(item.hasVariant)) {
+            const variants = item.hasVariant;
+            const availableSizes = /* @__PURE__ */ new Set();
+            const availableColors = /* @__PURE__ */ new Set();
+            for (const v of variants) {
+              const available = isVariantAvailable(v);
+              if (available) {
+                const sz = tryStr(v.size);
+                if (sz) availableSizes.add(sz);
+                const col = tryStr(v.color);
+                if (col) availableColors.add(col);
+              }
+              if (!source && available) source = v;
+            }
+            if (!source) source = variants[0];
+            if (availableSizes.size > 0) rawSpecs["size"] = Array.from(availableSizes).join(", ");
+            if (availableColors.size > 0) rawSpecs["color"] = Array.from(availableColors).join(", ");
+            extractAdditionalProps(source);
+          } else if (source !== item) {
+            extractAdditionalProps(source);
+          }
           if (!source) continue;
           let offer = null;
           if (source.offers) {
@@ -380,21 +522,11 @@
           }
           const { price, currency } = parsePrice(offer?.price);
           const images = Array.isArray(item.image) ? item.image.filter((i) => typeof i === "string") : typeof item.image === "string" ? [item.image] : [];
-          const rawSpecs = {};
-          const extractAdditionalProps = (node) => {
-            if (!Array.isArray(node?.additionalProperty)) return;
-            for (const prop of node.additionalProperty) {
-              const name = typeof prop.name === "string" ? prop.name : null;
-              const val = typeof prop.value === "string" ? prop.value : typeof prop.value === "number" ? String(prop.value) : null;
-              if (name && val) rawSpecs[name] = val;
+          if (!isProductGroup) {
+            for (const field of ["material", "color", "size"]) {
+              const v = tryStr(item[field] ?? source[field]);
+              if (v) rawSpecs[field] = v;
             }
-          };
-          extractAdditionalProps(item);
-          if (source !== item) extractAdditionalProps(source);
-          const tryStr = (v) => typeof v === "string" && v ? v : typeof v === "object" && v !== null ? typeof v.value === "string" ? v.value : typeof v.name === "string" ? v.name : null : null;
-          for (const field of ["material", "color", "size"]) {
-            const v = tryStr(item[field] ?? source[field]);
-            if (v) rawSpecs[field] = v;
           }
           const brandStr = tryStr(item.brand ?? source.brand);
           if (brandStr) rawSpecs["brand"] = brandStr;
@@ -508,7 +640,7 @@
     }),
     "zalando.": () => ({
       name: document.querySelector('h1[class*="Title"], span[class*="title"], h1')?.textContent?.trim() ?? null,
-      // Price handled by extractFromJsonLd() via ProductGroup > hasVariant[0] > offers
+      // Price handled by extractFromJsonLd() via ProductGroup > hasVariant offers
       price: null,
       currency: "EUR",
       image_url: (() => {
@@ -527,6 +659,26 @@
             specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
           }
         });
+        const sizes = extractAvailableSizes(
+          '[data-testid*="size"] option, [class*="size"] select option, [class*="SizeSelector"] [role="option"], button[class*="size"], [class*="size-selector"] button, [data-testid*="size-selector"] button'
+        );
+        if (sizes.length > 0) specs["size"] = sizes.join(", ");
+        if (!specs["kleur"] && !specs["Kleur"] && !specs["color"] && !specs["Color"]) {
+          const colorFromText = (() => {
+            let found = null;
+            document.querySelectorAll('[class*="Detail"] span, [data-testid*="detail"] span, [class*="color"] span').forEach((el) => {
+              if (found) return;
+              const text = el.textContent?.trim() ?? "";
+              if (/^kleur:/i.test(text)) found = text.replace(/^kleur:\s*/i, "").trim();
+            });
+            return found;
+          })();
+          const colorFromSwatch = document.querySelector(
+            '[class*="color-swatch"][aria-checked="true"], [class*="color-swatch"][aria-selected="true"]'
+          );
+          const color = colorFromText || colorFromSwatch?.getAttribute("aria-label") || colorFromSwatch?.getAttribute("title");
+          if (color) specs["color"] = color;
+        }
         return specs;
       })()
     }),
@@ -551,6 +703,17 @@
             specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
           }
         });
+        const sizes = extractAvailableSizes(
+          '[class*="size-selector"] button, [class*="size-selector"] li, [data-qa-action*="size"] button, [class*="product-detail-size"] button, [class*="size-list"] button, [class*="size-list"] li'
+        );
+        if (sizes.length > 0) specs["size"] = sizes.join(", ");
+        if (!specs["color"] && !specs["Color"]) {
+          const colorEl = document.querySelector(
+            '[class*="product-detail-info__color"], [class*="color-selector"] [aria-checked="true"], [data-qa-qualifier*="color"]'
+          );
+          const color = colorEl?.getAttribute("aria-label") || colorEl?.getAttribute("title") || colorEl?.textContent?.replace(/^colou?r[:\s]*/i, "").trim();
+          if (color && color.length < 60) specs["color"] = color;
+        }
         return specs;
       })()
     }),
@@ -598,6 +761,40 @@
             specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
           }
         });
+        const sizes = extractAvailableSizes(
+          '[class*="size-selector"] button, [class*="SizeSelector"] button, [class*="pdp-size"] button, [data-testid*="size"] button, [class*="size-picker"] button, [class*="size-grid"] button'
+        );
+        if (sizes.length > 0) specs["size"] = sizes.join(", ");
+        if (!specs["kleur"] && !specs["Kleur"] && !specs["color"] && !specs["Color"]) {
+          const color = extractSelectedColor();
+          if (color) specs["color"] = color;
+        }
+        return specs;
+      })()
+    }),
+    "vans.": () => ({
+      name: document.querySelector('h1[class*="product-name"], h1[class*="ProductName"], h1[data-testid*="product-title"], h1')?.textContent?.trim() ?? null,
+      price: (() => {
+        const raw = document.querySelector('[class*="product-price__value"], [class*="ProductPrice"], [data-testid*="price"], [itemprop="price"], .price')?.textContent ?? document.querySelector('meta[itemprop="price"]')?.content ?? document.querySelector('meta[property="product:price:amount"]')?.content;
+        return raw ? parsePrice(raw).price : null;
+      })(),
+      currency: "EUR",
+      image_url: document.querySelector('meta[property="og:image"]')?.content ?? document.querySelector('[class*="product-image"] img, [class*="pdp"] img')?.src ?? null,
+      specs: (() => {
+        const specs = {};
+        document.querySelectorAll('[class*="product-details"] li, [class*="pdp-description"] li, [class*="description-content"] li').forEach((li) => {
+          const text = li.textContent?.trim() ?? "";
+          const colonIdx = text.indexOf(":");
+          if (colonIdx > 0 && colonIdx < 60) specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+        });
+        const sizes = extractAvailableSizes(
+          '[class*="size-selector"] button, [class*="size-picker"] button, [data-testid*="size"] button, [class*="pdp-size"] button, [class*="SizeButton"], [class*="size-option"]'
+        );
+        if (sizes.length > 0) specs["size"] = sizes.join(", ");
+        if (!specs["color"] && !specs["Color"]) {
+          const color = extractSelectedColor() || document.querySelector('[class*="color-name"], [class*="product-color"]')?.textContent?.trim();
+          if (color && color.length < 60) specs["color"] = color;
+        }
         return specs;
       })()
     }),
@@ -727,6 +924,11 @@
       })
     };
     merged.name = merged.name.trim().slice(0, 300);
+    if (!merged.specs["Size"] || !merged.specs["Color"]) {
+      const generic = extractGenericSizeColor();
+      if (!merged.specs["Size"] && generic.size) merged.specs["Size"] = generic.size;
+      if (!merged.specs["Color"] && generic.color) merged.specs["Color"] = generic.color;
+    }
     return merged;
   }
 
@@ -875,6 +1077,17 @@
   }
   function extractSpecsFromHtml(html) {
     const specs = {};
+    const isOfferAvailable2 = (offer) => {
+      const avail = typeof offer?.availability === "string" ? offer.availability.toLowerCase() : "";
+      if (!avail) return true;
+      if (avail.includes("outofstock") || avail.includes("soldout") || avail.includes("discontinued")) return false;
+      return true;
+    };
+    const isVariantAvailable2 = (v) => {
+      if (!v?.offers) return true;
+      const offers = Array.isArray(v.offers) ? v.offers : [v.offers];
+      return offers.some(isOfferAvailable2);
+    };
     try {
       const doc = new DOMParser().parseFromString(html, "text/html");
       doc.querySelectorAll('script[type="application/ld+json"]').forEach((script) => {
@@ -892,21 +1105,34 @@
             const isProduct = type === "Product" || Array.isArray(type) && type.includes("Product");
             const isGroup = type === "ProductGroup";
             if (!isProduct && !isGroup) continue;
-            const nodes = [item, ...isGroup && Array.isArray(item.hasVariant) ? [item.hasVariant[0]] : []];
-            for (const node of nodes) {
-              if (!node) continue;
-              if (Array.isArray(node.additionalProperty)) {
-                for (const p of node.additionalProperty) {
-                  if (typeof p.name === "string" && typeof p.value === "string") specs[p.name] = p.value;
+            if (Array.isArray(item.additionalProperty)) {
+              for (const p of item.additionalProperty) {
+                if (typeof p.name === "string" && typeof p.value === "string") specs[p.name] = p.value;
+              }
+            }
+            if (isGroup && Array.isArray(item.hasVariant)) {
+              const availableSizes = /* @__PURE__ */ new Set();
+              const availableColors = /* @__PURE__ */ new Set();
+              for (const v of item.hasVariant) {
+                if (!isVariantAvailable2(v)) continue;
+                if (typeof v.size === "string" && v.size) availableSizes.add(v.size);
+                if (typeof v.color === "string" && v.color) availableColors.add(v.color);
+                if (Array.isArray(v.additionalProperty)) {
+                  for (const p of v.additionalProperty) {
+                    if (typeof p.name === "string" && typeof p.value === "string") specs[p.name] = p.value;
+                  }
                 }
               }
+              if (availableSizes.size > 0) specs["size"] = Array.from(availableSizes).join(", ");
+              if (availableColors.size > 0) specs["color"] = Array.from(availableColors).join(", ");
+            } else {
               for (const field of ["material", "color", "size"]) {
-                if (typeof node[field] === "string" && node[field]) specs[field] = node[field];
+                if (typeof item[field] === "string" && item[field]) specs[field] = item[field];
               }
-              const brand = node.brand;
-              if (typeof brand === "string" && brand) specs["brand"] = brand;
-              else if (typeof brand?.name === "string" && brand.name) specs["brand"] = brand.name;
             }
+            const brand = item.brand;
+            if (typeof brand === "string" && brand) specs["brand"] = brand;
+            else if (typeof brand?.name === "string" && brand.name) specs["brand"] = brand.name;
           }
         } catch {
         }

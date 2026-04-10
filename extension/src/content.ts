@@ -155,6 +155,21 @@ function tryUpdateSavedPrice() {
 // Extracts JSON-LD specs from raw HTML text using DOMParser (no DOM access needed)
 function extractSpecsFromHtml(html: string): Record<string, string> {
   const specs: Record<string, string> = {};
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isOfferAvailable = (offer: any): boolean => {
+    const avail = typeof offer?.availability === 'string' ? offer.availability.toLowerCase() : '';
+    if (!avail) return true;
+    if (avail.includes('outofstock') || avail.includes('soldout') || avail.includes('discontinued')) return false;
+    return true;
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isVariantAvailable = (v: any): boolean => {
+    if (!v?.offers) return true;
+    const offers = Array.isArray(v.offers) ? v.offers : [v.offers];
+    return offers.some(isOfferAvailable);
+  };
+
   try {
     const doc = new DOMParser().parseFromString(html, 'text/html');
     doc.querySelectorAll<HTMLScriptElement>('script[type="application/ld+json"]').forEach((script) => {
@@ -172,22 +187,40 @@ function extractSpecsFromHtml(html: string): Record<string, string> {
           const isProduct = type === 'Product' || (Array.isArray(type) && type.includes('Product'));
           const isGroup = type === 'ProductGroup';
           if (!isProduct && !isGroup) continue;
-          // additionalProperty at group and/or variant level
-          const nodes = [item, ...(isGroup && Array.isArray(item.hasVariant) ? [item.hasVariant[0]] : [])];
-          for (const node of nodes) {
-            if (!node) continue;
-            if (Array.isArray(node.additionalProperty)) {
-              for (const p of node.additionalProperty) {
-                if (typeof p.name === 'string' && typeof p.value === 'string') specs[p.name] = p.value;
+
+          // additionalProperty at group level
+          if (Array.isArray(item.additionalProperty)) {
+            for (const p of item.additionalProperty) {
+              if (typeof p.name === 'string' && typeof p.value === 'string') specs[p.name] = p.value;
+            }
+          }
+
+          if (isGroup && Array.isArray(item.hasVariant)) {
+            // Iterate ALL variants, collect available sizes/colors
+            const availableSizes = new Set<string>();
+            const availableColors = new Set<string>();
+            for (const v of item.hasVariant) {
+              if (!isVariantAvailable(v)) continue;
+              if (typeof v.size === 'string' && v.size) availableSizes.add(v.size);
+              if (typeof v.color === 'string' && v.color) availableColors.add(v.color);
+              if (Array.isArray(v.additionalProperty)) {
+                for (const p of v.additionalProperty) {
+                  if (typeof p.name === 'string' && typeof p.value === 'string') specs[p.name] = p.value;
+                }
               }
             }
+            if (availableSizes.size > 0) specs['size'] = Array.from(availableSizes).join(', ');
+            if (availableColors.size > 0) specs['color'] = Array.from(availableColors).join(', ');
+          } else {
+            // Single product - extract from item directly
             for (const field of ['material', 'color', 'size'] as const) {
-              if (typeof node[field] === 'string' && node[field]) specs[field] = node[field];
+              if (typeof item[field] === 'string' && item[field]) specs[field] = item[field];
             }
-            const brand = node.brand;
-            if (typeof brand === 'string' && brand) specs['brand'] = brand;
-            else if (typeof brand?.name === 'string' && brand.name) specs['brand'] = brand.name;
           }
+
+          const brand = item.brand;
+          if (typeof brand === 'string' && brand) specs['brand'] = brand;
+          else if (typeof brand?.name === 'string' && brand.name) specs['brand'] = brand.name;
         }
       } catch { /* skip malformed */ }
     });
