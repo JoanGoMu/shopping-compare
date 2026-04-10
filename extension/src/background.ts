@@ -123,6 +123,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     handleUpdateSpecsForUrl(message.url, message.specs);
     return false;
   }
+
+  if (type === 'ENRICH_PRODUCT') {
+    // Fire-and-forget: call server to update ALL users' records for this URL
+    handleEnrichProduct(message.url, message.price ?? null, message.currency ?? null, message.specs ?? {});
+    return false;
+  }
 });
 
 async function handleUpdatePriceIfSaved(url: string, price: number, currency: string, specs?: Record<string, string>) {
@@ -204,6 +210,22 @@ async function handleGetProductsByDomain(domain: string): Promise<{ url: string 
       .eq('store_domain', domain);
     return (data ?? []).map((p) => ({ url: p.product_url }));
   } catch { return []; }
+}
+
+// Calls the server to update ALL users' products for this URL (crowd-sourced enrichment).
+// Requires a valid session - the server verifies the JWT before writing.
+async function handleEnrichProduct(url: string, price: number | null, currency: string | null, specs: Record<string, string>) {
+  try {
+    const stored = await chrome.storage.local.get(SESSION_KEY);
+    if (!stored[SESSION_KEY]) return;
+    const { access_token } = JSON.parse(stored[SESSION_KEY]);
+    if (!access_token) return;
+    await fetch(`${APP_URL}/api/enrich-product`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access_token}` },
+      body: JSON.stringify({ url, price, currency, specs }),
+    });
+  } catch { /* silent */ }
 }
 
 // Updates specs for a product URL the user didn't visit directly.

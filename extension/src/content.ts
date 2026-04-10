@@ -142,8 +142,17 @@ function tryUpdateSavedPrice() {
   try {
     const product = extractProduct();
     if (product.price == null && Object.keys(product.specs ?? {}).length === 0) return;
+    // Update own record directly (fast, no server hop)
     chrome.runtime.sendMessage({
       type: 'UPDATE_PRICE_IF_SAVED',
+      url: product.product_url,
+      price: product.price,
+      currency: product.currency,
+      specs: product.specs,
+    });
+    // Also enrich all other users who saved this URL (crowd-sourced freshness)
+    chrome.runtime.sendMessage({
+      type: 'ENRICH_PRODUCT',
       url: product.product_url,
       price: product.price,
       currency: product.currency,
@@ -152,9 +161,11 @@ function tryUpdateSavedPrice() {
   } catch { /* silent */ }
 }
 
-// Extracts JSON-LD specs from raw HTML text using DOMParser (no DOM access needed)
-function extractSpecsFromHtml(html: string): Record<string, string> {
+// Extracts JSON-LD specs, price, and currency from raw HTML text using DOMParser
+function extractDataFromHtml(html: string): { specs: Record<string, string>; price: number | null; currency: string } {
   const specs: Record<string, string> = {};
+  let price: number | null = null;
+  let currency = 'EUR';
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const isOfferAvailable = (offer: any): boolean => {
@@ -221,11 +232,23 @@ function extractSpecsFromHtml(html: string): Record<string, string> {
           const brand = item.brand;
           if (typeof brand === 'string' && brand) specs['brand'] = brand;
           else if (typeof brand?.name === 'string' && brand.name) specs['brand'] = brand.name;
+
+          // Extract price from offers (Product or first available variant)
+          if (price == null && isProduct) {
+            const offerSource = Array.isArray(item.offers) ? item.offers.find(isOfferAvailable) : item.offers;
+            if (offerSource?.price != null) {
+              const p = parseFloat(String(offerSource.price));
+              if (!isNaN(p)) {
+                price = p;
+                if (typeof offerSource.priceCurrency === 'string') currency = offerSource.priceCurrency;
+              }
+            }
+          }
         }
       } catch { /* skip malformed */ }
     });
   } catch { /* silent */ }
-  return specs;
+  return { specs, price, currency };
 }
 
 // After visiting one page, silently fetch & update other saved products from the same store
@@ -241,9 +264,9 @@ async function tryUpdateRelatedProducts() {
           const res = await fetch(url, { credentials: 'include' });
           if (!res.ok) continue;
           const html = await res.text();
-          const specs = extractSpecsFromHtml(html);
-          if (Object.keys(specs).length > 0) {
-            chrome.runtime.sendMessage({ type: 'UPDATE_SPECS_FOR_URL', url, specs });
+          const { specs, price, currency } = extractDataFromHtml(html);
+          if (Object.keys(specs).length > 0 || price != null) {
+            chrome.runtime.sendMessage({ type: 'ENRICH_PRODUCT', url, price, currency, specs });
           }
         } catch { /* silent */ }
         // Small pause between requests to avoid hammering the store
