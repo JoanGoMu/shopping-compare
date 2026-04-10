@@ -77,6 +77,10 @@ function isVariantAvailable(variant: any): boolean {
 // Texts that are definitely not size values — CTA buttons, labels, links
 const NON_SIZE_TEXT = /^(toevoegen|add to (cart|bag)|add|buy|order|checkout|submit|notify\s*me|size\s*guide|maten?wijzer|herinnering|wishlist|save|share|zoom|view|select|kies|choose|pick|afhandelen|winkelwagen|bekijk)$/i;
 
+// Standard clothing/shoe size patterns used for content-based <select> detection
+// (does NOT rely on class names, so works on stores with obfuscated CSS like Zara)
+const SIZE_VAL = /^(XXS|XS|S|M|L|XL|XXL|XXXL|\d{2,3}(\/\d{2,3})?)$/i;
+
 function extractAvailableSizes(selectors: string): string[] {
   const sizes: string[] = [];
   document.querySelectorAll<HTMLElement>(selectors).forEach((el) => {
@@ -226,6 +230,22 @@ function extractGenericSizeColor(): { size: string | null; color: string | null 
     if (!size && SIZE_KW.test(name)) size = items.join(', ');
     if (!color && COLOR_KW.test(name)) color = items[0];
   });
+
+  // Strategy 4: content-based select detection (stores with obfuscated class names)
+  // Any <select> whose options are mostly standard size values is treated as the size picker.
+  if (!size) {
+    document.querySelectorAll<HTMLSelectElement>('select').forEach((sel) => {
+      if (size) return;
+      const opts = Array.from(sel.options)
+        .filter(o => !o.disabled && o.value !== '' && o.textContent?.trim())
+        .map(o => o.textContent!.trim())
+        .filter(t => t.length <= 20 && !NON_SIZE_TEXT.test(t));
+      const sizeCount = opts.filter(o => SIZE_VAL.test(o)).length;
+      if (sizeCount >= 2 && sizeCount >= opts.length * 0.5) {
+        size = opts.join(', ');
+      }
+    });
+  }
 
   return { size, color };
 }
@@ -543,25 +563,19 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
           specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
         }
       });
-      // Size: try native <select> first (Zara NL renders a dropdown <select>), then button/li approach
-      const sizeSelect = document.querySelector<HTMLSelectElement>(
-        '[class*="size-selector"] select, [class*="size-list"] select, ' +
-        'select[class*="size"], [class*="size"] select'
-      );
-      if (sizeSelect) {
-        const opts = Array.from(sizeSelect.options)
+      // Size: identify the size <select> by option content — Zara uses obfuscated class names
+      // so class-name selectors are unreliable. Any <select> whose options are mostly standard
+      // clothing sizes (XS/S/M/L/XL/XXL or numeric like 36/38/40) is the size picker.
+      for (const sel of document.querySelectorAll<HTMLSelectElement>('select')) {
+        const opts = Array.from(sel.options)
           .filter(o => !o.disabled && o.value !== '' && o.textContent?.trim())
           .map(o => o.textContent!.trim())
           .filter(t => t.length <= 20 && !NON_SIZE_TEXT.test(t));
-        if (opts.length > 0) specs['size'] = opts.join(', ');
-      }
-      if (!specs['size']) {
-        const sizes = extractAvailableSizes(
-          '[class*="size-selector"] button, [class*="size-selector"] li, ' +
-          '[data-qa-action*="size"] button, [class*="product-detail-size"] button, ' +
-          '[class*="size-list"] button, [class*="size-list"] li'
-        );
-        if (sizes.length > 0) specs['size'] = sizes.join(', ');
+        const sizeCount = opts.filter(o => SIZE_VAL.test(o)).length;
+        if (sizeCount >= 2 && sizeCount >= opts.length * 0.5) {
+          specs['size'] = opts.join(', ');
+          break;
+        }
       }
       // Color: from color selector active element or product-detail-info__color label
       if (!specs['color'] && !specs['Color']) {
