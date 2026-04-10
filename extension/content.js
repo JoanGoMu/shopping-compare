@@ -353,6 +353,7 @@
     return offers.some(isOfferAvailable);
   }
   var NON_SIZE_TEXT = /^(toevoegen|add to (cart|bag)|add|buy|order|checkout|submit|notify\s*me|size\s*guide|maten?wijzer|herinnering|wishlist|save|share|zoom|view|select|kies|choose|pick|afhandelen|winkelwagen|bekijk)$/i;
+  var SIZE_VAL = /^(XXS|XS|S|M|L|XL|XXL|XXXL|\d{2,3}(\/\d{2,3})?)$/i;
   function extractAvailableSizes(selectors) {
     const sizes = [];
     document.querySelectorAll(selectors).forEach((el) => {
@@ -419,6 +420,16 @@
       if (!size && SIZE_KW.test(label)) size = available.join(", ");
       if (!color && COLOR_KW.test(label)) color = available[0];
     });
+    if (!size) {
+      const sizeContainer = document.querySelector(
+        '[class*="size-selector"], [class*="size-list"], [class*="size-picker"], [class*="size-dropdown"], [class*="product-size"], [data-testid*="size"]'
+      );
+      const containerSelect = sizeContainer?.querySelector("select");
+      if (containerSelect) {
+        const opts = Array.from(containerSelect.options).filter((o) => !o.disabled && o.value !== "" && o.textContent?.trim()).map((o) => o.textContent.trim()).filter((t) => t.length <= 20 && !NON_SIZE_TEXT.test(t));
+        if (opts.length > 0) size = opts.join(", ");
+      }
+    }
     const CONTAINER_SEL = [
       '[role="radiogroup"]',
       '[role="listbox"]',
@@ -452,6 +463,17 @@
       if (!size && SIZE_KW.test(name)) size = items.join(", ");
       if (!color && COLOR_KW.test(name)) color = items[0];
     });
+    if (!size) {
+      document.querySelectorAll("select").forEach((sel) => {
+        if (size) return;
+        const unique = [...new Set(
+          Array.from(sel.options).filter((o) => !o.disabled && o.value !== "" && o.textContent?.trim()).map((o) => o.textContent.trim()).filter((t) => t.length <= 6 && !t.includes(" ") && !NON_SIZE_TEXT.test(t))
+        )];
+        if (unique.length >= 2 && unique.every((o) => SIZE_VAL.test(o))) {
+          size = unique.join(", ");
+        }
+      });
+    }
     return { size, color };
   }
   function extractFromJsonLd() {
@@ -706,10 +728,15 @@
             specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
           }
         });
-        const sizes = extractAvailableSizes(
-          '[class*="size-selector"] button, [class*="size-selector"] li, [data-qa-action*="size"] button, [class*="product-detail-size"] button, [class*="size-list"] button, [class*="size-list"] li'
-        );
-        if (sizes.length > 0) specs["size"] = sizes.join(", ");
+        for (const sel of document.querySelectorAll("select")) {
+          const unique = [...new Set(
+            Array.from(sel.options).filter((o) => !o.disabled && o.value !== "" && o.textContent?.trim()).map((o) => o.textContent.trim()).filter((t) => t.length <= 6 && !t.includes(" ") && !NON_SIZE_TEXT.test(t))
+          )];
+          if (unique.length >= 2 && unique.every((o) => SIZE_VAL.test(o))) {
+            specs["size"] = unique.join(", ");
+            break;
+          }
+        }
         if (!specs["color"] && !specs["Color"]) {
           const colorEl = document.querySelector(
             '[class*="product-detail-info__color"], [class*="color-selector"] [aria-checked="true"], [data-qa-qualifier*="color"]'
@@ -934,11 +961,13 @@
       })()
     };
     merged.name = merged.name.trim().slice(0, 300);
-    if (!merged.specs["Size"] || !merged.specs["Color"]) {
-      const generic = extractGenericSizeColor();
-      if (!merged.specs["Size"] && generic.size) merged.specs["Size"] = generic.size;
-      if (!merged.specs["Color"] && generic.color) merged.specs["Color"] = generic.color;
+    const generic = extractGenericSizeColor();
+    if (generic.size) {
+      const existingCount = (merged.specs["Size"] ?? "").split(",").filter((s) => s.trim()).length;
+      const genericCount = generic.size.split(",").filter((s) => s.trim()).length;
+      if (!merged.specs["Size"] || genericCount > existingCount) merged.specs["Size"] = generic.size;
     }
+    if (!merged.specs["Color"] && generic.color) merged.specs["Color"] = generic.color;
     return merged;
   }
 
@@ -1082,11 +1111,20 @@
         currency: product.currency,
         specs: product.specs
       });
+      chrome.runtime.sendMessage({
+        type: "ENRICH_PRODUCT",
+        url: product.product_url,
+        price: product.price,
+        currency: product.currency,
+        specs: product.specs
+      });
     } catch {
     }
   }
-  function extractSpecsFromHtml(html) {
+  function extractDataFromHtml(html) {
     const specs = {};
+    let price = null;
+    let currency = "EUR";
     const isOfferAvailable2 = (offer) => {
       const avail = typeof offer?.availability === "string" ? offer.availability.toLowerCase() : "";
       if (!avail) return true;
@@ -1143,13 +1181,23 @@
             const brand = item.brand;
             if (typeof brand === "string" && brand) specs["brand"] = brand;
             else if (typeof brand?.name === "string" && brand.name) specs["brand"] = brand.name;
+            if (price == null && isProduct) {
+              const offerSource = Array.isArray(item.offers) ? item.offers.find(isOfferAvailable2) : item.offers;
+              if (offerSource?.price != null) {
+                const p = parseFloat(String(offerSource.price));
+                if (!isNaN(p)) {
+                  price = p;
+                  if (typeof offerSource.priceCurrency === "string") currency = offerSource.priceCurrency;
+                }
+              }
+            }
           }
         } catch {
         }
       });
     } catch {
     }
-    return specs;
+    return { specs, price, currency };
   }
   async function tryUpdateRelatedProducts() {
     if (!chrome.runtime?.id) return;
@@ -1163,9 +1211,9 @@
             const res = await fetch(url, { credentials: "include" });
             if (!res.ok) continue;
             const html = await res.text();
-            const specs = extractSpecsFromHtml(html);
-            if (Object.keys(specs).length > 0) {
-              chrome.runtime.sendMessage({ type: "UPDATE_SPECS_FOR_URL", url, specs });
+            const { specs, price, currency } = extractDataFromHtml(html);
+            if (Object.keys(specs).length > 0 || price != null) {
+              chrome.runtime.sendMessage({ type: "ENRICH_PRODUCT", url, price, currency, specs });
             }
           } catch {
           }

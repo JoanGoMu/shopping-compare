@@ -19979,6 +19979,7 @@ function normalizeSpecs(raw) {
 // src/background.ts
 var SUPABASE_URL = "https://czrvohnvncavpoulivtt.supabase.co";
 var SUPABASE_ANON_KEY = "sb_publishable_ArmBmKscGkvt6_j2P_tI2Q_huwe9gqD";
+var APP_URL = "https://shopping-compare.vercel.app";
 var SESSION_KEY = "comparecart_session";
 var supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
@@ -20075,6 +20076,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     handleUpdateSpecsForUrl(message.url, message.specs);
     return false;
   }
+  if (type === "ENRICH_PRODUCT") {
+    handleEnrichProduct(message.url, message.price ?? null, message.currency ?? null, message.specs ?? {});
+    return false;
+  }
 });
 async function handleUpdatePriceIfSaved(url, price, currency, specs) {
   try {
@@ -20087,7 +20092,7 @@ async function handleUpdatePriceIfSaved(url, price, currency, specs) {
     if (existing.price !== null && existing.currency !== currency) return;
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const currentSpecs = existing.specs ?? {};
-    const mergedSpecs = specs && Object.keys(specs).length > 0 ? { ...currentSpecs, ...specs } : null;
+    const mergedSpecs = specs && Object.keys(specs).length > 0 ? mergeSpecsSafe(currentSpecs, specs) : null;
     const specsUpdate = mergedSpecs ? { specs: mergedSpecs } : {};
     if (existing.price === price && existing.currency === currency) {
       await supabase.from("products").update({ price_check_failed: false, last_checked_at: now, ...specsUpdate }).eq("id", existing.id);
@@ -20117,6 +20122,15 @@ async function handleSaveProduct(product) {
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
+function mergeSpecsSafe(current, fresh) {
+  const merged = { ...current, ...fresh };
+  const curSize = current["Size"] ?? "";
+  const freshSize = fresh["Size"] ?? "";
+  if (curSize && freshSize && curSize.split(",").length > freshSize.split(",").length) {
+    merged["Size"] = curSize;
+  }
+  return merged;
+}
 async function handleGetProductsByDomain(domain) {
   try {
     const stored = await chrome.storage.local.get(SESSION_KEY);
@@ -20129,6 +20143,20 @@ async function handleGetProductsByDomain(domain) {
     return [];
   }
 }
+async function handleEnrichProduct(url, price, currency, specs) {
+  try {
+    const stored = await chrome.storage.local.get(SESSION_KEY);
+    if (!stored[SESSION_KEY]) return;
+    const { access_token } = JSON.parse(stored[SESSION_KEY]);
+    if (!access_token) return;
+    await fetch(`${APP_URL}/api/enrich-product`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${access_token}` },
+      body: JSON.stringify({ url, price, currency, specs })
+    });
+  } catch {
+  }
+}
 async function handleUpdateSpecsForUrl(url, specs) {
   try {
     const stored = await chrome.storage.local.get(SESSION_KEY);
@@ -20139,7 +20167,7 @@ async function handleUpdateSpecsForUrl(url, specs) {
     if (!Object.keys(normalized).length) return;
     const { data: existing } = await supabase.from("products").select("specs").eq("user_id", user.id).eq("product_url", url).maybeSingle();
     const currentSpecs = existing?.specs ?? {};
-    const merged = { ...currentSpecs, ...normalized };
+    const merged = mergeSpecsSafe(currentSpecs, normalized);
     await supabase.from("products").update({ specs: merged, last_checked_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("user_id", user.id).eq("product_url", url);
   } catch {
   }
