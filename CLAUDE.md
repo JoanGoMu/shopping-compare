@@ -1,9 +1,18 @@
 # CompareCart - Project Instructions
 
-**IMPORTANT: At the start of every conversation, read the project memory at:**
-`/Users/joan.mussone/.claude/projects/-Users-joan-mussone-Desktop-Projects/memory/project_comparecart.md`
+**IMPORTANT: At the start of every conversation:**
+1. Read `/Users/joan.mussone/.claude/projects/-Users-joan-mussone-Desktop-Projects/memory/project_comparecart.md`
+2. If that file is missing, restore it from `docs/project_comparecart.md` in this repo
 
-**At the end of every conversation where you make changes, update that memory file with any new features, architecture changes, or important context.**
+**At the end of every conversation where you make changes:**
+1. Update `/Users/joan.mussone/.claude/projects/-Users-joan-mussone-Desktop-Projects/memory/project_comparecart.md` with new context
+2. Also copy ALL memory files to `docs/` in this repo and commit them:
+```bash
+cp /Users/joan.mussone/.claude/projects/-Users-joan-mussone-Desktop-Projects/memory/*.md \
+   "/Users/joan.mussone/Desktop/Projects/Shopping Compare/docs/"
+cd "/Users/joan.mussone/Desktop/Projects/Shopping Compare"
+git add docs/ && git commit -m "Update memory backup" && git push
+```
 
 ## Project structure
 
