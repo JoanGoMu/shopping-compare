@@ -151,10 +151,9 @@ async function handleUpdatePriceIfSaved(url: string, price: number, currency: st
 
     const now = new Date().toISOString();
 
-    // Merge fresh specs over existing — new data wins, existing keys not in new extraction are preserved
     const currentSpecs = (existing.specs ?? {}) as Record<string, string>;
     const mergedSpecs = specs && Object.keys(specs).length > 0
-      ? { ...currentSpecs, ...specs }
+      ? mergeSpecsSafe(currentSpecs, specs)
       : null;
     const specsUpdate = mergedSpecs ? { specs: mergedSpecs } : {};
 
@@ -193,6 +192,19 @@ async function handleSaveProduct(product: {
   });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
+}
+
+// Merges fresh specs over existing, but never downgrades Size from a full list to fewer options.
+// This prevents a single-variant JSON-LD extraction (e.g. "XL") from overwriting a previously
+// captured full list (e.g. "XS, S, M, L, XL") from a later DOM extraction.
+function mergeSpecsSafe(current: Record<string, string>, fresh: Record<string, string>): Record<string, string> {
+  const merged = { ...current, ...fresh };
+  const curSize = current['Size'] ?? '';
+  const freshSize = fresh['Size'] ?? '';
+  if (curSize && freshSize && curSize.split(',').length > freshSize.split(',').length) {
+    merged['Size'] = curSize;
+  }
+  return merged;
 }
 
 // Returns URLs of saved products from a given domain so the extension can
@@ -245,7 +257,7 @@ async function handleUpdateSpecsForUrl(url: string, specs: Record<string, string
       .eq('product_url', url)
       .maybeSingle();
     const currentSpecs = (existing?.specs ?? {}) as Record<string, string>;
-    const merged = { ...currentSpecs, ...normalized };
+    const merged = mergeSpecsSafe(currentSpecs, normalized);
     await supabase.from('products')
       .update({ specs: merged, last_checked_at: new Date().toISOString() })
       .eq('user_id', user.id)

@@ -46,13 +46,24 @@ export async function POST(request: NextRequest) {
   if (!products?.length) return NextResponse.json({ ok: true, updated: 0 });
 
   const normalizedSpecs = normalizeSpecs(specs ?? {});
+
+  // Merges fresh specs but never downgrades Size from a full list to fewer options
+  function mergeSpecsSafe(current: Record<string, string>, fresh: Record<string, string>): Record<string, string> {
+    const merged = { ...current, ...fresh };
+    const curSize = current['Size'] ?? '';
+    const freshSize = fresh['Size'] ?? '';
+    if (curSize && freshSize && curSize.split(',').length > freshSize.split(',').length) {
+      merged['Size'] = curSize;
+    }
+    return merged;
+  }
   const changesByUser = new Map<string, PriceChange[]>();
   let updated = 0;
 
   for (const product of products) {
     const currentSpecs = (product.specs ?? {}) as Record<string, string>;
     const mergedSpecs = Object.keys(normalizedSpecs).length > 0
-      ? { ...currentSpecs, ...normalizedSpecs }
+      ? mergeSpecsSafe(currentSpecs, normalizedSpecs)
       : currentSpecs;
 
     const update: Record<string, unknown> = {
