@@ -15,6 +15,14 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
 });
 
+// Background tabs opened for silent SPA extraction — content script checks this to skip UI
+const bgTabs = new Set<number>();
+// Debounce: only refresh each domain once per hour to avoid opening too many tabs
+const lastDomainRefresh = new Map<string, number>();
+const BG_REFRESH_COOLDOWN = 60 * 60 * 1000;
+const BG_TAB_TIMEOUT = 15000;
+const BG_MAX_PRODUCTS = 5;
+
 // Restore session from our own storage key on every service worker startup
 async function restoreSession() {
   const result = await chrome.storage.local.get(SESSION_KEY);
@@ -50,7 +58,7 @@ async function getUser() {
 }
 
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const type = (message as { type: string }).type;
 
   if (type === 'SAVE_PRODUCT') {
@@ -126,6 +134,26 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (type === 'ENRICH_PRODUCT') {
     // Fire-and-forget: call server to update ALL users' records for this URL
+    handleEnrichProduct(message.url, message.price ?? null, message.currency ?? null, message.specs ?? {});
+    return false;
+  }
+
+  if (type === 'CHECK_IF_BG_TAB') {
+    sendResponse({ isBgTab: bgTabs.has(sender.tab?.id ?? -1) });
+    return false;
+  }
+
+  if (type === 'BACKGROUND_REFRESH_PRODUCTS') {
+    handleBackgroundRefresh(message.domain, message.currentUrl);
+    return false;
+  }
+
+  if (type === 'BACKGROUND_TAB_DATA') {
+    const tabId = sender.tab?.id;
+    if (tabId != null) {
+      bgTabs.delete(tabId);
+      chrome.tabs.remove(tabId).catch(() => {});
+    }
     handleEnrichProduct(message.url, message.price ?? null, message.currency ?? null, message.specs ?? {});
     return false;
   }
@@ -248,6 +276,63 @@ async function handleEnrichProduct(url: string, price: number | null, currency: 
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access_token}` },
       body: JSON.stringify({ url, price, currency, specs }),
     });
+  } catch { /* silent */ }
+}
+
+// Opens background tabs (active: false) for each saved product in the domain so the full
+// SPA renders and the content script can extract real data via extractProduct().
+// Tabs are tracked in bgTabs so content.ts knows to skip UI and only extract.
+async function handleBackgroundRefresh(domain: string, currentUrl: string) {
+  try {
+    // Cooldown: skip if we refreshed this domain within the last hour
+    const last = lastDomainRefresh.get(domain) ?? 0;
+    if (Date.now() - last < BG_REFRESH_COOLDOWN) return;
+
+    const stored = await chrome.storage.local.get(SESSION_KEY);
+    if (!stored[SESSION_KEY]) return;
+    const user = await getUser();
+    if (!user) return;
+
+    const { data } = await supabase
+      .from('products')
+      .select('product_url')
+      .eq('user_id', user.id)
+      .eq('store_domain', domain);
+
+    const urls = (data ?? [])
+      .map(p => p.product_url as string)
+      .filter(u => u && u !== currentUrl)
+      .slice(0, BG_MAX_PRODUCTS);
+
+    if (!urls.length) return;
+    lastDomainRefresh.set(domain, Date.now());
+
+    // Open tabs sequentially so we don't hammer the store
+    for (const url of urls) {
+      await new Promise<void>((resolve) => {
+        chrome.tabs.create({ url, active: false }, (tab) => {
+          if (!tab.id) { resolve(); return; }
+          bgTabs.add(tab.id);
+          // Force-close and move on after timeout (content script may have failed)
+          const timer = setTimeout(() => {
+            bgTabs.delete(tab.id!);
+            chrome.tabs.remove(tab.id!).catch(() => {});
+            resolve();
+          }, BG_TAB_TIMEOUT);
+          // Listen for data message from this specific tab
+          const listener = (msg: { type: string }, sender: chrome.runtime.MessageSender) => {
+            if (msg.type === 'BACKGROUND_TAB_DATA' && sender.tab?.id === tab.id) {
+              clearTimeout(timer);
+              chrome.runtime.onMessage.removeListener(listener);
+              resolve();
+            }
+          };
+          chrome.runtime.onMessage.addListener(listener);
+        });
+      });
+      // Small gap between tabs
+      await new Promise(r => setTimeout(r, 2000));
+    }
   } catch { /* silent */ }
 }
 

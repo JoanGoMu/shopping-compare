@@ -565,19 +565,36 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
           specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
         }
       });
-      // Size: identify the size <select> by option content — Zara uses obfuscated class names.
-      // Filters: no spaces (kills "Apple Pay"), max 6 chars (kills "MATENWIJZER"), deduplicated,
-      // and ALL remaining options must be standard sizes (not just 50%).
-      for (const sel of document.querySelectorAll<HTMLSelectElement>('select')) {
-        const unique = [...new Set(
-          Array.from(sel.options)
-            .filter(o => !o.disabled && o.value !== '' && o.textContent?.trim())
-            .map(o => o.textContent!.trim())
-            .filter(t => t.length <= 6 && !t.includes(' ') && !NON_SIZE_TEXT.test(t))
+      // Size: Zara uses BOTH a custom <ul> component AND a native <select>, rendered asynchronously.
+      // Approach A: Zara Design System custom <ul> (class names are stable, not obfuscated)
+      const sizeUlItems = document.querySelectorAll<HTMLElement>(
+        'ul.size-selector-sizes li, [class*="size-selector-sizes"] li'
+      );
+      if (sizeUlItems.length >= 2) {
+        const sizes = [...new Set(
+          Array.from(sizeUlItems)
+            .filter(li => !/unavailable|disabled/i.test(li.className))
+            .map(li => {
+              const label = li.querySelector<HTMLElement>('[class*="size-selector-sizes-size__label"], [class*="label"]');
+              return (label?.textContent ?? li.textContent ?? '').trim();
+            })
+            .filter(t => t.length > 0 && t.length <= 6 && !t.includes(' ') && !NON_SIZE_TEXT.test(t) && SIZE_VAL.test(t))
         )];
-        if (unique.length >= 2 && unique.every(o => SIZE_VAL.test(o))) {
-          specs['size'] = unique.join(', ');
-          break;
+        if (sizes.length >= 2) specs['size'] = sizes.join(', ');
+      }
+      // Approach B: native <select> fallback (content-based, no class names needed)
+      if (!specs['size']) {
+        for (const sel of document.querySelectorAll<HTMLSelectElement>('select')) {
+          const unique = [...new Set(
+            Array.from(sel.options)
+              .filter(o => !o.disabled && o.value !== '' && o.textContent?.trim())
+              .map(o => o.textContent!.trim())
+              .filter(t => t.length <= 6 && !t.includes(' ') && !NON_SIZE_TEXT.test(t))
+          )];
+          if (unique.length >= 2 && unique.every(o => SIZE_VAL.test(o))) {
+            specs['size'] = unique.join(', ');
+            break;
+          }
         }
       }
       // Color: from color selector active element or product-detail-info__color label

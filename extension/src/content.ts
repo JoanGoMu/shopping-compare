@@ -161,117 +161,17 @@ function tryUpdateSavedPrice() {
   } catch { /* silent */ }
 }
 
-// Extracts JSON-LD specs, price, and currency from raw HTML text using DOMParser
-function extractDataFromHtml(html: string): { specs: Record<string, string>; price: number | null; currency: string } {
-  const specs: Record<string, string> = {};
-  let price: number | null = null;
-  let currency = 'EUR';
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const isOfferAvailable = (offer: any): boolean => {
-    const avail = typeof offer?.availability === 'string' ? offer.availability.toLowerCase() : '';
-    if (!avail) return true;
-    if (avail.includes('outofstock') || avail.includes('soldout') || avail.includes('discontinued')) return false;
-    return true;
-  };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const isVariantAvailable = (v: any): boolean => {
-    if (!v?.offers) return true;
-    const offers = Array.isArray(v.offers) ? v.offers : [v.offers];
-    return offers.some(isOfferAvailable);
-  };
-
-  try {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    doc.querySelectorAll<HTMLScriptElement>('script[type="application/ld+json"]').forEach((script) => {
-      try {
-        const data = JSON.parse(script.textContent ?? '');
-        const rawItems = Array.isArray(data) ? data : [data];
-        const items: any[] = []; // eslint-disable-line @typescript-eslint/no-explicit-any
-        for (const raw of rawItems) {
-          if (raw?.['@graph'] && Array.isArray(raw['@graph'])) items.push(...raw['@graph']);
-          else items.push(raw);
-        }
-        for (const item of items) {
-          const type = item?.['@type'];
-          if (!type) continue;
-          const isProduct = type === 'Product' || (Array.isArray(type) && type.includes('Product'));
-          const isGroup = type === 'ProductGroup';
-          if (!isProduct && !isGroup) continue;
-
-          // additionalProperty at group level
-          if (Array.isArray(item.additionalProperty)) {
-            for (const p of item.additionalProperty) {
-              if (typeof p.name === 'string' && typeof p.value === 'string') specs[p.name] = p.value;
-            }
-          }
-
-          if (isGroup && Array.isArray(item.hasVariant)) {
-            // Iterate ALL variants, collect available sizes/colors
-            const availableSizes = new Set<string>();
-            const availableColors = new Set<string>();
-            for (const v of item.hasVariant) {
-              if (!isVariantAvailable(v)) continue;
-              if (typeof v.size === 'string' && v.size) availableSizes.add(v.size);
-              if (typeof v.color === 'string' && v.color) availableColors.add(v.color);
-              if (Array.isArray(v.additionalProperty)) {
-                for (const p of v.additionalProperty) {
-                  if (typeof p.name === 'string' && typeof p.value === 'string') specs[p.name] = p.value;
-                }
-              }
-            }
-            if (availableSizes.size > 0) specs['size'] = Array.from(availableSizes).join(', ');
-            if (availableColors.size > 0) specs['color'] = Array.from(availableColors).join(', ');
-          } else {
-            // Single product - extract from item directly
-            for (const field of ['material', 'color', 'size'] as const) {
-              if (typeof item[field] === 'string' && item[field]) specs[field] = item[field];
-            }
-          }
-
-          const brand = item.brand;
-          if (typeof brand === 'string' && brand) specs['brand'] = brand;
-          else if (typeof brand?.name === 'string' && brand.name) specs['brand'] = brand.name;
-
-          // Extract price from offers (Product or first available variant)
-          if (price == null && isProduct) {
-            const offerSource = Array.isArray(item.offers) ? item.offers.find(isOfferAvailable) : item.offers;
-            if (offerSource?.price != null) {
-              const p = parseFloat(String(offerSource.price));
-              if (!isNaN(p)) {
-                price = p;
-                if (typeof offerSource.priceCurrency === 'string') currency = offerSource.priceCurrency;
-              }
-            }
-          }
-        }
-      } catch { /* skip malformed */ }
-    });
-  } catch { /* silent */ }
-  return { specs, price, currency };
-}
-
-// After visiting one page, silently fetch & update other saved products from the same store
-async function tryUpdateRelatedProducts() {
+// Ask the background worker to open other saved products from this domain in background tabs.
+// The full SPA renders in each tab, content script extracts real data and calls ENRICH_PRODUCT.
+function tryRefreshRelatedProducts() {
   if (!chrome.runtime?.id) return;
   if (isOwnApp()) return;
   try {
     const domain = window.location.hostname.replace('www.', '');
-    chrome.runtime.sendMessage({ type: 'GET_PRODUCTS_BY_DOMAIN', domain }, async (products: { url: string }[]) => {
-      if (!products?.length) return;
-      for (const { url } of products) {
-        try {
-          const res = await fetch(url, { credentials: 'include' });
-          if (!res.ok) continue;
-          const html = await res.text();
-          const { specs, price, currency } = extractDataFromHtml(html);
-          if (Object.keys(specs).length > 0 || price != null) {
-            chrome.runtime.sendMessage({ type: 'ENRICH_PRODUCT', url, price, currency, specs });
-          }
-        } catch { /* silent */ }
-        // Small pause between requests to avoid hammering the store
-        await new Promise((r) => setTimeout(r, 1500));
-      }
+    chrome.runtime.sendMessage({
+      type: 'BACKGROUND_REFRESH_PRODUCTS',
+      domain,
+      currentUrl: window.location.href,
     });
   } catch { /* silent */ }
 }
@@ -286,8 +186,9 @@ function initWithRetry() {
       tryUpdateSavedPrice();
     }, delay);
   }
-  // After the page has settled, also silently refresh other products from the same store
-  window.setTimeout(() => tryUpdateRelatedProducts(), 10000);
+  // After the page has settled, ask background to open other saved products from this store
+  // in background tabs so their full SPA renders and data can be extracted properly.
+  window.setTimeout(() => tryRefreshRelatedProducts(), 10000);
 }
 
 // Auto sign-in: listen for session tokens posted from the web app (runs on all pages)
@@ -304,22 +205,46 @@ window.addEventListener('message', (event) => {
   chrome.runtime.sendMessage({ type: 'SHARE_SESSION', access_token, refresh_token });
 });
 
-// Skip button injection and observer on our own app
+// Skip everything on our own app
 if (!isOwnApp()) {
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initWithRetry);
+  if (!chrome.runtime?.id) {
+    // Extension context invalid — skip
   } else {
-    initWithRetry();
+    // Ask background if this tab was opened silently for data extraction
+    chrome.runtime.sendMessage({ type: 'CHECK_IF_BG_TAB' }, (response) => {
+      if (chrome.runtime.lastError || !response?.isBgTab) {
+        // Normal user tab: inject save button and run retries
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', initWithRetry);
+        } else {
+          initWithRetry();
+        }
+        let lastUrl = location.href;
+        const observer = new MutationObserver(() => {
+          if (!chrome.runtime?.id) { observer.disconnect(); return; }
+          if (location.href !== lastUrl) {
+            lastUrl = location.href;
+            document.getElementById(BUTTON_ID)?.remove();
+            window.setTimeout(init, 600);
+          }
+        });
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+      } else {
+        // Background tab opened by handleBackgroundRefresh — extraction only, no UI
+        // Wait for SPA to hydrate (Zara/Zalando render sizes via React after initial load)
+        window.setTimeout(() => {
+          try {
+            const product = extractProduct();
+            chrome.runtime.sendMessage({
+              type: 'BACKGROUND_TAB_DATA',
+              url: window.location.href,
+              price: product.price,
+              currency: product.currency,
+              specs: product.specs,
+            });
+          } catch { /* silent */ }
+        }, 5000);
+      }
+    });
   }
-
-  let lastUrl = location.href;
-  const observer = new MutationObserver(() => {
-    if (!chrome.runtime?.id) { observer.disconnect(); return; }
-    if (location.href !== lastUrl) {
-      lastUrl = location.href;
-      document.getElementById(BUTTON_ID)?.remove();
-      window.setTimeout(init, 600);
-    }
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
 }

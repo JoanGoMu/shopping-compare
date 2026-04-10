@@ -728,13 +728,27 @@
             specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
           }
         });
-        for (const sel of document.querySelectorAll("select")) {
-          const unique = [...new Set(
-            Array.from(sel.options).filter((o) => !o.disabled && o.value !== "" && o.textContent?.trim()).map((o) => o.textContent.trim()).filter((t) => t.length <= 6 && !t.includes(" ") && !NON_SIZE_TEXT.test(t))
+        const sizeUlItems = document.querySelectorAll(
+          'ul.size-selector-sizes li, [class*="size-selector-sizes"] li'
+        );
+        if (sizeUlItems.length >= 2) {
+          const sizes = [...new Set(
+            Array.from(sizeUlItems).filter((li) => !/unavailable|disabled/i.test(li.className)).map((li) => {
+              const label = li.querySelector('[class*="size-selector-sizes-size__label"], [class*="label"]');
+              return (label?.textContent ?? li.textContent ?? "").trim();
+            }).filter((t) => t.length > 0 && t.length <= 6 && !t.includes(" ") && !NON_SIZE_TEXT.test(t) && SIZE_VAL.test(t))
           )];
-          if (unique.length >= 2 && unique.every((o) => SIZE_VAL.test(o))) {
-            specs["size"] = unique.join(", ");
-            break;
+          if (sizes.length >= 2) specs["size"] = sizes.join(", ");
+        }
+        if (!specs["size"]) {
+          for (const sel of document.querySelectorAll("select")) {
+            const unique = [...new Set(
+              Array.from(sel.options).filter((o) => !o.disabled && o.value !== "" && o.textContent?.trim()).map((o) => o.textContent.trim()).filter((t) => t.length <= 6 && !t.includes(" ") && !NON_SIZE_TEXT.test(t))
+            )];
+            if (unique.length >= 2 && unique.every((o) => SIZE_VAL.test(o))) {
+              specs["size"] = unique.join(", ");
+              break;
+            }
           }
         }
         if (!specs["color"] && !specs["Color"]) {
@@ -1126,104 +1140,15 @@
     } catch {
     }
   }
-  function extractDataFromHtml(html) {
-    const specs = {};
-    let price = null;
-    let currency = "EUR";
-    const isOfferAvailable2 = (offer) => {
-      const avail = typeof offer?.availability === "string" ? offer.availability.toLowerCase() : "";
-      if (!avail) return true;
-      if (avail.includes("outofstock") || avail.includes("soldout") || avail.includes("discontinued")) return false;
-      return true;
-    };
-    const isVariantAvailable2 = (v) => {
-      if (!v?.offers) return true;
-      const offers = Array.isArray(v.offers) ? v.offers : [v.offers];
-      return offers.some(isOfferAvailable2);
-    };
-    try {
-      const doc = new DOMParser().parseFromString(html, "text/html");
-      doc.querySelectorAll('script[type="application/ld+json"]').forEach((script) => {
-        try {
-          const data = JSON.parse(script.textContent ?? "");
-          const rawItems = Array.isArray(data) ? data : [data];
-          const items = [];
-          for (const raw of rawItems) {
-            if (raw?.["@graph"] && Array.isArray(raw["@graph"])) items.push(...raw["@graph"]);
-            else items.push(raw);
-          }
-          for (const item of items) {
-            const type = item?.["@type"];
-            if (!type) continue;
-            const isProduct = type === "Product" || Array.isArray(type) && type.includes("Product");
-            const isGroup = type === "ProductGroup";
-            if (!isProduct && !isGroup) continue;
-            if (Array.isArray(item.additionalProperty)) {
-              for (const p of item.additionalProperty) {
-                if (typeof p.name === "string" && typeof p.value === "string") specs[p.name] = p.value;
-              }
-            }
-            if (isGroup && Array.isArray(item.hasVariant)) {
-              const availableSizes = /* @__PURE__ */ new Set();
-              const availableColors = /* @__PURE__ */ new Set();
-              for (const v of item.hasVariant) {
-                if (!isVariantAvailable2(v)) continue;
-                if (typeof v.size === "string" && v.size) availableSizes.add(v.size);
-                if (typeof v.color === "string" && v.color) availableColors.add(v.color);
-                if (Array.isArray(v.additionalProperty)) {
-                  for (const p of v.additionalProperty) {
-                    if (typeof p.name === "string" && typeof p.value === "string") specs[p.name] = p.value;
-                  }
-                }
-              }
-              if (availableSizes.size > 0) specs["size"] = Array.from(availableSizes).join(", ");
-              if (availableColors.size > 0) specs["color"] = Array.from(availableColors).join(", ");
-            } else {
-              for (const field of ["material", "color", "size"]) {
-                if (typeof item[field] === "string" && item[field]) specs[field] = item[field];
-              }
-            }
-            const brand = item.brand;
-            if (typeof brand === "string" && brand) specs["brand"] = brand;
-            else if (typeof brand?.name === "string" && brand.name) specs["brand"] = brand.name;
-            if (price == null && isProduct) {
-              const offerSource = Array.isArray(item.offers) ? item.offers.find(isOfferAvailable2) : item.offers;
-              if (offerSource?.price != null) {
-                const p = parseFloat(String(offerSource.price));
-                if (!isNaN(p)) {
-                  price = p;
-                  if (typeof offerSource.priceCurrency === "string") currency = offerSource.priceCurrency;
-                }
-              }
-            }
-          }
-        } catch {
-        }
-      });
-    } catch {
-    }
-    return { specs, price, currency };
-  }
-  async function tryUpdateRelatedProducts() {
+  function tryRefreshRelatedProducts() {
     if (!chrome.runtime?.id) return;
     if (isOwnApp()) return;
     try {
       const domain = window.location.hostname.replace("www.", "");
-      chrome.runtime.sendMessage({ type: "GET_PRODUCTS_BY_DOMAIN", domain }, async (products) => {
-        if (!products?.length) return;
-        for (const { url } of products) {
-          try {
-            const res = await fetch(url, { credentials: "include" });
-            if (!res.ok) continue;
-            const html = await res.text();
-            const { specs, price, currency } = extractDataFromHtml(html);
-            if (Object.keys(specs).length > 0 || price != null) {
-              chrome.runtime.sendMessage({ type: "ENRICH_PRODUCT", url, price, currency, specs });
-            }
-          } catch {
-          }
-          await new Promise((r) => setTimeout(r, 1500));
-        }
+      chrome.runtime.sendMessage({
+        type: "BACKGROUND_REFRESH_PRODUCTS",
+        domain,
+        currentUrl: window.location.href
       });
     } catch {
     }
@@ -1236,7 +1161,7 @@
         tryUpdateSavedPrice();
       }, delay);
     }
-    window.setTimeout(() => tryUpdateRelatedProducts(), 1e4);
+    window.setTimeout(() => tryRefreshRelatedProducts(), 1e4);
   }
   var APP_URL = "https://shopping-compare.vercel.app";
   window.addEventListener("message", (event) => {
@@ -1253,23 +1178,44 @@
     chrome.runtime.sendMessage({ type: "SHARE_SESSION", access_token, refresh_token });
   });
   if (!isOwnApp()) {
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", initWithRetry);
+    if (!chrome.runtime?.id) {
     } else {
-      initWithRetry();
+      chrome.runtime.sendMessage({ type: "CHECK_IF_BG_TAB" }, (response) => {
+        if (chrome.runtime.lastError || !response?.isBgTab) {
+          if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", initWithRetry);
+          } else {
+            initWithRetry();
+          }
+          let lastUrl = location.href;
+          const observer = new MutationObserver(() => {
+            if (!chrome.runtime?.id) {
+              observer.disconnect();
+              return;
+            }
+            if (location.href !== lastUrl) {
+              lastUrl = location.href;
+              document.getElementById(BUTTON_ID)?.remove();
+              window.setTimeout(init, 600);
+            }
+          });
+          observer.observe(document.documentElement, { childList: true, subtree: true });
+        } else {
+          window.setTimeout(() => {
+            try {
+              const product = extractProduct();
+              chrome.runtime.sendMessage({
+                type: "BACKGROUND_TAB_DATA",
+                url: window.location.href,
+                price: product.price,
+                currency: product.currency,
+                specs: product.specs
+              });
+            } catch {
+            }
+          }, 5e3);
+        }
+      });
     }
-    let lastUrl = location.href;
-    const observer = new MutationObserver(() => {
-      if (!chrome.runtime?.id) {
-        observer.disconnect();
-        return;
-      }
-      if (location.href !== lastUrl) {
-        lastUrl = location.href;
-        document.getElementById(BUTTON_ID)?.remove();
-        window.setTimeout(init, 600);
-      }
-    });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
   }
 })();
