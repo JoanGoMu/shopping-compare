@@ -220,12 +220,20 @@ export default function CompareTable({ products: initialProducts, allProducts = 
                   return (
                     <th key={p.id} className="text-left pb-4 px-3 w-[160px] min-w-[160px] max-w-[160px] align-top">
                       <div className="relative group/col w-full">
-                        <div className="aspect-[3/4] w-full bg-cream overflow-hidden">
+                        <div className="aspect-[3/4] w-full bg-cream overflow-hidden relative">
                           {images.length > 0 ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img src={images[idx]} alt={p.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-4xl text-warm-border">◻</div>
+                          )}
+                          {p.price_check_failed && (
+                            <div className="absolute bottom-0 inset-x-0 bg-black/55 px-2 py-1.5 flex items-center gap-1.5">
+                              <svg className="w-3 h-3 text-amber-300 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                              </svg>
+                              <span className="text-[10px] text-white/90 leading-tight">Price unavailable</span>
+                            </div>
                           )}
                         </div>
                         {images.length > 1 && (

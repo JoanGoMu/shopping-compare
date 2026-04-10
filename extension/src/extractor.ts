@@ -526,13 +526,26 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
           specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
         }
       });
-      // Size: read from size button selectors (filters disabled/crossed-out)
-      const sizes = extractAvailableSizes(
-        '[class*="size-selector"] button, [class*="size-selector"] li, ' +
-        '[data-qa-action*="size"] button, [class*="product-detail-size"] button, ' +
-        '[class*="size-list"] button, [class*="size-list"] li'
+      // Size: try native <select> first (Zara NL renders a dropdown <select>), then button/li approach
+      const sizeSelect = document.querySelector<HTMLSelectElement>(
+        '[class*="size-selector"] select, [class*="size-list"] select, ' +
+        'select[class*="size"], [class*="size"] select'
       );
-      if (sizes.length > 0) specs['size'] = sizes.join(', ');
+      if (sizeSelect) {
+        const opts = Array.from(sizeSelect.options)
+          .filter(o => !o.disabled && o.value !== '' && o.textContent?.trim())
+          .map(o => o.textContent!.trim())
+          .filter(t => t.length <= 20 && !NON_SIZE_TEXT.test(t));
+        if (opts.length > 0) specs['size'] = opts.join(', ');
+      }
+      if (!specs['size']) {
+        const sizes = extractAvailableSizes(
+          '[class*="size-selector"] button, [class*="size-selector"] li, ' +
+          '[data-qa-action*="size"] button, [class*="product-detail-size"] button, ' +
+          '[class*="size-list"] button, [class*="size-list"] li'
+        );
+        if (sizes.length > 0) specs['size'] = sizes.join(', ');
+      }
       // Color: from color selector active element or product-detail-info__color label
       if (!specs['color'] && !specs['Color']) {
         const colorEl = document.querySelector<HTMLElement>(
