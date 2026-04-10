@@ -194,15 +194,26 @@ async function handleSaveProduct(product: {
   return { ok: true };
 }
 
-// Merges fresh specs over existing, but never downgrades Size from a full list to fewer options.
-// This prevents a single-variant JSON-LD extraction (e.g. "XL") from overwriting a previously
-// captured full list (e.g. "XS, S, M, L, XL") from a later DOM extraction.
+// Merges fresh specs over existing, but never downgrades Size from a valid full list to fewer options.
+// Also validates Size values against SIZE_VAL — if the stored value is garbage (e.g. payment methods
+// captured by a previous buggy extraction), it gets replaced by any valid fresh value.
+const MERGE_SIZE_VAL = /^(XXS|XS|S|M|L|XL|XXL|XXXL|\d{2,3}(\/\d{2,3})?)$/i;
 function mergeSpecsSafe(current: Record<string, string>, fresh: Record<string, string>): Record<string, string> {
   const merged = { ...current, ...fresh };
   const curSize = current['Size'] ?? '';
   const freshSize = fresh['Size'] ?? '';
-  if (curSize && freshSize && curSize.split(',').length > freshSize.split(',').length) {
-    merged['Size'] = curSize;
+  if (curSize && freshSize) {
+    const curTokens = curSize.split(',').map(s => s.trim()).filter(Boolean);
+    const freshTokens = freshSize.split(',').map(s => s.trim()).filter(Boolean);
+    const curValid = curTokens.every(t => MERGE_SIZE_VAL.test(t));
+    const freshValid = freshTokens.every(t => MERGE_SIZE_VAL.test(t));
+    // Keep current only if it's valid AND has more options than fresh
+    if (curValid && curTokens.length > freshTokens.length) {
+      merged['Size'] = curSize;
+    } else if (!freshValid && curValid) {
+      merged['Size'] = curSize; // fresh is garbage, keep current
+    }
+    // Otherwise fresh wins (default from spread above)
   }
   return merged;
 }

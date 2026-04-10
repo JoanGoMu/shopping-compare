@@ -20122,12 +20122,21 @@ async function handleSaveProduct(product) {
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
+var MERGE_SIZE_VAL = /^(XXS|XS|S|M|L|XL|XXL|XXXL|\d{2,3}(\/\d{2,3})?)$/i;
 function mergeSpecsSafe(current, fresh) {
   const merged = { ...current, ...fresh };
   const curSize = current["Size"] ?? "";
   const freshSize = fresh["Size"] ?? "";
-  if (curSize && freshSize && curSize.split(",").length > freshSize.split(",").length) {
-    merged["Size"] = curSize;
+  if (curSize && freshSize) {
+    const curTokens = curSize.split(",").map((s) => s.trim()).filter(Boolean);
+    const freshTokens = freshSize.split(",").map((s) => s.trim()).filter(Boolean);
+    const curValid = curTokens.every((t) => MERGE_SIZE_VAL.test(t));
+    const freshValid = freshTokens.every((t) => MERGE_SIZE_VAL.test(t));
+    if (curValid && curTokens.length > freshTokens.length) {
+      merged["Size"] = curSize;
+    } else if (!freshValid && curValid) {
+      merged["Size"] = curSize;
+    }
   }
   return merged;
 }

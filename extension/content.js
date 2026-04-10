@@ -750,7 +750,9 @@
     "sephora.": () => ({
       name: document.querySelector('h1[class*="product"], h1[data-comp*="Name"], .product-name h1, h1')?.textContent?.trim() ?? null,
       price: (() => {
-        const raw = document.querySelector('[data-comp="Price"] [class*="current"], [class*="product-price"] .value, [itemprop="price"], [class*="price-sales"], [class*="price__value"]')?.textContent ?? document.querySelector('meta[itemprop="price"]')?.content ?? document.querySelector('meta[property="product:price:amount"]')?.content;
+        const metaRaw = document.querySelector('meta[property="product:price:amount"]')?.content ?? document.querySelector('meta[itemprop="price"]')?.content ?? document.querySelector('meta[property="og:price:amount"]')?.content;
+        if (metaRaw) return parsePrice(metaRaw).price;
+        const raw = document.querySelector('[data-comp="Price"] [class*="current"], [class*="product-price"] .value, [class*="price-sales"], [class*="price__value"]')?.textContent;
         return raw ? parsePrice(raw).price : null;
       })(),
       currency: window.location.hostname.includes(".fr") ? "EUR" : window.location.hostname.includes(".co.uk") ? "GBP" : "USD",
@@ -963,9 +965,12 @@
     merged.name = merged.name.trim().slice(0, 300);
     const generic = extractGenericSizeColor();
     if (generic.size) {
-      const existingCount = (merged.specs["Size"] ?? "").split(",").filter((s) => s.trim()).length;
-      const genericCount = generic.size.split(",").filter((s) => s.trim()).length;
-      if (!merged.specs["Size"] || genericCount > existingCount) merged.specs["Size"] = generic.size;
+      const tokens = generic.size.split(",").map((s) => s.trim()).filter(Boolean);
+      const allValidSizes = tokens.every((t) => SIZE_VAL.test(t));
+      if (allValidSizes) {
+        const existingCount = (merged.specs["Size"] ?? "").split(",").filter((s) => s.trim()).length;
+        if (!merged.specs["Size"] || tokens.length > existingCount) merged.specs["Size"] = generic.size;
+      }
     }
     if (!merged.specs["Color"] && generic.color) merged.specs["Color"] = generic.color;
     return merged;

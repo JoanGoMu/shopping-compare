@@ -47,13 +47,23 @@ export async function POST(request: NextRequest) {
 
   const normalizedSpecs = normalizeSpecs(specs ?? {});
 
-  // Merges fresh specs but never downgrades Size from a full list to fewer options
+  // Merges fresh specs but validates Size values — garbage data (e.g. payment methods) is
+  // replaced by any valid fresh value; valid full lists are never downgraded to fewer options.
+  const SIZE_VAL_RE = /^(XXS|XS|S|M|L|XL|XXL|XXXL|\d{2,3}(\/\d{2,3})?)$/i;
   function mergeSpecsSafe(current: Record<string, string>, fresh: Record<string, string>): Record<string, string> {
     const merged = { ...current, ...fresh };
     const curSize = current['Size'] ?? '';
     const freshSize = fresh['Size'] ?? '';
-    if (curSize && freshSize && curSize.split(',').length > freshSize.split(',').length) {
-      merged['Size'] = curSize;
+    if (curSize && freshSize) {
+      const curTokens = curSize.split(',').map(s => s.trim()).filter(Boolean);
+      const freshTokens = freshSize.split(',').map(s => s.trim()).filter(Boolean);
+      const curValid = curTokens.every(t => SIZE_VAL_RE.test(t));
+      const freshValid = freshTokens.every(t => SIZE_VAL_RE.test(t));
+      if (curValid && curTokens.length > freshTokens.length) {
+        merged['Size'] = curSize;
+      } else if (!freshValid && curValid) {
+        merged['Size'] = curSize;
+      }
     }
     return merged;
   }
