@@ -42,7 +42,9 @@ After building, reload extension in chrome://extensions.
 - `src/app/compare/layout.tsx` - Compare layout (also authenticated), includes ExtensionAuthBridge
 - `src/app/compare/page.tsx` - Uses CompareShell wrapper, key-based remount for group switching
 - `src/app/compare/actions.ts` - shareComparison (upsert), unshareComparison, server actions
-- `src/app/api/check-prices/route.ts` - Daily cron: price check + specs backfill + email notifications
+- `src/app/api/check-prices/route.ts` - Daily cron: price check + specs backfill + email notifications (imports from price-email.ts)
+- `src/app/api/enrich-product/route.ts` - POST endpoint called by extension to update ALL users' records for a URL (admin client, bypasses RLS). Sends price drop emails.
+- `src/lib/price-email.ts` - Shared email builder: PriceChange type, formatPrice(), buildPriceEmail() used by both cron and enrich-product
 - `src/app/sitemap.ts` - Dynamic sitemap
 - `src/components/CompareShell.tsx` - Client wrapper owning activeCount state for live sidebar sync
 - `src/components/CompareTable.tsx` - Private compare table with add-more ghost column, save-as-group, specs display
@@ -59,7 +61,7 @@ After building, reload extension in chrome://extensions.
 **Key files - Extension:**
 - `src/extractor.ts` - All 10 store extractors + JSON-LD + OG + generic DOM price + specs extraction
 - `src/content.ts` - Save button injection, tryUpdateSavedPrice, tryUpdateRelatedProducts (fetches same-store products)
-- `src/background.ts` - Supabase client, SAVE_PRODUCT, UPDATE_PRICE_IF_SAVED, GET_PRODUCTS_BY_DOMAIN, UPDATE_SPECS_FOR_URL, SHARE_SESSION
+- `src/background.ts` - Supabase client, SAVE_PRODUCT, UPDATE_PRICE_IF_SAVED, GET_PRODUCTS_BY_DOMAIN, UPDATE_SPECS_FOR_URL, ENRICH_PRODUCT (calls server), SHARE_SESSION
 - `src/normalize-specs.ts` - Identical copy of web app's normalize-specs.ts (keep in sync!)
 - `src/popup.ts` - Sign in/out, auth status display
 - `build.mjs` - esbuild, auto-reads ../shopping-compare/.env.local for credentials
@@ -80,7 +82,7 @@ After building, reload extension in chrome://extensions.
 - Shared comparison snapshots refresh: on every view (add/remove) + cron (price changes)
 - Extension auto-syncs session from web app via ExtensionAuthBridge (mounted in both layouts)
 - Extension updates price + specs silently when user visits saved product page
-- Extension fetches OTHER saved products from same store (up to 5 with empty specs) using browser cookies
+- Extension fetches OTHER saved products from same store using browser cookies, calls ENRICH_PRODUCT to update ALL users' records (not just the visitor's)
 - Rich specs extraction from JSON-LD + 10 store-specific DOM extractors
 - Multilingual spec normalization: keys (ES/FR/DE/NL/IT to English) + values (materials/colors translated)
 - Spec display: coverage threshold filter, priority ordering (Brand/Color/Material first), collapsible "Show more"
@@ -90,12 +92,15 @@ After building, reload extension in chrome://extensions.
 
 ## Spec extraction architecture
 
-**Extension flow:** JSON-LD specs (any site) merged with store-specific DOM specs, normalized via normalizeSpecs()
-**Server-side flow:** Same but using Cheerio instead of DOM APIs
+**Extension flow:** JSON-LD specs (all available variants, OOS filtered) + store-specific DOM specs + generic size/color fallback, normalized via normalizeSpecs()
+**Server-side flow:** Same JSON-LD variant iteration but using Cheerio (no interactive DOM)
 **Cron backfill:** check-prices extracts specs from fetched HTML, updates products with empty specs
-**Extension revisit:** tryUpdateSavedPrice sends specs; tryUpdateRelatedProducts fetches up to 5 same-store products
+**Extension revisit:** tryUpdateSavedPrice sends UPDATE_PRICE_IF_SAVED (local user, fast) + ENRICH_PRODUCT (server, updates ALL users). tryUpdateRelatedProducts fetches all same-store saved products, extracts specs+price from HTML, calls ENRICH_PRODUCT for each (crowd-sourced enrichment).
+**Crowd-sourced enrichment:** POST /api/enrich-product - when User Y visits a URL, updates specs+price for every user who saved that URL. Sends Resend email on price drop to each affected user with price_alerts=true.
+**Generic fallback:** extractGenericSizeColor() runs on ANY store after JSON-LD + store-specific — scans <select> labels, button group aria roles, Shopify data-option-name
 **Normalization:** KEY_MAP (exact) -> KEY_SUBSTRING_MAP (contains) -> title-case fallback. VALUE_MAP translates materials/colors.
 **Display:** Coverage threshold (2+ for small groups, 30% for 7+), priority sort, collapsible toggle
+**Store extractors with size/color DOM:** Zalando, Zara, TNF, Vans (Vans was added — was missing entirely)
 
 ## Known limitations
 
