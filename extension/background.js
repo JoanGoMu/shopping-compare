@@ -20123,8 +20123,8 @@ async function handleGetProductsByDomain(domain) {
     if (!stored[SESSION_KEY]) return [];
     const user = await getUser();
     if (!user) return [];
-    const { data } = await supabase.from("products").select("product_url, specs").eq("user_id", user.id).eq("store_domain", domain);
-    return (data ?? []).filter((p) => !p.specs || Object.keys(p.specs).length === 0).map((p) => ({ url: p.product_url }));
+    const { data } = await supabase.from("products").select("product_url").eq("user_id", user.id).eq("store_domain", domain);
+    return (data ?? []).map((p) => ({ url: p.product_url }));
   } catch {
     return [];
   }
@@ -20137,7 +20137,10 @@ async function handleUpdateSpecsForUrl(url, specs) {
     if (!user) return;
     const normalized = normalizeSpecs(specs);
     if (!Object.keys(normalized).length) return;
-    await supabase.from("products").update({ specs: normalized, last_checked_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("user_id", user.id).eq("product_url", url);
+    const { data: existing } = await supabase.from("products").select("specs").eq("user_id", user.id).eq("product_url", url).maybeSingle();
+    const currentSpecs = existing?.specs ?? {};
+    const merged = { ...currentSpecs, ...normalized };
+    await supabase.from("products").update({ specs: merged, last_checked_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("user_id", user.id).eq("product_url", url);
   } catch {
   }
 }

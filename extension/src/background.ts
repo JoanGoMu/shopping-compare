@@ -189,7 +189,8 @@ async function handleSaveProduct(product: {
   return { ok: true };
 }
 
-// Returns URLs of saved products from a given domain that have no specs yet
+// Returns URLs of saved products from a given domain so the extension can
+// re-extract specs using the browser's cookies (works even for bot-protected stores)
 async function handleGetProductsByDomain(domain: string): Promise<{ url: string }[]> {
   try {
     const stored = await chrome.storage.local.get(SESSION_KEY);
@@ -198,16 +199,15 @@ async function handleGetProductsByDomain(domain: string): Promise<{ url: string 
     if (!user) return [];
     const { data } = await supabase
       .from('products')
-      .select('product_url, specs')
+      .select('product_url')
       .eq('user_id', user.id)
       .eq('store_domain', domain);
-    return (data ?? [])
-      .filter((p) => !p.specs || Object.keys(p.specs as object).length === 0)
-      .map((p) => ({ url: p.product_url }));
+    return (data ?? []).map((p) => ({ url: p.product_url }));
   } catch { return []; }
 }
 
-// Saves specs (extracted by content script) for a product URL the user didn't visit directly
+// Updates specs for a product URL the user didn't visit directly.
+// Merges over existing specs so fresher data wins without losing previously captured fields.
 async function handleUpdateSpecsForUrl(url: string, specs: Record<string, string>) {
   try {
     const stored = await chrome.storage.local.get(SESSION_KEY);
@@ -216,8 +216,16 @@ async function handleUpdateSpecsForUrl(url: string, specs: Record<string, string
     if (!user) return;
     const normalized = normalizeSpecs(specs);
     if (!Object.keys(normalized).length) return;
+    // Fetch current specs to merge with
+    const { data: existing } = await supabase.from('products')
+      .select('specs')
+      .eq('user_id', user.id)
+      .eq('product_url', url)
+      .maybeSingle();
+    const currentSpecs = (existing?.specs ?? {}) as Record<string, string>;
+    const merged = { ...currentSpecs, ...normalized };
     await supabase.from('products')
-      .update({ specs: normalized, last_checked_at: new Date().toISOString() })
+      .update({ specs: merged, last_checked_at: new Date().toISOString() })
       .eq('user_id', user.id)
       .eq('product_url', url);
   } catch { /* silent */ }

@@ -58,7 +58,7 @@ export default function PublicCompareTable({ products, updatedAt }: Props) {
       </p>
 
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
+        <table className="w-full border-collapse table-fixed">
           <thead>
             <tr>
               <th className="text-left text-xs tracking-widest uppercase text-muted py-3 pr-6 w-28">Field</th>
@@ -66,7 +66,7 @@ export default function PublicCompareTable({ products, updatedAt }: Props) {
                 const images: string[] = p.images ?? (p.image_url ? [p.image_url] : []);
                 const idx = getImgIndex(i);
                 return (
-                  <th key={i} className="text-left pb-4 px-3 w-[160px] min-w-[160px] align-top">
+                  <th key={i} className="text-left pb-4 px-3 w-[160px] min-w-[160px] max-w-[160px] align-top">
                     <div className="relative group/col w-full">
                       <div className="aspect-[3/4] w-full bg-cream overflow-hidden">
                         {images.length > 0 ? (

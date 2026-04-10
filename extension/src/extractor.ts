@@ -74,11 +74,15 @@ function isVariantAvailable(variant: any): boolean {
 
 // --- DOM extraction helpers (extension-only, not available server-side) ---
 
+// Texts that are definitely not size values — CTA buttons, labels, links
+const NON_SIZE_TEXT = /^(toevoegen|add to (cart|bag)|add|buy|order|checkout|submit|notify\s*me|size\s*guide|maten?wijzer|herinnering|wishlist|save|share|zoom|view|select|kies|choose|pick|afhandelen|winkelwagen|bekijk)$/i;
+
 function extractAvailableSizes(selectors: string): string[] {
   const sizes: string[] = [];
   document.querySelectorAll<HTMLElement>(selectors).forEach((el) => {
     const text = el.textContent?.trim();
     if (!text || text.length > 20) return; // Skip empty or long label text
+    if (NON_SIZE_TEXT.test(text)) return;  // Skip CTA / label text
     const isUnavailable =
       (el as HTMLButtonElement).disabled === true
       || el.getAttribute('aria-disabled') === 'true'
@@ -145,13 +149,15 @@ function extractGenericSizeColor(): { size: string | null; color: string | null 
     return '';
   }
 
-  // Check whether a button/option element is available (not OOS/disabled)
+  // Check whether a button/option element is available (not OOS/disabled) and a real size value
   function isAvailable(el: HTMLElement): boolean {
+    const text = el.textContent?.trim() ?? '';
     return !(el as HTMLButtonElement).disabled
       && el.getAttribute('aria-disabled') !== 'true'
       && !el.hasAttribute('data-disabled')
       && !/disabled|unavailable|sold-?out|out-of-stock|notify/i.test(el.className)
-      && !/herinnering/i.test(el.textContent ?? '')
+      && !/herinnering/i.test(text)
+      && !NON_SIZE_TEXT.test(text)
       && el.querySelector('del, s') === null;
   }
 

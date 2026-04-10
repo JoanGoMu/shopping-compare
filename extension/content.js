@@ -352,11 +352,13 @@
     const offers = Array.isArray(variant.offers) ? variant.offers : [variant.offers];
     return offers.some(isOfferAvailable);
   }
+  var NON_SIZE_TEXT = /^(toevoegen|add to (cart|bag)|add|buy|order|checkout|submit|notify\s*me|size\s*guide|maten?wijzer|herinnering|wishlist|save|share|zoom|view|select|kies|choose|pick|afhandelen|winkelwagen|bekijk)$/i;
   function extractAvailableSizes(selectors) {
     const sizes = [];
     document.querySelectorAll(selectors).forEach((el) => {
       const text = el.textContent?.trim();
       if (!text || text.length > 20) return;
+      if (NON_SIZE_TEXT.test(text)) return;
       const isUnavailable = el.disabled === true || el.getAttribute("aria-disabled") === "true" || el.hasAttribute("data-disabled") || /disabled|unavailable|sold-?out|out-of-stock|notify/i.test(el.className) || /disabled|unavailable|sold-?out|out-of-stock/i.test(el.getAttribute("data-state") ?? "") || /herinnering/i.test(el.textContent ?? "") || el.querySelector("del, s") !== null;
       if (!isUnavailable) sizes.push(text);
     });
@@ -406,7 +408,8 @@
       return "";
     }
     function isAvailable(el) {
-      return !el.disabled && el.getAttribute("aria-disabled") !== "true" && !el.hasAttribute("data-disabled") && !/disabled|unavailable|sold-?out|out-of-stock|notify/i.test(el.className) && !/herinnering/i.test(el.textContent ?? "") && el.querySelector("del, s") === null;
+      const text = el.textContent?.trim() ?? "";
+      return !el.disabled && el.getAttribute("aria-disabled") !== "true" && !el.hasAttribute("data-disabled") && !/disabled|unavailable|sold-?out|out-of-stock|notify/i.test(el.className) && !/herinnering/i.test(text) && !NON_SIZE_TEXT.test(text) && el.querySelector("del, s") === null;
     }
     document.querySelectorAll("select").forEach((select) => {
       if (size && color) return;
