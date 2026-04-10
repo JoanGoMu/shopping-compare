@@ -174,6 +174,23 @@ function extractGenericSizeColor(): { size: string | null; color: string | null 
     if (!color && COLOR_KW.test(label)) color = available[0]; // color: currently selected
   });
 
+  // Strategy 1.5: <select> inside size-named containers without a SIZE_KW label
+  // (Zara NL and others use a bare <select> inside a div whose class contains "size")
+  if (!size) {
+    const sizeContainer = document.querySelector(
+      '[class*="size-selector"], [class*="size-list"], [class*="size-picker"], ' +
+      '[class*="size-dropdown"], [class*="product-size"], [data-testid*="size"]'
+    );
+    const containerSelect = sizeContainer?.querySelector<HTMLSelectElement>('select');
+    if (containerSelect) {
+      const opts = Array.from(containerSelect.options)
+        .filter(o => !o.disabled && o.value !== '' && o.textContent?.trim())
+        .map(o => o.textContent!.trim())
+        .filter(t => t.length <= 20 && !NON_SIZE_TEXT.test(t));
+      if (opts.length > 0) size = opts.join(', ');
+    }
+  }
+
   // Strategy 2: button groups / radiogroups / listboxes
   const CONTAINER_SEL = [
     '[role="radiogroup"]', '[role="listbox"]',
@@ -832,12 +849,15 @@ export function extractProduct(): ExtractedProduct {
   // Clean up name
   merged.name = merged.name.trim().slice(0, 300);
 
-  // Generic fallback: fill in Size/Color if neither JSON-LD nor store-specific extraction found them
-  if (!merged.specs['Size'] || !merged.specs['Color']) {
-    const generic = extractGenericSizeColor();
-    if (!merged.specs['Size'] && generic.size) merged.specs['Size'] = generic.size;
-    if (!merged.specs['Color'] && generic.color) merged.specs['Color'] = generic.color;
+  // Generic fallback: always run and prefer whichever source found MORE size options
+  // (JSON-LD often captures only the currently-selected variant; DOM has the full list)
+  const generic = extractGenericSizeColor();
+  if (generic.size) {
+    const existingCount = (merged.specs['Size'] ?? '').split(',').filter(s => s.trim()).length;
+    const genericCount = generic.size.split(',').filter(s => s.trim()).length;
+    if (!merged.specs['Size'] || genericCount > existingCount) merged.specs['Size'] = generic.size;
   }
+  if (!merged.specs['Color'] && generic.color) merged.specs['Color'] = generic.color;
 
   return merged;
 }
