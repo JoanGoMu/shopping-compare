@@ -232,17 +232,19 @@ function extractGenericSizeColor(): { size: string | null; color: string | null 
   });
 
   // Strategy 4: content-based select detection (stores with obfuscated class names)
-  // Any <select> whose options are mostly standard size values is treated as the size picker.
+  // No spaces (kills payment methods), max 6 chars (kills size guides), deduplicated,
+  // ALL remaining options must be standard size values.
   if (!size) {
     document.querySelectorAll<HTMLSelectElement>('select').forEach((sel) => {
       if (size) return;
-      const opts = Array.from(sel.options)
-        .filter(o => !o.disabled && o.value !== '' && o.textContent?.trim())
-        .map(o => o.textContent!.trim())
-        .filter(t => t.length <= 20 && !NON_SIZE_TEXT.test(t));
-      const sizeCount = opts.filter(o => SIZE_VAL.test(o)).length;
-      if (sizeCount >= 2 && sizeCount >= opts.length * 0.5) {
-        size = opts.join(', ');
+      const unique = [...new Set(
+        Array.from(sel.options)
+          .filter(o => !o.disabled && o.value !== '' && o.textContent?.trim())
+          .map(o => o.textContent!.trim())
+          .filter(t => t.length <= 6 && !t.includes(' ') && !NON_SIZE_TEXT.test(t))
+      )];
+      if (unique.length >= 2 && unique.every(o => SIZE_VAL.test(o))) {
+        size = unique.join(', ');
       }
     });
   }
@@ -563,17 +565,18 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
           specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
         }
       });
-      // Size: identify the size <select> by option content — Zara uses obfuscated class names
-      // so class-name selectors are unreliable. Any <select> whose options are mostly standard
-      // clothing sizes (XS/S/M/L/XL/XXL or numeric like 36/38/40) is the size picker.
+      // Size: identify the size <select> by option content — Zara uses obfuscated class names.
+      // Filters: no spaces (kills "Apple Pay"), max 6 chars (kills "MATENWIJZER"), deduplicated,
+      // and ALL remaining options must be standard sizes (not just 50%).
       for (const sel of document.querySelectorAll<HTMLSelectElement>('select')) {
-        const opts = Array.from(sel.options)
-          .filter(o => !o.disabled && o.value !== '' && o.textContent?.trim())
-          .map(o => o.textContent!.trim())
-          .filter(t => t.length <= 20 && !NON_SIZE_TEXT.test(t));
-        const sizeCount = opts.filter(o => SIZE_VAL.test(o)).length;
-        if (sizeCount >= 2 && sizeCount >= opts.length * 0.5) {
-          specs['size'] = opts.join(', ');
+        const unique = [...new Set(
+          Array.from(sel.options)
+            .filter(o => !o.disabled && o.value !== '' && o.textContent?.trim())
+            .map(o => o.textContent!.trim())
+            .filter(t => t.length <= 6 && !t.includes(' ') && !NON_SIZE_TEXT.test(t))
+        )];
+        if (unique.length >= 2 && unique.every(o => SIZE_VAL.test(o))) {
+          specs['size'] = unique.join(', ');
           break;
         }
       }
