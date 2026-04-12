@@ -209,21 +209,29 @@ window.addEventListener('message', (event) => {
 // Skip everything on our own app
 if (!isOwnApp()) {
   if (chrome.runtime?.id) {
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initWithRetry);
-    } else {
+    // Start init + SPA observer together after initial parse is done.
+    // The observer must NOT start at document_start: pages like Zara call
+    // replaceState during React hydration, which would look like a navigation
+    // and remove the button before it was ever injected.
+    const startAfterLoad = () => {
       initWithRetry();
+      let lastUrl = location.href;
+      const observer = new MutationObserver(() => {
+        if (!chrome.runtime?.id) { observer.disconnect(); return; }
+        if (location.href !== lastUrl) {
+          lastUrl = location.href;
+          document.getElementById(BUTTON_ID)?.remove();
+          bestSizeForUrl = { url: '', size: '', count: 0 };
+          window.setTimeout(init, 600);
+        }
+      });
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', startAfterLoad);
+    } else {
+      startAfterLoad();
     }
-    let lastUrl = location.href;
-    const observer = new MutationObserver(() => {
-      if (!chrome.runtime?.id) { observer.disconnect(); return; }
-      if (location.href !== lastUrl) {
-        lastUrl = location.href;
-        document.getElementById(BUTTON_ID)?.remove();
-        bestSizeForUrl = { url: '', size: '', count: 0 };
-        window.setTimeout(init, 600);
-      }
-    });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
   }
 }
