@@ -414,13 +414,27 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
     })(),
     specs: (() => {
       const specs: Record<string, string> = {};
-      document.querySelectorAll<HTMLTableRowElement>('#productDetails_techSpec_section_1 tr, #productDetails_detailBullets_sections1 tr').forEach((row) => {
+      // Table format: #productDetails_techSpec_section_1, #productDetails_detailBullets_sections1,
+      // #productDetails_feature_div (th/td pairs)
+      document.querySelectorAll<HTMLTableRowElement>(
+        '#productDetails_techSpec_section_1 tr, #productDetails_detailBullets_sections1 tr, ' +
+        '#productDetails_feature_div tr, #prodDetails tr'
+      ).forEach((row) => {
         const cells = row.querySelectorAll('td, th');
         if (cells.length >= 2) {
-          const key = cells[0].textContent?.trim().replace(/\s+/g, ' ') ?? '';
+          const key = cells[0].textContent?.trim().replace(/\s+/g, ' ').replace(/:$/, '') ?? '';
           const val = cells[1].textContent?.trim().replace(/\s+/g, ' ') ?? '';
           if (key && val && key.length < 60) specs[key] = val;
         }
+      });
+      // Bullet list format: #detailBullets_feature_div (span pairs "Key : Value")
+      document.querySelectorAll<HTMLElement>('#detailBullets_feature_div li .a-list-item').forEach((item) => {
+        const bold = item.querySelector<HTMLElement>('.a-text-bold');
+        if (!bold) return;
+        const key = bold.textContent?.trim().replace(/\s*:\s*$/, '').replace(/\s+/g, ' ') ?? '';
+        // Value is the text after the bold span
+        const val = item.textContent?.replace(bold.textContent ?? '', '').trim().replace(/\s+/g, ' ') ?? '';
+        if (key && val && key.length < 60) specs[key] = val;
       });
       return specs;
     })(),

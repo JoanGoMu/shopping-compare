@@ -596,13 +596,22 @@
       })(),
       specs: (() => {
         const specs = {};
-        document.querySelectorAll("#productDetails_techSpec_section_1 tr, #productDetails_detailBullets_sections1 tr").forEach((row) => {
+        document.querySelectorAll(
+          "#productDetails_techSpec_section_1 tr, #productDetails_detailBullets_sections1 tr, #productDetails_feature_div tr, #prodDetails tr"
+        ).forEach((row) => {
           const cells = row.querySelectorAll("td, th");
           if (cells.length >= 2) {
-            const key = cells[0].textContent?.trim().replace(/\s+/g, " ") ?? "";
+            const key = cells[0].textContent?.trim().replace(/\s+/g, " ").replace(/:$/, "") ?? "";
             const val = cells[1].textContent?.trim().replace(/\s+/g, " ") ?? "";
             if (key && val && key.length < 60) specs[key] = val;
           }
+        });
+        document.querySelectorAll("#detailBullets_feature_div li .a-list-item").forEach((item) => {
+          const bold = item.querySelector(".a-text-bold");
+          if (!bold) return;
+          const key = bold.textContent?.trim().replace(/\s*:\s*$/, "").replace(/\s+/g, " ") ?? "";
+          const val = item.textContent?.replace(bold.textContent ?? "", "").trim().replace(/\s+/g, " ") ?? "";
+          if (key && val && key.length < 60) specs[key] = val;
         });
         return specs;
       })()
