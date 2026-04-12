@@ -1191,6 +1191,24 @@
     } catch {
     }
   }
+  function tryRefreshRelatedProducts() {
+    if (!chrome.runtime?.id) return;
+    if (isOwnApp()) return;
+    const domain = window.location.hostname.replace(/^www\./, "");
+    chrome.runtime.sendMessage({ type: "REFRESH_RELATED_PRODUCTS", domain, currentUrl: window.location.href });
+  }
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type !== "TRY_IFRAME_EXTRACT") return;
+    const url = message.url;
+    const iframe = document.createElement("iframe");
+    iframe.src = url;
+    iframe.style.cssText = "position:fixed;width:1px;height:1px;top:-9999px;left:-9999px;opacity:0;pointer-events:none;";
+    const timer = window.setTimeout(() => {
+      iframe.remove();
+    }, 12e3);
+    iframe.onload = () => window.clearTimeout(timer);
+    document.documentElement.appendChild(iframe);
+  });
   function initWithRetry() {
     init();
     for (const delay of [2e3, 5e3, 8e3]) {
@@ -1199,6 +1217,7 @@
         tryUpdateSavedPrice();
       }, delay);
     }
+    window.setTimeout(tryRefreshRelatedProducts, 12e3);
   }
   var APP_URL = "https://shopping-compare.vercel.app";
   window.addEventListener("message", (event) => {
@@ -1216,30 +1235,48 @@
   });
   if (!isOwnApp()) {
     if (chrome.runtime?.id) {
-      const startAfterLoad = () => {
-        initWithRetry();
-        window.setTimeout(() => {
-          let lastUrl = location.href;
-          const observer = new MutationObserver(() => {
-            if (!chrome.runtime?.id) {
-              observer.disconnect();
-              return;
+      chrome.runtime.sendMessage({ type: "CHECK_IF_BG_TAB" }, (response) => {
+        if (chrome.runtime.lastError || !response?.isBgTab) {
+          const startAfterLoad = () => {
+            initWithRetry();
+            window.setTimeout(() => {
+              let lastUrl = location.href;
+              const observer = new MutationObserver(() => {
+                if (!chrome.runtime?.id) {
+                  observer.disconnect();
+                  return;
+                }
+                if (location.href !== lastUrl) {
+                  lastUrl = location.href;
+                  document.getElementById(BUTTON_ID)?.remove();
+                  bestSizeForUrl = { url: "", size: "", count: 0 };
+                  window.setTimeout(init, 600);
+                }
+              });
+              observer.observe(document.documentElement, { childList: true, subtree: true });
+            }, 3e3);
+          };
+          if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", startAfterLoad);
+          } else {
+            startAfterLoad();
+          }
+        } else {
+          window.setTimeout(() => {
+            try {
+              const product = extractProduct();
+              chrome.runtime.sendMessage({
+                type: "BG_TAB_DATA",
+                url: window.location.href,
+                price: product.price,
+                currency: product.currency,
+                specs: product.specs
+              });
+            } catch {
             }
-            if (location.href !== lastUrl) {
-              lastUrl = location.href;
-              document.getElementById(BUTTON_ID)?.remove();
-              bestSizeForUrl = { url: "", size: "", count: 0 };
-              window.setTimeout(init, 600);
-            }
-          });
-          observer.observe(document.documentElement, { childList: true, subtree: true });
-        }, 3e3);
-      };
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", startAfterLoad);
-      } else {
-        startAfterLoad();
-      }
+          }, 5e3);
+        }
+      });
     }
   }
 })();

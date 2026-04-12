@@ -184,6 +184,33 @@ function tryUpdateSavedPrice() {
   } catch { /* silent */ }
 }
 
+function tryRefreshRelatedProducts() {
+  if (!chrome.runtime?.id) return;
+  if (isOwnApp()) return;
+  const domain = window.location.hostname.replace(/^www\./, '');
+  chrome.runtime.sendMessage({ type: 'REFRESH_RELATED_PRODUCTS', domain, currentUrl: window.location.href });
+}
+
+// Listen for background asking us to extract a URL via hidden iframe.
+// If the iframe loads successfully the content script inside it will send
+// UPDATE_PRICE_IF_SAVED + ENRICH_PRODUCT directly. If it fails (X-Frame-Options)
+// we notify background to fall back to a minimized-window tab.
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type !== 'TRY_IFRAME_EXTRACT') return;
+  const url = message.url as string;
+  const iframe = document.createElement('iframe');
+  iframe.src = url;
+  iframe.style.cssText = 'position:fixed;width:1px;height:1px;top:-9999px;left:-9999px;opacity:0;pointer-events:none;';
+  // If iframe is blocked by X-Frame-Options it fires onerror or stays empty —
+  // we detect via a 12s timeout with no data received.
+  const timer = window.setTimeout(() => {
+    iframe.remove();
+    // Background will have already fallen back to openBgTab if no ENRICH_PRODUCT came through
+  }, 12000);
+  iframe.onload = () => window.clearTimeout(timer);
+  document.documentElement.appendChild(iframe);
+});
+
 function initWithRetry() {
   init();
   // Staggered retries for SPAs that inject JSON-LD/prices via JavaScript.
@@ -194,6 +221,8 @@ function initWithRetry() {
       tryUpdateSavedPrice();
     }, delay);
   }
+  // After page has settled, refresh other saved products from this domain
+  window.setTimeout(tryRefreshRelatedProducts, 12000);
 }
 
 // Auto sign-in: listen for session tokens posted from the web app (runs on all pages)
@@ -213,34 +242,50 @@ window.addEventListener('message', (event) => {
 // Skip everything on our own app
 if (!isOwnApp()) {
   if (chrome.runtime?.id) {
-    // Start init + SPA observer together after initial parse is done.
-    // The observer must NOT start at document_start: pages like Zara call
-    // replaceState during React hydration, which would look like a navigation
-    // and remove the button before it was ever injected.
-    const startAfterLoad = () => {
-      initWithRetry();
-      // Delay the SPA-navigation observer by 3s to avoid React's initial
-      // replaceState calls (URL normalization during hydration) being treated
-      // as user navigations and removing the button before it's injected.
-      window.setTimeout(() => {
-        let lastUrl = location.href;
-        const observer = new MutationObserver(() => {
-          if (!chrome.runtime?.id) { observer.disconnect(); return; }
-          if (location.href !== lastUrl) {
-            lastUrl = location.href;
-            document.getElementById(BUTTON_ID)?.remove();
-            bestSizeForUrl = { url: '', size: '', count: 0 };
-            window.setTimeout(init, 600);
-          }
-        });
-        observer.observe(document.documentElement, { childList: true, subtree: true });
-      }, 3000);
-    };
+    // Check if we're a bg tab opened as fallback (iframe was blocked by X-Frame-Options)
+    chrome.runtime.sendMessage({ type: 'CHECK_IF_BG_TAB' }, (response) => {
+      if (chrome.runtime.lastError || !response?.isBgTab) {
+        // Normal user tab — inject button and run retries
+        const startAfterLoad = () => {
+          initWithRetry();
+          // Delay the SPA-navigation observer by 3s to avoid React's initial
+          // replaceState calls (URL normalization during hydration) being treated
+          // as user navigations and removing the button before it's injected.
+          window.setTimeout(() => {
+            let lastUrl = location.href;
+            const observer = new MutationObserver(() => {
+              if (!chrome.runtime?.id) { observer.disconnect(); return; }
+              if (location.href !== lastUrl) {
+                lastUrl = location.href;
+                document.getElementById(BUTTON_ID)?.remove();
+                bestSizeForUrl = { url: '', size: '', count: 0 };
+                window.setTimeout(init, 600);
+              }
+            });
+            observer.observe(document.documentElement, { childList: true, subtree: true });
+          }, 3000);
+        };
 
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', startAfterLoad);
-    } else {
-      startAfterLoad();
-    }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', startAfterLoad);
+        } else {
+          startAfterLoad();
+        }
+      } else {
+        // Fallback bg tab — SPA extraction only, no UI
+        window.setTimeout(() => {
+          try {
+            const product = extractProduct();
+            chrome.runtime.sendMessage({
+              type: 'BG_TAB_DATA',
+              url: window.location.href,
+              price: product.price,
+              currency: product.currency,
+              specs: product.specs,
+            });
+          } catch { /* silent */ }
+        }, 5000);
+      }
+    });
   }
 }
