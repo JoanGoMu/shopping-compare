@@ -15,10 +15,6 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
 });
 
-// Tracks tabs/windows opened as fallback bg-tab extractions (iframe timed out)
-const bgTabs = new Set<number>();
-const BG_TAB_TIMEOUT = 20000;
-
 // Restore session from our own storage key on every service worker startup
 async function restoreSession() {
   const result = await chrome.storage.local.get(SESSION_KEY);
@@ -54,7 +50,7 @@ async function getUser() {
 }
 
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   const type = (message as { type: string }).type;
 
   if (type === 'SAVE_PRODUCT') {
@@ -134,26 +130,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
-  if (type === 'CHECK_IF_BG_TAB') {
-    sendResponse({ isBgTab: bgTabs.has(sender.tab?.id ?? -1) });
-    return false;
-  }
-
-  if (type === 'REFRESH_RELATED_PRODUCTS') {
-    // content.ts asks background to refresh other saved products from this domain
-    handleRelatedProductRefresh(message.domain, message.currentUrl);
-    return false;
-  }
-
-  if (type === 'BG_TAB_DATA') {
-    // Fallback bg-tab sends extracted data then closes itself
-    const tabId = sender.tab?.id;
-    if (tabId != null) {
-      bgTabs.delete(tabId);
-      chrome.tabs.remove(tabId).catch(() => {});
-    }
-    handleEnrichProduct(message.url, message.price ?? null, message.currency ?? null, message.specs ?? {});
-    return false;
+  if (type === 'GET_RELATED_URLS') {
+    // content.ts asks for saved product URLs from this domain to inject as iframes
+    handleGetRelatedUrls(message.domain, message.currentUrl).then(sendResponse);
+    return true;
   }
 
 });
@@ -303,25 +283,22 @@ async function handleUpdateSpecsForUrl(url: string, specs: Record<string, string
   } catch { /* silent */ }
 }
 
-// Debounce: only refresh each domain once per hour
+// Debounce: only return URLs once per hour per domain
 const lastDomainRefresh = new Map<string, number>();
 const BG_REFRESH_COOLDOWN = 60 * 60 * 1000;
 const BG_MAX_PRODUCTS = 5;
 
-// Two-stage refresh for related saved products from the same domain:
-//   Stage 1: inject hidden iframes into the current page — same browser session/cookies,
-//            completely invisible to the user, content script runs inside and extracts data.
-//   Stage 2: if iframes fail (X-Frame-Options: DENY), fall back to minimized window tabs
-//            that open in the background and close themselves after extraction.
-async function handleRelatedProductRefresh(domain: string, currentUrl: string) {
+// Returns saved product URLs from the same domain so content.ts can inject them
+// as hidden iframes — completely invisible, uses real browser session/cookies.
+async function handleGetRelatedUrls(domain: string, currentUrl: string): Promise<{ urls: string[] }> {
   try {
     const last = lastDomainRefresh.get(domain) ?? 0;
-    if (Date.now() - last < BG_REFRESH_COOLDOWN) return;
+    if (Date.now() - last < BG_REFRESH_COOLDOWN) return { urls: [] };
 
     const stored = await chrome.storage.local.get(SESSION_KEY);
-    if (!stored[SESSION_KEY]) return;
+    if (!stored[SESSION_KEY]) return { urls: [] };
     const user = await getUser();
-    if (!user) return;
+    if (!user) return { urls: [] };
 
     const { data } = await supabase
       .from('products')
@@ -334,51 +311,7 @@ async function handleRelatedProductRefresh(domain: string, currentUrl: string) {
       .filter(u => u && u !== currentUrl)
       .slice(0, BG_MAX_PRODUCTS);
 
-    if (!urls.length) return;
-    lastDomainRefresh.set(domain, Date.now());
-
-    // Ask the content script in the current tab to inject iframes for each URL.
-    // Content script will report back via ENRICH_PRODUCT for each iframe that loads,
-    // or will notify us via IFRAME_FAILED so we can fall back to a bg tab.
-    for (const url of urls) {
-      // Find the active tab that triggered this (the one on the current domain)
-      const [tab] = await chrome.tabs.query({ url: `*://${domain}/*`, active: true }).catch(() => []);
-      if (!tab?.id) {
-        // No active tab found — fall back directly to bg tab
-        await openBgTab(url);
-        continue;
-      }
-      // Send to content script to try iframe first
-      chrome.tabs.sendMessage(tab.id, { type: 'TRY_IFRAME_EXTRACT', url }).catch(async () => {
-        // Content script not reachable — fall back to bg tab
-        await openBgTab(url);
-      });
-      // Small gap between requests
-      await new Promise(r => setTimeout(r, 1500));
-    }
-  } catch { /* silent */ }
-}
-
-async function openBgTab(url: string): Promise<void> {
-  return new Promise((resolve) => {
-    // Open in a minimized window so it never appears in the user's current window
-    chrome.windows.create({ url, state: 'minimized', focused: false }, (win) => {
-      const tabId = win?.tabs?.[0]?.id;
-      if (!tabId) { resolve(); return; }
-      bgTabs.add(tabId);
-      const timer = setTimeout(() => {
-        bgTabs.delete(tabId);
-        chrome.tabs.remove(tabId).catch(() => {});
-        resolve();
-      }, BG_TAB_TIMEOUT);
-      const listener = (msg: { type: string }, sender: chrome.runtime.MessageSender) => {
-        if (msg.type === 'BG_TAB_DATA' && sender.tab?.id === tabId) {
-          clearTimeout(timer);
-          chrome.runtime.onMessage.removeListener(listener);
-          resolve();
-        }
-      };
-      chrome.runtime.onMessage.addListener(listener);
-    });
-  });
+    if (urls.length) lastDomainRefresh.set(domain, Date.now());
+    return { urls };
+  } catch { return { urls: [] }; }
 }

@@ -184,32 +184,28 @@ function tryUpdateSavedPrice() {
   } catch { /* silent */ }
 }
 
+// Asks background for other saved product URLs from this domain, then injects
+// each as a tiny hidden iframe. The content script running inside each iframe
+// extracts data and calls ENRICH_PRODUCT — completely invisible to the user.
+// If the store blocks iframes (X-Frame-Options: DENY/SAMEORIGIN from a cross-origin
+// context) the iframe simply never loads and is cleaned up after a timeout.
 function tryRefreshRelatedProducts() {
   if (!chrome.runtime?.id) return;
   if (isOwnApp()) return;
+  if (window.self !== window.top) return; // Don't run inside iframes
   const domain = window.location.hostname.replace(/^www\./, '');
-  chrome.runtime.sendMessage({ type: 'REFRESH_RELATED_PRODUCTS', domain, currentUrl: window.location.href });
+  chrome.runtime.sendMessage({ type: 'GET_RELATED_URLS', domain, currentUrl: window.location.href }, (response) => {
+    if (chrome.runtime.lastError || !response?.urls?.length) return;
+    for (const url of response.urls as string[]) {
+      const iframe = document.createElement('iframe');
+      iframe.src = url;
+      iframe.style.cssText = 'position:fixed;width:1px;height:1px;top:-9999px;left:-9999px;opacity:0;pointer-events:none;border:none;';
+      // Clean up after 20s whether it loaded or not
+      window.setTimeout(() => iframe.remove(), 20000);
+      document.documentElement.appendChild(iframe);
+    }
+  });
 }
-
-// Listen for background asking us to extract a URL via hidden iframe.
-// If the iframe loads successfully the content script inside it will send
-// UPDATE_PRICE_IF_SAVED + ENRICH_PRODUCT directly. If it fails (X-Frame-Options)
-// we notify background to fall back to a minimized-window tab.
-chrome.runtime.onMessage.addListener((message) => {
-  if (message.type !== 'TRY_IFRAME_EXTRACT') return;
-  const url = message.url as string;
-  const iframe = document.createElement('iframe');
-  iframe.src = url;
-  iframe.style.cssText = 'position:fixed;width:1px;height:1px;top:-9999px;left:-9999px;opacity:0;pointer-events:none;';
-  // If iframe is blocked by X-Frame-Options it fires onerror or stays empty —
-  // we detect via a 12s timeout with no data received.
-  const timer = window.setTimeout(() => {
-    iframe.remove();
-    // Background will have already fallen back to openBgTab if no ENRICH_PRODUCT came through
-  }, 12000);
-  iframe.onload = () => window.clearTimeout(timer);
-  document.documentElement.appendChild(iframe);
-});
 
 function initWithRetry() {
   init();
@@ -221,7 +217,7 @@ function initWithRetry() {
       tryUpdateSavedPrice();
     }, delay);
   }
-  // After page has settled, refresh other saved products from this domain
+  // After page has settled, refresh other saved products from this domain via iframes
   window.setTimeout(tryRefreshRelatedProducts, 12000);
 }
 
@@ -239,53 +235,54 @@ window.addEventListener('message', (event) => {
   chrome.runtime.sendMessage({ type: 'SHARE_SESSION', access_token, refresh_token });
 });
 
-// Skip everything on our own app
+// Skip everything on our own app. Also skip if running inside an iframe
+// (iframes injected by tryRefreshRelatedProducts run the content script too,
+// but they should only do silent extraction, not inject UI).
 if (!isOwnApp()) {
   if (chrome.runtime?.id) {
-    // Check if we're a bg tab opened as fallback (iframe was blocked by X-Frame-Options)
-    chrome.runtime.sendMessage({ type: 'CHECK_IF_BG_TAB' }, (response) => {
-      if (chrome.runtime.lastError || !response?.isBgTab) {
-        // Normal user tab — inject button and run retries
-        const startAfterLoad = () => {
-          initWithRetry();
-          // Delay the SPA-navigation observer by 3s to avoid React's initial
-          // replaceState calls (URL normalization during hydration) being treated
-          // as user navigations and removing the button before it's injected.
-          window.setTimeout(() => {
-            let lastUrl = location.href;
-            const observer = new MutationObserver(() => {
-              if (!chrome.runtime?.id) { observer.disconnect(); return; }
-              if (location.href !== lastUrl) {
-                lastUrl = location.href;
-                document.getElementById(BUTTON_ID)?.remove();
-                bestSizeForUrl = { url: '', size: '', count: 0 };
-                window.setTimeout(init, 600);
-              }
-            });
-            observer.observe(document.documentElement, { childList: true, subtree: true });
-          }, 3000);
-        };
-
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', startAfterLoad);
-        } else {
-          startAfterLoad();
-        }
-      } else {
-        // Fallback bg tab — SPA extraction only, no UI
-        window.setTimeout(() => {
-          try {
-            const product = extractProduct();
+    if (window.self !== window.top) {
+      // Inside a hidden iframe — extract and enrich silently, no UI
+      window.setTimeout(() => {
+        try {
+          const product = extractProduct();
+          if (product.price != null || Object.keys(product.specs).length > 0) {
             chrome.runtime.sendMessage({
-              type: 'BG_TAB_DATA',
+              type: 'ENRICH_PRODUCT',
               url: window.location.href,
               price: product.price,
               currency: product.currency,
               specs: product.specs,
             });
-          } catch { /* silent */ }
-        }, 5000);
+          }
+        } catch { /* silent */ }
+      }, 5000);
+    } else {
+      // Normal top-level tab — inject button and run retries
+      const startAfterLoad = () => {
+        initWithRetry();
+        // Delay the SPA-navigation observer by 3s to avoid React's initial
+        // replaceState calls (URL normalization during hydration) being treated
+        // as user navigations and removing the button before it's injected.
+        window.setTimeout(() => {
+          let lastUrl = location.href;
+          const observer = new MutationObserver(() => {
+            if (!chrome.runtime?.id) { observer.disconnect(); return; }
+            if (location.href !== lastUrl) {
+              lastUrl = location.href;
+              document.getElementById(BUTTON_ID)?.remove();
+              bestSizeForUrl = { url: '', size: '', count: 0 };
+              window.setTimeout(init, 600);
+            }
+          });
+          observer.observe(document.documentElement, { childList: true, subtree: true });
+        }, 3000);
+      };
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', startAfterLoad);
+      } else {
+        startAfterLoad();
       }
-    });
+    }
   }
 }
