@@ -1030,9 +1030,11 @@
     }
   }
   function isLikelyProductPage() {
-    const hasJsonLd = !!document.querySelector('script[type="application/ld+json"]');
-    const hasOgProduct = !!document.querySelector('meta[property="og:type"][content="product"]');
-    return hasJsonLd || hasOgProduct;
+    if (document.querySelector('script[type="application/ld+json"]')) return true;
+    if (document.querySelector('meta[property="og:type"][content="product"]')) return true;
+    if (document.querySelector('[itemprop="offers"], [itemprop="price"]')) return true;
+    if (/\/dp\/[A-Z0-9]{10}/i.test(window.location.pathname) && document.getElementById("productTitle")) return true;
+    return false;
   }
   function createButton() {
     const btn = document.createElement("button");
