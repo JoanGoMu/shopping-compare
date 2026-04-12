@@ -565,24 +565,63 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
           specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
         }
       });
-      // Size: Zara uses BOTH a custom <ul> component AND a native <select>, rendered asynchronously.
-      // Approach A: Zara Design System custom <ul> (class names are stable, not obfuscated)
-      const sizeUlItems = document.querySelectorAll<HTMLElement>(
-        'ul.size-selector-sizes li, [class*="size-selector-sizes"] li'
+      // Size: Zara's SPA renders size selectors asynchronously via React hydration.
+      // Try multiple approaches in order from most-stable to least-stable selectors.
+
+      // Approach A: data-qa attributes (Zara uses these for color; likely present for sizes too)
+      const sizeByDataQa = document.querySelectorAll<HTMLElement>(
+        '[data-qa-qualifier*="size"] li, [data-qa-qualifier*="size"] button, ' +
+        '[data-qa-action*="size-selector"] li, [data-qa-action*="size"] button'
       );
-      if (sizeUlItems.length >= 2) {
+      if (sizeByDataQa.length >= 2) {
         const sizes = [...new Set(
-          Array.from(sizeUlItems)
-            .filter(li => !/unavailable|disabled/i.test(li.className))
-            .map(li => {
-              const label = li.querySelector<HTMLElement>('[class*="size-selector-sizes-size__label"], [class*="label"]');
-              return (label?.textContent ?? li.textContent ?? '').trim();
-            })
+          Array.from(sizeByDataQa)
+            .filter(el => !/unavailable|disabled/i.test(el.className) && el.getAttribute('aria-disabled') !== 'true')
+            .map(el => (el.textContent ?? '').trim())
             .filter(t => t.length > 0 && t.length <= 6 && !t.includes(' ') && !NON_SIZE_TEXT.test(t) && SIZE_VAL.test(t))
         )];
         if (sizes.length >= 2) specs['size'] = sizes.join(', ');
       }
-      // Approach B: native <select> fallback (content-based, no class names needed)
+
+      // Approach B: ARIA listbox/radiogroup with a size-related label
+      if (!specs['size']) {
+        const containers = document.querySelectorAll<HTMLElement>('[role="listbox"], [role="radiogroup"]');
+        for (const container of containers) {
+          const ariaLabel = (container.getAttribute('aria-label') ?? '').toLowerCase();
+          const labelledById = container.getAttribute('aria-labelledby');
+          const labelledText = labelledById ? (document.getElementById(labelledById)?.textContent ?? '').toLowerCase() : '';
+          if (!/size|maat|taille|taglia/i.test(ariaLabel + ' ' + labelledText + ' ' + container.className)) continue;
+          const items = container.querySelectorAll<HTMLElement>('[role="option"], [role="radio"], li, button');
+          const sizes = [...new Set(
+            Array.from(items)
+              .filter(el => el.getAttribute('aria-disabled') !== 'true' && !/unavailable|disabled/i.test(el.className))
+              .map(el => (el.getAttribute('aria-label') ?? el.textContent ?? '').trim())
+              .filter(t => t.length > 0 && t.length <= 6 && !t.includes(' ') && !NON_SIZE_TEXT.test(t) && SIZE_VAL.test(t))
+          )];
+          if (sizes.length >= 2) { specs['size'] = sizes.join(', '); break; }
+        }
+      }
+
+      // Approach C: Zara Design System custom <ul> (class names are stable in the ZDS)
+      if (!specs['size']) {
+        const sizeUlItems = document.querySelectorAll<HTMLElement>(
+          'ul.size-selector-sizes li, [class*="size-selector-sizes"] li'
+        );
+        if (sizeUlItems.length >= 2) {
+          const sizes = [...new Set(
+            Array.from(sizeUlItems)
+              .filter(li => !/unavailable|disabled/i.test(li.className))
+              .map(li => {
+                const label = li.querySelector<HTMLElement>('[class*="size-selector-sizes-size__label"], [class*="label"]');
+                return (label?.textContent ?? li.textContent ?? '').trim();
+              })
+              .filter(t => t.length > 0 && t.length <= 6 && !t.includes(' ') && !NON_SIZE_TEXT.test(t) && SIZE_VAL.test(t))
+          )];
+          if (sizes.length >= 2) specs['size'] = sizes.join(', ');
+        }
+      }
+
+      // Approach D: native <select> fallback (content-based, no class names needed)
       if (!specs['size']) {
         for (const sel of document.querySelectorAll<HTMLSelectElement>('select')) {
           const unique = [...new Set(

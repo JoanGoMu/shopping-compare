@@ -728,17 +728,45 @@
             specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
           }
         });
-        const sizeUlItems = document.querySelectorAll(
-          'ul.size-selector-sizes li, [class*="size-selector-sizes"] li'
+        const sizeByDataQa = document.querySelectorAll(
+          '[data-qa-qualifier*="size"] li, [data-qa-qualifier*="size"] button, [data-qa-action*="size-selector"] li, [data-qa-action*="size"] button'
         );
-        if (sizeUlItems.length >= 2) {
+        if (sizeByDataQa.length >= 2) {
           const sizes = [...new Set(
-            Array.from(sizeUlItems).filter((li) => !/unavailable|disabled/i.test(li.className)).map((li) => {
-              const label = li.querySelector('[class*="size-selector-sizes-size__label"], [class*="label"]');
-              return (label?.textContent ?? li.textContent ?? "").trim();
-            }).filter((t) => t.length > 0 && t.length <= 6 && !t.includes(" ") && !NON_SIZE_TEXT.test(t) && SIZE_VAL.test(t))
+            Array.from(sizeByDataQa).filter((el) => !/unavailable|disabled/i.test(el.className) && el.getAttribute("aria-disabled") !== "true").map((el) => (el.textContent ?? "").trim()).filter((t) => t.length > 0 && t.length <= 6 && !t.includes(" ") && !NON_SIZE_TEXT.test(t) && SIZE_VAL.test(t))
           )];
           if (sizes.length >= 2) specs["size"] = sizes.join(", ");
+        }
+        if (!specs["size"]) {
+          const containers = document.querySelectorAll('[role="listbox"], [role="radiogroup"]');
+          for (const container of containers) {
+            const ariaLabel = (container.getAttribute("aria-label") ?? "").toLowerCase();
+            const labelledById = container.getAttribute("aria-labelledby");
+            const labelledText = labelledById ? (document.getElementById(labelledById)?.textContent ?? "").toLowerCase() : "";
+            if (!/size|maat|taille|taglia/i.test(ariaLabel + " " + labelledText + " " + container.className)) continue;
+            const items = container.querySelectorAll('[role="option"], [role="radio"], li, button');
+            const sizes = [...new Set(
+              Array.from(items).filter((el) => el.getAttribute("aria-disabled") !== "true" && !/unavailable|disabled/i.test(el.className)).map((el) => (el.getAttribute("aria-label") ?? el.textContent ?? "").trim()).filter((t) => t.length > 0 && t.length <= 6 && !t.includes(" ") && !NON_SIZE_TEXT.test(t) && SIZE_VAL.test(t))
+            )];
+            if (sizes.length >= 2) {
+              specs["size"] = sizes.join(", ");
+              break;
+            }
+          }
+        }
+        if (!specs["size"]) {
+          const sizeUlItems = document.querySelectorAll(
+            'ul.size-selector-sizes li, [class*="size-selector-sizes"] li'
+          );
+          if (sizeUlItems.length >= 2) {
+            const sizes = [...new Set(
+              Array.from(sizeUlItems).filter((li) => !/unavailable|disabled/i.test(li.className)).map((li) => {
+                const label = li.querySelector('[class*="size-selector-sizes-size__label"], [class*="label"]');
+                return (label?.textContent ?? li.textContent ?? "").trim();
+              }).filter((t) => t.length > 0 && t.length <= 6 && !t.includes(" ") && !NON_SIZE_TEXT.test(t) && SIZE_VAL.test(t))
+            )];
+            if (sizes.length >= 2) specs["size"] = sizes.join(", ");
+          }
         }
         if (!specs["size"]) {
           for (const sel of document.querySelectorAll("select")) {
@@ -993,6 +1021,7 @@
   // src/content.ts
   var BUTTON_ID = "comparecart-save-btn";
   var TOAST_ID = "comparecart-toast";
+  var bestSizeForUrl = { url: "", size: "", count: 0 };
   function isOwnApp() {
     try {
       return window.location.origin === new URL(APP_URL).origin;
@@ -1123,6 +1152,17 @@
     try {
       const product = extractProduct();
       if (product.price == null && Object.keys(product.specs ?? {}).length === 0) return;
+      const currentSize = product.specs["Size"] ?? "";
+      const sizeTokens = currentSize.split(",").filter((s) => s.trim()).length;
+      if (product.product_url === bestSizeForUrl.url) {
+        if (sizeTokens > bestSizeForUrl.count) {
+          bestSizeForUrl = { url: product.product_url, size: currentSize, count: sizeTokens };
+        } else if (sizeTokens < bestSizeForUrl.count && bestSizeForUrl.count > 0) {
+          product.specs["Size"] = bestSizeForUrl.size;
+        }
+      } else {
+        bestSizeForUrl = { url: product.product_url, size: currentSize, count: sizeTokens };
+      }
       chrome.runtime.sendMessage({
         type: "UPDATE_PRICE_IF_SAVED",
         url: product.product_url,
@@ -1140,19 +1180,6 @@
     } catch {
     }
   }
-  function tryRefreshRelatedProducts() {
-    if (!chrome.runtime?.id) return;
-    if (isOwnApp()) return;
-    try {
-      const domain = window.location.hostname.replace("www.", "");
-      chrome.runtime.sendMessage({
-        type: "BACKGROUND_REFRESH_PRODUCTS",
-        domain,
-        currentUrl: window.location.href
-      });
-    } catch {
-    }
-  }
   function initWithRetry() {
     init();
     for (const delay of [2e3, 5e3, 8e3]) {
@@ -1161,7 +1188,6 @@
         tryUpdateSavedPrice();
       }, delay);
     }
-    window.setTimeout(() => tryRefreshRelatedProducts(), 1e4);
   }
   var APP_URL = "https://shopping-compare.vercel.app";
   window.addEventListener("message", (event) => {
@@ -1178,44 +1204,26 @@
     chrome.runtime.sendMessage({ type: "SHARE_SESSION", access_token, refresh_token });
   });
   if (!isOwnApp()) {
-    if (!chrome.runtime?.id) {
-    } else {
-      chrome.runtime.sendMessage({ type: "CHECK_IF_BG_TAB" }, (response) => {
-        if (chrome.runtime.lastError || !response?.isBgTab) {
-          if (document.readyState === "loading") {
-            document.addEventListener("DOMContentLoaded", initWithRetry);
-          } else {
-            initWithRetry();
-          }
-          let lastUrl = location.href;
-          const observer = new MutationObserver(() => {
-            if (!chrome.runtime?.id) {
-              observer.disconnect();
-              return;
-            }
-            if (location.href !== lastUrl) {
-              lastUrl = location.href;
-              document.getElementById(BUTTON_ID)?.remove();
-              window.setTimeout(init, 600);
-            }
-          });
-          observer.observe(document.documentElement, { childList: true, subtree: true });
-        } else {
-          window.setTimeout(() => {
-            try {
-              const product = extractProduct();
-              chrome.runtime.sendMessage({
-                type: "BACKGROUND_TAB_DATA",
-                url: window.location.href,
-                price: product.price,
-                currency: product.currency,
-                specs: product.specs
-              });
-            } catch {
-            }
-          }, 5e3);
+    if (chrome.runtime?.id) {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initWithRetry);
+      } else {
+        initWithRetry();
+      }
+      let lastUrl = location.href;
+      const observer = new MutationObserver(() => {
+        if (!chrome.runtime?.id) {
+          observer.disconnect();
+          return;
+        }
+        if (location.href !== lastUrl) {
+          lastUrl = location.href;
+          document.getElementById(BUTTON_ID)?.remove();
+          bestSizeForUrl = { url: "", size: "", count: 0 };
+          window.setTimeout(init, 600);
         }
       });
+      observer.observe(document.documentElement, { childList: true, subtree: true });
     }
   }
 })();

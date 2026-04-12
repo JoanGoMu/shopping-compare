@@ -19984,11 +19984,6 @@ var SESSION_KEY = "comparecart_session";
 var supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
 });
-var bgTabs = /* @__PURE__ */ new Set();
-var lastDomainRefresh = /* @__PURE__ */ new Map();
-var BG_REFRESH_COOLDOWN = 60 * 60 * 1e3;
-var BG_TAB_TIMEOUT = 15e3;
-var BG_MAX_PRODUCTS = 5;
 async function restoreSession() {
   const result = await chrome.storage.local.get(SESSION_KEY);
   const stored = result[SESSION_KEY];
@@ -20017,7 +20012,7 @@ async function getUser() {
   if (user) return user;
   return restoreSession();
 }
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   const type = message.type;
   if (type === "SAVE_PRODUCT") {
     handleSaveProduct(message.product).then(sendResponse);
@@ -20082,24 +20077,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
   if (type === "ENRICH_PRODUCT") {
-    handleEnrichProduct(message.url, message.price ?? null, message.currency ?? null, message.specs ?? {});
-    return false;
-  }
-  if (type === "CHECK_IF_BG_TAB") {
-    sendResponse({ isBgTab: bgTabs.has(sender.tab?.id ?? -1) });
-    return false;
-  }
-  if (type === "BACKGROUND_REFRESH_PRODUCTS") {
-    handleBackgroundRefresh(message.domain, message.currentUrl);
-    return false;
-  }
-  if (type === "BACKGROUND_TAB_DATA") {
-    const tabId = sender.tab?.id;
-    if (tabId != null) {
-      bgTabs.delete(tabId);
-      chrome.tabs.remove(tabId).catch(() => {
-      });
-    }
     handleEnrichProduct(message.url, message.price ?? null, message.currency ?? null, message.specs ?? {});
     return false;
   }
@@ -20186,47 +20163,6 @@ async function handleEnrichProduct(url, price, currency, specs) {
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${access_token}` },
       body: JSON.stringify({ url, price, currency, specs })
     });
-  } catch {
-  }
-}
-async function handleBackgroundRefresh(domain, currentUrl) {
-  try {
-    const last = lastDomainRefresh.get(domain) ?? 0;
-    if (Date.now() - last < BG_REFRESH_COOLDOWN) return;
-    const stored = await chrome.storage.local.get(SESSION_KEY);
-    if (!stored[SESSION_KEY]) return;
-    const user = await getUser();
-    if (!user) return;
-    const { data } = await supabase.from("products").select("product_url").eq("user_id", user.id).eq("store_domain", domain);
-    const urls = (data ?? []).map((p) => p.product_url).filter((u) => u && u !== currentUrl).slice(0, BG_MAX_PRODUCTS);
-    if (!urls.length) return;
-    lastDomainRefresh.set(domain, Date.now());
-    for (const url of urls) {
-      await new Promise((resolve) => {
-        chrome.tabs.create({ url, active: false }, (tab) => {
-          if (!tab.id) {
-            resolve();
-            return;
-          }
-          bgTabs.add(tab.id);
-          const timer = setTimeout(() => {
-            bgTabs.delete(tab.id);
-            chrome.tabs.remove(tab.id).catch(() => {
-            });
-            resolve();
-          }, BG_TAB_TIMEOUT);
-          const listener = (msg, sender) => {
-            if (msg.type === "BACKGROUND_TAB_DATA" && sender.tab?.id === tab.id) {
-              clearTimeout(timer);
-              chrome.runtime.onMessage.removeListener(listener);
-              resolve();
-            }
-          };
-          chrome.runtime.onMessage.addListener(listener);
-        });
-      });
-      await new Promise((r) => setTimeout(r, 2e3));
-    }
   } catch {
   }
 }

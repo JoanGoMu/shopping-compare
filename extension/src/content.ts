@@ -7,6 +7,10 @@ import { extractProduct } from './extractor';
 const BUTTON_ID = 'comparecart-save-btn';
 const TOAST_ID = 'comparecart-toast';
 
+// Track the best Size value seen per URL to prevent retries from
+// overwriting a good extraction with a worse one (SPA DOM state flipping).
+let bestSizeForUrl = { url: '', size: '', count: 0 };
+
 function isOwnApp(): boolean {
   try { return window.location.origin === new URL(APP_URL).origin; } catch { return false; }
 }
@@ -142,6 +146,21 @@ function tryUpdateSavedPrice() {
   try {
     const product = extractProduct();
     if (product.price == null && Object.keys(product.specs ?? {}).length === 0) return;
+
+    // Client-side size protection: never downgrade within a page session.
+    // Zara's SPA re-renders sizes asynchronously; retries can catch the DOM in different states.
+    const currentSize = product.specs['Size'] ?? '';
+    const sizeTokens = currentSize.split(',').filter(s => s.trim()).length;
+    if (product.product_url === bestSizeForUrl.url) {
+      if (sizeTokens > bestSizeForUrl.count) {
+        bestSizeForUrl = { url: product.product_url, size: currentSize, count: sizeTokens };
+      } else if (sizeTokens < bestSizeForUrl.count && bestSizeForUrl.count > 0) {
+        product.specs['Size'] = bestSizeForUrl.size;
+      }
+    } else {
+      bestSizeForUrl = { url: product.product_url, size: currentSize, count: sizeTokens };
+    }
+
     // Update own record directly (fast, no server hop)
     chrome.runtime.sendMessage({
       type: 'UPDATE_PRICE_IF_SAVED',
@@ -161,21 +180,6 @@ function tryUpdateSavedPrice() {
   } catch { /* silent */ }
 }
 
-// Ask the background worker to open other saved products from this domain in background tabs.
-// The full SPA renders in each tab, content script extracts real data and calls ENRICH_PRODUCT.
-function tryRefreshRelatedProducts() {
-  if (!chrome.runtime?.id) return;
-  if (isOwnApp()) return;
-  try {
-    const domain = window.location.hostname.replace('www.', '');
-    chrome.runtime.sendMessage({
-      type: 'BACKGROUND_REFRESH_PRODUCTS',
-      domain,
-      currentUrl: window.location.href,
-    });
-  } catch { /* silent */ }
-}
-
 function initWithRetry() {
   init();
   // Staggered retries for SPAs that inject JSON-LD/prices via JavaScript.
@@ -186,9 +190,6 @@ function initWithRetry() {
       tryUpdateSavedPrice();
     }, delay);
   }
-  // After the page has settled, ask background to open other saved products from this store
-  // in background tabs so their full SPA renders and data can be extracted properly.
-  window.setTimeout(() => tryRefreshRelatedProducts(), 10000);
 }
 
 // Auto sign-in: listen for session tokens posted from the web app (runs on all pages)
@@ -207,44 +208,22 @@ window.addEventListener('message', (event) => {
 
 // Skip everything on our own app
 if (!isOwnApp()) {
-  if (!chrome.runtime?.id) {
-    // Extension context invalid — skip
-  } else {
-    // Ask background if this tab was opened silently for data extraction
-    chrome.runtime.sendMessage({ type: 'CHECK_IF_BG_TAB' }, (response) => {
-      if (chrome.runtime.lastError || !response?.isBgTab) {
-        // Normal user tab: inject save button and run retries
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', initWithRetry);
-        } else {
-          initWithRetry();
-        }
-        let lastUrl = location.href;
-        const observer = new MutationObserver(() => {
-          if (!chrome.runtime?.id) { observer.disconnect(); return; }
-          if (location.href !== lastUrl) {
-            lastUrl = location.href;
-            document.getElementById(BUTTON_ID)?.remove();
-            window.setTimeout(init, 600);
-          }
-        });
-        observer.observe(document.documentElement, { childList: true, subtree: true });
-      } else {
-        // Background tab opened by handleBackgroundRefresh — extraction only, no UI
-        // Wait for SPA to hydrate (Zara/Zalando render sizes via React after initial load)
-        window.setTimeout(() => {
-          try {
-            const product = extractProduct();
-            chrome.runtime.sendMessage({
-              type: 'BACKGROUND_TAB_DATA',
-              url: window.location.href,
-              price: product.price,
-              currency: product.currency,
-              specs: product.specs,
-            });
-          } catch { /* silent */ }
-        }, 5000);
+  if (chrome.runtime?.id) {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initWithRetry);
+    } else {
+      initWithRetry();
+    }
+    let lastUrl = location.href;
+    const observer = new MutationObserver(() => {
+      if (!chrome.runtime?.id) { observer.disconnect(); return; }
+      if (location.href !== lastUrl) {
+        lastUrl = location.href;
+        document.getElementById(BUTTON_ID)?.remove();
+        bestSizeForUrl = { url: '', size: '', count: 0 };
+        window.setTimeout(init, 600);
       }
     });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
   }
 }
