@@ -215,17 +215,22 @@ if (!isOwnApp()) {
     // and remove the button before it was ever injected.
     const startAfterLoad = () => {
       initWithRetry();
-      let lastUrl = location.href;
-      const observer = new MutationObserver(() => {
-        if (!chrome.runtime?.id) { observer.disconnect(); return; }
-        if (location.href !== lastUrl) {
-          lastUrl = location.href;
-          document.getElementById(BUTTON_ID)?.remove();
-          bestSizeForUrl = { url: '', size: '', count: 0 };
-          window.setTimeout(init, 600);
-        }
-      });
-      observer.observe(document.documentElement, { childList: true, subtree: true });
+      // Delay the SPA-navigation observer by 3s to avoid React's initial
+      // replaceState calls (URL normalization during hydration) being treated
+      // as user navigations and removing the button before it's injected.
+      window.setTimeout(() => {
+        let lastUrl = location.href;
+        const observer = new MutationObserver(() => {
+          if (!chrome.runtime?.id) { observer.disconnect(); return; }
+          if (location.href !== lastUrl) {
+            lastUrl = location.href;
+            document.getElementById(BUTTON_ID)?.remove();
+            bestSizeForUrl = { url: '', size: '', count: 0 };
+            window.setTimeout(init, 600);
+          }
+        });
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+      }, 3000);
     };
 
     if (document.readyState === 'loading') {

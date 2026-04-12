@@ -1207,20 +1207,22 @@
     if (chrome.runtime?.id) {
       const startAfterLoad = () => {
         initWithRetry();
-        let lastUrl = location.href;
-        const observer = new MutationObserver(() => {
-          if (!chrome.runtime?.id) {
-            observer.disconnect();
-            return;
-          }
-          if (location.href !== lastUrl) {
-            lastUrl = location.href;
-            document.getElementById(BUTTON_ID)?.remove();
-            bestSizeForUrl = { url: "", size: "", count: 0 };
-            window.setTimeout(init, 600);
-          }
-        });
-        observer.observe(document.documentElement, { childList: true, subtree: true });
+        window.setTimeout(() => {
+          let lastUrl = location.href;
+          const observer = new MutationObserver(() => {
+            if (!chrome.runtime?.id) {
+              observer.disconnect();
+              return;
+            }
+            if (location.href !== lastUrl) {
+              lastUrl = location.href;
+              document.getElementById(BUTTON_ID)?.remove();
+              bestSizeForUrl = { url: "", size: "", count: 0 };
+              window.setTimeout(init, 600);
+            }
+          });
+          observer.observe(document.documentElement, { childList: true, subtree: true });
+        }, 3e3);
       };
       if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", startAfterLoad);
