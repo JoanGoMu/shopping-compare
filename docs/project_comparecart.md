@@ -146,9 +146,14 @@ Amazon detail sections changed. Now queries:
 - comparison_groups FK to shared_comparisons is ON DELETE CASCADE
 - products.specs is JSONB column (Record<string, string>)
 
-**Domain:** comparecart.app available on Porkbun ($10.81/yr). Buy after Google Chrome extension approval. Then update Resend from address to alerts@comparecart.app.
+**Domain:** comparecart.app - Chrome extension approved (Apr 13 2026). Domain being purchased on Porkbun. Code updated to use comparecart.app everywhere. Resend from address changed to alerts@comparecart.app.
 
-**Pending: Google Chrome Web Store submission** (waiting on approval before buying domain)
+**Pending infra steps (manual):**
+1. Buy comparecart.app on Porkbun
+2. Add domain to Vercel, configure DNS
+3. Verify comparecart.app in Resend, add SPF/DKIM/DMARC DNS records
+4. Update Supabase Auth: Site URL + redirect URLs to https://comparecart.app
+5. Set NEXT_PUBLIC_APP_URL=https://comparecart.app in Vercel env vars
 
 ## Open issues to verify (Apr 13 2026)
 

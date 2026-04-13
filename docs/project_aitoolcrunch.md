@@ -27,22 +27,30 @@ An affiliate comparison website for AI tools at **aitoolcrunch.com**. Revenue mo
 - **Automation:** GitHub Actions cron (daily 6am UTC) — scrapes Product Hunt + RSS feeds
 - **Node.js:** installed via Homebrew at `/opt/homebrew/opt/node@20/bin/` (must use `export PATH="/opt/homebrew/opt/node@20/bin:$PATH"` in terminal)
 
-## Current site content (as of April 2026)
+## Current site content (as of April 13, 2026)
 
-**18 tools seeded:**
-- AI Writing: jasper, copy-ai, writesonic, rytr
-- AI Image: midjourney, dall-e, leonardo-ai, ideogram
-- AI Code: github-copilot, cursor, tabnine
-- AI Video: runway, synthesia, heygen, pika
-- AI Audio: elevenlabs, descript, murf-ai
+**30 tools across 6 categories:**
+- AI Writing: jasper, copy-ai, writesonic, rytr, claude, chatgpt, gemini, perplexity, generateppt, notebooklm
+- AI Image: midjourney, dall-e, leonardo-ai, ideogram, apimage
+- AI Code: github-copilot, cursor, tabnine, goose, mercury-edit, codictate, openclaw
+- AI Video: runway, synthesia, heygen, pika, slide2video, google-vids, pixverse
+- AI Audio: elevenlabs, descript, murf-ai, voiceos, fluently
+- AI Automation: make, n8n, gumloop
 
-**7 comparison pages:**
-- jasper-vs-copy-ai, jasper-vs-writesonic, cursor-vs-github-copilot
-- midjourney-vs-dall-e, elevenlabs-vs-murf-ai, runway-vs-pika, synthesia-vs-heygen
+**74 comparison pages** (8 added April 13, 2026: codictate-vs-cursor, codictate-vs-github-copilot, codictate-vs-goose, codictate-vs-mercury-edit, codictate-vs-openclaw, codictate-vs-tabnine, claude-vs-goose, goose-vs-tabnine)
 
-**5 categories:** ai-writing, ai-image, ai-code, ai-video, ai-audio
+**6 categories:** ai-writing, ai-image, ai-code, ai-video, ai-audio, ai-automation
 
-**Total: 40 static pages**
+**24 blog posts** (7 added April 10-13, 2026 with author "AIToolCrunch"):
+- anthropic-blocks-openclaw-claude-subscriptions (Apr 10)
+- claude-code-caveman-skill-saves-tokens (Apr 10)
+- anthropic-project-glasswing-security-initiative (Apr 11)
+- claude-managed-agents-what-you-need-to-know (Apr 11)
+- microsoft-copilot-naming-confusion (Apr 12)
+- running-gemma-4-locally-lm-studio-claude-code (Apr 12)
+- taste-in-the-age-of-ai (Apr 13)
+
+**Note on blog author:** New posts use "AIToolCrunch" as the author, not fake individual names. Older posts still have individual names (alex-chen, sara-morales, etc.) - those have not been backfilled.
 
 ## Key file structure
 
@@ -179,8 +187,8 @@ git push
 3. Push → entire site rebuilds with monetized links
 
 **Growth:**
-4. Add 5-10 more tool pages (check `data/scraped-suggestions.json` after scraper runs)
-5. Add more comparison pages — SEO gold, rank fastest
+4. All 9 pending Product Hunt items reviewed April 13 - all skipped (no affiliate or too niche). Pipeline is clean.
+5. Blog pipeline: blog-ideas.json has fresh ideas - run next content batch in a few days
 6. Share on Reddit (r/artificial, r/SideProject, r/MachineLearning)
 7. Set up Google Analytics 4
 
