@@ -150,6 +150,33 @@ export interface Database {
         };
         Relationships: [];
       };
+      feedback: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          email: string | null;
+          category: string;
+          message: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          email?: string | null;
+          category: string;
+          message: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string | null;
+          email?: string | null;
+          category?: string;
+          message?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -185,3 +212,6 @@ export type SharedProduct = {
 export type SharedComparison = Omit<Database['public']['Tables']['shared_comparisons']['Row'], 'products'> & {
   products: SharedProduct[];
 };
+
+export type Feedback = Database['public']['Tables']['feedback']['Row'];
+export type FeedbackInsert = Database['public']['Tables']['feedback']['Insert'];

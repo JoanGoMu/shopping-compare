@@ -12,12 +12,14 @@ create table if not exists products (
   store_name text not null,
   store_domain text not null,
   specs jsonb not null default '{}',
+  images text[] not null default '{}',
   notes text,
   created_at timestamptz not null default now(),
   previous_price numeric(10, 2),
   price_updated_at timestamptz,
   last_checked_at timestamptz,
-  price_check_failed boolean not null default false
+  price_check_failed boolean not null default false,
+  price_alerts boolean not null default false
 );
 
 -- Comparison groups: named sets of products to compare
@@ -44,11 +46,36 @@ create table if not exists user_preferences (
   created_at timestamptz not null default now()
 );
 
+-- Shared comparisons: public snapshots of product comparisons
+create table if not exists shared_comparisons (
+  id uuid primary key default gen_random_uuid(),
+  slug text unique not null,
+  user_id uuid references auth.users(id) on delete cascade not null,
+  group_id uuid references comparison_groups(id) on delete cascade,
+  title text not null,
+  products jsonb not null default '[]',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  view_count integer not null default 0
+);
+
+-- Feedback: user-submitted feedback and bug reports
+create table if not exists feedback (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  email text,
+  category text not null,
+  message text not null,
+  created_at timestamptz not null default now()
+);
+
 -- Row-level security: users can only see and modify their own data
 alter table products enable row level security;
 alter table comparison_groups enable row level security;
 alter table comparison_items enable row level security;
 alter table user_preferences enable row level security;
+alter table shared_comparisons enable row level security;
+alter table feedback enable row level security;
 
 create policy "Users can manage their own products"
   on products for all
@@ -71,3 +98,15 @@ create policy "Users can manage items in their own groups"
         and comparison_groups.user_id = auth.uid()
     )
   );
+
+create policy "Anyone can view shared comparisons"
+  on shared_comparisons for select
+  using (true);
+
+create policy "Users can manage their own shared comparisons"
+  on shared_comparisons for all
+  using (auth.uid() = user_id);
+
+create policy "Anyone can submit feedback"
+  on feedback for insert
+  with check (true);
