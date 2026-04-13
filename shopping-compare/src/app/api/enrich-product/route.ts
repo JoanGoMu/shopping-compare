@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
 
         const { subject, html } = buildPriceEmail(changes);
         await resend.emails.send({
-          from: 'CompareCart <onboarding@resend.dev>',
+          from: 'CompareCart <alerts@comparecart.app>',
           to: alertUser.email,
           subject,
           html,

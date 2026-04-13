@@ -32,7 +32,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY
   ?? webEnv['NEXT_PUBLIC_SUPABASE_ANON_KEY']
   ?? 'your-anon-key';
-const APP_URL = process.env.APP_URL ?? 'https://shopping-compare.vercel.app';
+const APP_URL = process.env.APP_URL ?? 'https://comparecart.app';
 
 if (SUPABASE_URL === 'https://your-project.supabase.co') {
   console.warn('WARNING: SUPABASE_URL not set - extension will not be able to connect to Supabase.');

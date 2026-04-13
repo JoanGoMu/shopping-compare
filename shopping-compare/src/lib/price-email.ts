@@ -34,7 +34,7 @@ export function buildPriceEmail(changes: PriceChange[]): { subject: string; html
       </tr>`;
   }).join('');
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://shopping-compare.vercel.app';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://comparecart.app';
 
   const html = `<!DOCTYPE html>
 <html>

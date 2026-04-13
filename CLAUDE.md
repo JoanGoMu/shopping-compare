@@ -41,7 +41,7 @@ cd "/Users/joan.mussone/Desktop/Projects/Shopping Compare/shopping-compare" && n
 cd "/Users/joan.mussone/Desktop/Projects/Shopping Compare/extension" && node build.mjs
 
 # Trigger price cron manually (need CRON_SECRET from Vercel dashboard)
-curl -H "Authorization: Bearer SECRET" https://shopping-compare.vercel.app/api/check-prices
+curl -H "Authorization: Bearer SECRET" https://comparecart.app/api/check-prices
 ```
 
 ## Supabase

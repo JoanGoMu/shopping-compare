@@ -1217,7 +1217,7 @@
     }
     window.setTimeout(tryRefreshRelatedProducts, 12e3);
   }
-  var APP_URL = "https://shopping-compare.vercel.app";
+  var APP_URL = "https://comparecart.app";
   window.addEventListener("message", (event) => {
     try {
       if (event.origin !== new URL(APP_URL).origin) return;

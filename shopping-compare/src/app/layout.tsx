@@ -6,6 +6,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-display' });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://comparecart.app'),
   title: 'CompareCart - Compare products across any store',
   description: 'Save products from any shopping website and compare them side-by-side. Find the best deal across all your favorite stores.',
 };

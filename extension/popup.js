@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   // src/popup.ts
-  var APP_URL = "https://shopping-compare.vercel.app";
+  var APP_URL = "https://comparecart.app";
   var loggedOutEl = document.getElementById("logged-out");
   var loggedInEl = document.getElementById("logged-in");
   var userEmailEl = document.getElementById("user-email");

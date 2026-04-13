@@ -19979,7 +19979,7 @@ function normalizeSpecs(raw) {
 // src/background.ts
 var SUPABASE_URL = "https://czrvohnvncavpoulivtt.supabase.co";
 var SUPABASE_ANON_KEY = "sb_publishable_ArmBmKscGkvt6_j2P_tI2Q_huwe9gqD";
-var APP_URL = "https://shopping-compare.vercel.app";
+var APP_URL = "https://comparecart.app";
 var SESSION_KEY = "comparecart_session";
 var supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
