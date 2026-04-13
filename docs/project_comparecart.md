@@ -43,7 +43,7 @@ After building, reload extension in chrome://extensions.
 - `src/app/compare/page.tsx` - Uses CompareShell wrapper, key-based remount for group switching
 - `src/app/compare/actions.ts` - shareComparison (upsert), unshareComparison, server actions
 - `src/app/api/check-prices/route.ts` - Daily cron: price check + specs backfill + email notifications (imports from price-email.ts)
-- `src/app/api/enrich-product/route.ts` - POST endpoint called by extension to update ALL users' records for a URL (admin client, bypasses RLS). Sends price drop emails.
+- `src/app/api/enrich-product/route.ts` - POST endpoint called by extension to update ALL users' records for a URL (admin client, bypasses RLS). Sends price drop emails via Resend.
 - `src/lib/price-email.ts` - Shared email builder: PriceChange type, formatPrice(), buildPriceEmail() used by both cron and enrich-product
 - `src/app/sitemap.ts` - Dynamic sitemap
 - `src/components/CompareShell.tsx` - Client wrapper owning activeCount state for live sidebar sync
@@ -51,6 +51,7 @@ After building, reload extension in chrome://extensions.
 - `src/components/PublicCompareTable.tsx` - Public table with CTA, affiliate links
 - `src/components/GroupList.tsx` - Sidebar with checkboxes, batch actions (compare/share/unshare/delete)
 - `src/components/ProductGrid.tsx` - Dashboard grid with sticky bulk action bar
+- `src/components/ProductCard.tsx` - Product card with price_check_failed bottom band overlay ("Visit page to refresh price")
 - `src/components/PublicLayout.tsx` - Layout for public pages (explore, stores, deals)
 - `src/components/ExtensionAuthBridge.tsx` - Posts Supabase tokens to extension via postMessage (retries at 500ms, 1.5s, 4s)
 - `src/lib/normalize-specs.ts` - Key normalization (60+ multilingual mappings) + value translation (80+ terms)
@@ -60,12 +61,12 @@ After building, reload extension in chrome://extensions.
 
 **Key files - Extension:**
 - `src/extractor.ts` - All 10 store extractors + JSON-LD + OG + generic DOM price + specs extraction
-- `src/content.ts` - Save button injection, tryUpdateSavedPrice, tryUpdateRelatedProducts (fetches same-store products)
-- `src/background.ts` - Supabase client, SAVE_PRODUCT, UPDATE_PRICE_IF_SAVED, GET_PRODUCTS_BY_DOMAIN, UPDATE_SPECS_FOR_URL, ENRICH_PRODUCT (calls server), SHARE_SESSION
+- `src/content.ts` - Save button injection, tryUpdateSavedPrice (with bestSizeForUrl tracking), tryRefreshRelatedProducts (iframe-based), iframe extraction mode
+- `src/background.ts` - Supabase client, SAVE_PRODUCT, UPDATE_PRICE_IF_SAVED, GET_PRODUCTS_BY_DOMAIN, UPDATE_SPECS_FOR_URL, ENRICH_PRODUCT (calls server), SHARE_SESSION, GET_RELATED_URLS
 - `src/normalize-specs.ts` - Identical copy of web app's normalize-specs.ts (keep in sync!)
 - `src/popup.ts` - Sign in/out, auth status display
 - `build.mjs` - esbuild, auto-reads ../shopping-compare/.env.local for credentials
-- `manifest.json` - run_at: document_start (for auth bridge timing)
+- `manifest.json` - run_at: document_start, all_frames: true, permissions: storage + tabs
 
 ## Features working
 
@@ -82,7 +83,8 @@ After building, reload extension in chrome://extensions.
 - Shared comparison snapshots refresh: on every view (add/remove) + cron (price changes)
 - Extension auto-syncs session from web app via ExtensionAuthBridge (mounted in both layouts)
 - Extension updates price + specs silently when user visits saved product page
-- Extension fetches OTHER saved products from same store using browser cookies, calls ENRICH_PRODUCT to update ALL users' records (not just the visitor's)
+- Extension refreshes related saved products from same store via hidden iframes (iframe-first approach)
+- Crowd-sourced enrichment: ENRICH_PRODUCT calls POST /api/enrich-product to update ALL users' records
 - Rich specs extraction from JSON-LD + 10 store-specific DOM extractors
 - Multilingual spec normalization: keys (ES/FR/DE/NL/IT to English) + values (materials/colors translated)
 - Spec display: coverage threshold filter, priority ordering (Brand/Color/Material first), collapsible "Show more"
@@ -95,17 +97,45 @@ After building, reload extension in chrome://extensions.
 **Extension flow:** JSON-LD specs (all available variants, OOS filtered) + store-specific DOM specs + generic size/color fallback, normalized via normalizeSpecs()
 **Server-side flow:** Same JSON-LD variant iteration but using Cheerio (no interactive DOM)
 **Cron backfill:** check-prices extracts specs from fetched HTML, updates products with empty specs
-**Extension revisit:** tryUpdateSavedPrice sends UPDATE_PRICE_IF_SAVED (local user, fast) + ENRICH_PRODUCT (server, updates ALL users). tryUpdateRelatedProducts fetches all same-store saved products, extracts specs+price from HTML, calls ENRICH_PRODUCT for each (crowd-sourced enrichment).
+**Extension revisit:** tryUpdateSavedPrice sends UPDATE_PRICE_IF_SAVED (local user, fast) + ENRICH_PRODUCT (server, updates ALL users).
+**Related product refresh (iframe approach):** After 12s on a product page, tryRefreshRelatedProducts() asks background for GET_RELATED_URLS (same domain, max 5, 1hr cooldown per domain). Content script injects hidden 1x1px iframes for each URL. Content script runs inside each iframe (all_frames: true in manifest), detects window.self !== window.top, does silent extraction + ENRICH_PRODUCT, no UI. Iframes auto-removed after 20s. If store blocks iframes via X-Frame-Options, they silently fail.
 **Crowd-sourced enrichment:** POST /api/enrich-product - when User Y visits a URL, updates specs+price for every user who saved that URL. Sends Resend email on price drop to each affected user with price_alerts=true.
-**Generic fallback:** extractGenericSizeColor() runs on ANY store after JSON-LD + store-specific — scans <select> labels, button group aria roles, Shopify data-option-name
+**Generic fallback:** extractGenericSizeColor() runs on ANY store after JSON-LD + store-specific - scans <select> labels, button group aria roles, Shopify data-option-name
 **Normalization:** KEY_MAP (exact) -> KEY_SUBSTRING_MAP (contains) -> title-case fallback. VALUE_MAP translates materials/colors.
 **Display:** Coverage threshold (2+ for small groups, 30% for 7+), priority sort, collapsible toggle
-**Store extractors with size/color DOM:** Zalando, Zara, TNF, Vans (Vans was added — was missing entirely)
+**Store extractors with size/color DOM:** Zalando, Zara, TNF, Vans
+
+## Size extraction protection (multi-layer)
+
+1. **Client-side bestSizeForUrl tracker** (content.ts): tracks best Size value per URL during page session. Retries at 2s/5s/8s can never downgrade once a better value is found.
+2. **mergeSpecsSafe()** (background.ts + enrich-product/route.ts): validates Size tokens against SIZE_VAL regex. Never overwrites a valid full list with fewer options. Replaces garbage data (e.g. payment methods) with valid fresh values.
+3. **Zara extractor** (extractor.ts ~line 568): 4 approaches in priority order:
+   - A: data-qa-qualifier attributes (stable across deploys)
+   - B: ARIA listbox/radiogroup with size-related label
+   - C: ZDS custom ul.size-selector-sizes
+   - D: Content-based native select fallback
+4. **extractProduct() merge** (extractor.ts ~line 870): prefers whichever source (JSON-LD vs DOM vs generic) found MORE comma-separated size tokens.
+
+## Content script init flow (content.ts)
+
+- `isLikelyProductPage()` checks: JSON-LD, og:type=product, itemprop=offers/price, Amazon /dp/ASIN+#productTitle
+- Top-level vs iframe detection: `window.self !== window.top`
+  - **Iframe**: 5s delay then silent extraction + ENRICH_PRODUCT, no button/UI
+  - **Top-level**: DOMContentLoaded -> initWithRetry() + delayed MutationObserver (3s)
+- MutationObserver delayed 3s to avoid React hydration replaceState being treated as navigation
+- initWithRetry: init() + retries at 2s/5s/8s + tryRefreshRelatedProducts at 12s
+
+## Amazon extractor improvements (Apr 13 2026)
+
+Amazon detail sections changed. Now queries:
+- Table format: #productDetails_techSpec_section_1, #productDetails_detailBullets_sections1, #productDetails_feature_div, #prodDetails (th/td pairs)
+- Bullet list: #detailBullets_feature_div (bold span + sibling text)
 
 ## Known limitations
 
-- Zara, Sephora, North Face, Zalando block server-side price checking - price_check_failed flag shown
-- Extension-based price/specs update handles these when user visits the page (or ANY page from that store)
+- Zara, Sephora, North Face, Zalando block server-side price checking - price_check_failed flag shown as subtle bottom band ("Visit page to refresh price")
+- Extension-based price/specs update handles these when user visits the page
+- Iframe refresh may be blocked by X-Frame-Options on some stores - graceful silent failure
 - Add-by-URL fails for bot-protected sites - error message suggests using extension
 - normalize-specs.ts exists in two places (extension + web app) - must be kept in sync manually
 - Uncommon material/color terms won't translate - only ~80 most common mapped
@@ -119,3 +149,9 @@ After building, reload extension in chrome://extensions.
 **Domain:** comparecart.app available on Porkbun ($10.81/yr). Buy after Google Chrome extension approval. Then update Resend from address to alerts@comparecart.app.
 
 **Pending: Google Chrome Web Store submission** (waiting on approval before buying domain)
+
+## Open issues to verify (Apr 13 2026)
+
+- **Zara sizes**: Multiple fixes applied (4-approach extractor + bestSizeForUrl tracker + mergeSpecsSafe). User reported "still wrong" multiple times before the tracker fix. Needs real-world verification on Zara product pages after latest changes.
+- **Iframe refresh**: New implementation untested by user yet. Need to verify iframes actually load and extract data on real stores (Zara, Amazon, etc.). Some stores may block via X-Frame-Options - need to check which.
+- **Amazon metadata**: Fixed selectors for #detailBullets_feature_div and #productDetails_feature_div. User confirmed button appeared but metadata capture needs verification (was showing empty Brand/Color/Size for Amazon products before fix).
