@@ -47,6 +47,14 @@ export default async function HomePage() {
             <Link href="/deals" className="text-sm text-muted hover:text-ink transition-colors tracking-wide uppercase hidden sm:block">Deals</Link>
             <Link href="/help" className="text-sm text-muted hover:text-ink transition-colors tracking-wide uppercase hidden sm:block">Help</Link>
             <Link href="/feedback" className="text-sm text-muted hover:text-ink transition-colors tracking-wide uppercase hidden sm:block">Feedback</Link>
+            <a
+              href="https://buymeacoffee.com/joangm"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:block text-sm text-muted hover:text-terra transition-colors"
+            >
+              ☕
+            </a>
             {user ? (
               <Link href="/dashboard" className="text-sm bg-terra text-white px-5 py-2.5 tracking-widest uppercase hover:bg-terra-dark transition-colors">
                 Dashboard

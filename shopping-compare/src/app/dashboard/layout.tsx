@@ -30,7 +30,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
               className="hidden sm:flex items-center gap-1.5 text-xs text-muted hover:text-terra transition-colors"
             >
               <span>☕</span>
-              <span className="tracking-wide">Support</span>
+              <span className="tracking-wide">Buy me a coffee</span>
             </a>
             <span className="hidden sm:block text-xs text-muted">{user.email}</span>
             <SignOutButton />
