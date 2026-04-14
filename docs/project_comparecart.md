@@ -16,9 +16,9 @@ Second project: a web app + Chrome extension that lets shoppers save products fr
 **Stack:**
 - Next.js 16.2.2 + TypeScript + Tailwind CSS (App Router, `params` must be awaited)
 - Supabase: URL=https://czrvohnvncavpoulivtt.supabase.co
-- Resend for email (RESEND_API_KEY in .env.local). Using onboarding@resend.dev until domain bought.
+- Resend for email (RESEND_API_KEY in .env.local). From address: alerts@comparecart.app (domain verified).
 - Chrome Extension Manifest V3 + esbuild build
-- Deployed at https://shopping-compare.vercel.app (Vercel Hobby - cron once/day max, 0 6 * * *)
+- Deployed at https://comparecart.app (custom domain, Vercel Hobby - cron once/day max, 0 6 * * *)
 
 **Design:** Warm editorial - cream background, terracotta (#C4603C), sharp borders, 3:4 portrait cards.
 
@@ -146,14 +146,47 @@ Amazon detail sections changed. Now queries:
 - comparison_groups FK to shared_comparisons is ON DELETE CASCADE
 - products.specs is JSONB column (Record<string, string>)
 
-**Domain:** comparecart.app - Chrome extension approved (Apr 13 2026). Domain being purchased on Porkbun. Code updated to use comparecart.app everywhere. Resend from address changed to alerts@comparecart.app.
+**Domain:** comparecart.app - LIVE. Purchased on Porkbun, DNS on Porkbun pointing to Vercel. Resend verified. Supabase Auth Site URL updated. NEXT_PUBLIC_APP_URL set in Vercel.
 
-**Pending infra steps (manual):**
-1. Buy comparecart.app on Porkbun
-2. Add domain to Vercel, configure DNS
-3. Verify comparecart.app in Resend, add SPF/DKIM/DMARC DNS records
-4. Update Supabase Auth: Site URL + redirect URLs to https://comparecart.app
-5. Set NEXT_PUBLIC_APP_URL=https://comparecart.app in Vercel env vars
+**Chrome extension:** Published and approved on Chrome Web Store. ID: emfdbbbkcaheaakehmkicmapjcilpdoj
+
+## Pages (Apr 14 2026)
+- `/` - homepage
+- `/dashboard` - authenticated, shows products + referral link
+- `/compare` - authenticated, compare table
+- `/explore`, `/stores`, `/deals`, `/store/[domain]` - public discovery
+- `/c/[slug]` - public shared comparison
+- `/help` - FAQ (static, collapsible)
+- `/feedback` - feedback form (stores to Supabase `feedback` table)
+- `/privacy`, `/login`, `/signup`
+
+## Supabase tables (Apr 14 2026)
+- `products` - saved products (images, price_alerts columns added vs original schema)
+- `comparison_groups`, `comparison_items` - grouping
+- `shared_comparisons` - public snapshots
+- `user_preferences` - price_alerts toggle
+- `feedback` - user feedback submissions
+- `referrals` - referrer_id, referred_id, unique(referred_id)
+
+## Referral system
+- Link: `https://comparecart.app/signup?ref=USER_ID`
+- `/signup?ref=X` stores ref in localStorage
+- On dashboard load, ReferralTracker client component records it in `referrals` table
+- ReferralCard in dashboard shows link + count of friends who joined
+
+## Logo
+- SVG logo: two shopping carts facing each other with bidirectional arrows (terracotta #C4603C)
+- `public/logo-icon.svg` - square version (favicon, extension icons, nav)
+- `public/logo.svg` - same design
+- `src/app/icon.svg` - Next.js favicon
+- `src/app/apple-icon.png` - iOS home screen icon
+- Extension icons: 16/32/48/128px PNGs generated from SVG
+- Logo icon shown next to "CompareCart" text in all nav headers
+
+## Compare table specs behavior
+- Default visible: Brand, Color, Material, Composition, Size, Fit (priority order, only if present)
+- Everything else collapsed under "Show X more details"
+- Garbage spec values filtered: length > 200 chars, or contains JS code patterns
 
 ## Open issues to verify (Apr 13 2026)
 
