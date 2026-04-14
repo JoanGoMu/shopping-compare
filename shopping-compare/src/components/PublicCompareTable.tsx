@@ -31,14 +31,26 @@ export default function PublicCompareTable({ products, updatedAt }: Props) {
   const lowest = lowestPrice(products);
 
   const PRIORITY_SPEC_KEYS = ['Brand', 'Color', 'Material', 'Composition', 'Size', 'Fit'];
-  const allSpecKeys = Array.from(new Set(products.flatMap((p) => Object.keys((p.specs as Record<string, unknown>) ?? {}))));
+
+  function isCleanSpecValue(val: unknown): boolean {
+    if (val == null) return false;
+    const s = String(val);
+    if (s.length > 200) return false;
+    if (s.includes('function(') || s.includes('.execute(') || s.includes('var ')) return false;
+    return true;
+  }
+
+  const allSpecKeys = Array.from(new Set(products.flatMap((p) => {
+    const specs = (p.specs as Record<string, unknown>) ?? {};
+    return Object.keys(specs).filter((k) => isCleanSpecValue(specs[k]));
+  })));
   const n = products.length;
   const minCoverage = n <= 1 ? 1 : n <= 6 ? 2 : Math.ceil(n * 0.3);
 
   type SpecEntry = { key: string; count: number };
   const keysWithCoverage: SpecEntry[] = allSpecKeys.map((key) => ({
     key,
-    count: products.filter((p) => ((p.specs as Record<string, unknown>) ?? {})[key] != null).length,
+    count: products.filter((p) => isCleanSpecValue(((p.specs as Record<string, unknown>) ?? {})[key])).length,
   }));
   const sortSpecKeys = (a: SpecEntry, b: SpecEntry) => {
     const ai = PRIORITY_SPEC_KEYS.indexOf(a.key), bi = PRIORITY_SPEC_KEYS.indexOf(b.key);
@@ -150,9 +162,10 @@ export default function PublicCompareTable({ products, updatedAt }: Props) {
                 <td className="text-xs tracking-widest uppercase text-muted py-3 pr-6">{key}</td>
                 {products.map((p, i) => {
                   const val = ((p.specs as Record<string, unknown>) ?? {})[key];
+                  const clean = isCleanSpecValue(val) ? String(val) : null;
                   return (
                     <td key={i} className="py-3 px-4 text-sm text-ink align-top break-words overflow-hidden">
-                      {val != null ? String(val) : <span className="text-warm-border">-</span>}
+                      {clean != null ? clean : <span className="text-warm-border">-</span>}
                     </td>
                   );
                 })}

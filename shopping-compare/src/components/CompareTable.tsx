@@ -120,7 +120,20 @@ export default function CompareTable({ products: initialProducts, allProducts = 
 
   // Spec key ordering and coverage filtering
   const PRIORITY_SPEC_KEYS = ['Brand', 'Color', 'Material', 'Composition', 'Size', 'Fit'];
-  const allSpecKeys = Array.from(new Set(filtered.flatMap((p) => Object.keys((p.specs as Record<string, unknown>) ?? {}))));
+
+  // Filter out garbage spec values (e.g. Amazon review widget JS code)
+  function isCleanSpecValue(val: unknown): boolean {
+    if (val == null) return false;
+    const s = String(val);
+    if (s.length > 200) return false;
+    if (s.includes('function(') || s.includes('.execute(') || s.includes('var ')) return false;
+    return true;
+  }
+
+  const allSpecKeys = Array.from(new Set(filtered.flatMap((p) => {
+    const specs = (p.specs as Record<string, unknown>) ?? {};
+    return Object.keys(specs).filter((k) => isCleanSpecValue(specs[k]));
+  })));
   const n = filtered.length;
   const minCoverage = n <= 1 ? 1 : n <= 6 ? 2 : Math.ceil(n * 0.3);
 
@@ -312,6 +325,12 @@ export default function CompareTable({ products: initialProducts, allProducts = 
                         )}
                       </span>
                     )}
+                    <div className="mt-2">
+                      <a href={p.product_url} target="_blank" rel="noopener noreferrer"
+                        className="inline-block text-xs bg-terra text-white px-3 py-1 tracking-widest uppercase hover:bg-terra-dark transition-colors">
+                        Buy →
+                      </a>
+                    </div>
                   </td>
                 ))}
                 {addableProducts.length > 0 && <td />}
@@ -336,9 +355,10 @@ export default function CompareTable({ products: initialProducts, allProducts = 
                   <td className="text-xs tracking-widest uppercase text-muted py-3 pr-6">{key}</td>
                   {filtered.map((p) => {
                     const val = ((p.specs as Record<string, unknown>) ?? {})[key];
+                    const clean = isCleanSpecValue(val) ? String(val) : null;
                     return (
                       <td key={p.id} className="py-3 px-4 text-sm text-ink align-top break-words overflow-hidden">
-                        {val != null ? String(val) : <span className="text-warm-border">-</span>}
+                        {clean != null ? clean : <span className="text-warm-border">-</span>}
                       </td>
                     );
                   })}
@@ -370,17 +390,6 @@ export default function CompareTable({ products: initialProducts, allProducts = 
                 {addableProducts.length > 0 && <td />}
               </tr>
 
-              <tr className="bg-cream/50">
-                <td className="text-xs tracking-widest uppercase text-muted py-3 pr-6">Link</td>
-                {filtered.map((p) => (
-                  <td key={p.id} className="py-3 px-4 align-top">
-                    <a href={p.product_url} target="_blank" rel="noopener noreferrer" className="text-xs text-terra hover:underline whitespace-nowrap">
-                      Buy on {p.store_name} →
-                    </a>
-                  </td>
-                ))}
-                {addableProducts.length > 0 && <td />}
-              </tr>
             </tbody>
           </table>
         </div>
