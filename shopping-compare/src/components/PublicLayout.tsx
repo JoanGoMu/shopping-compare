@@ -6,8 +6,9 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
     <div className="min-h-screen flex flex-col bg-cream">
       <header className="bg-surface border-b border-warm-border">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between gap-6">
-          <Link href="/" className="font-[var(--font-display)] text-2xl italic tracking-wide text-ink shrink-0">
-            {APP_NAME}
+          <Link href="/" className="flex items-center gap-2 shrink-0">
+            <img src="/logo-icon.svg" alt="" width={28} height={28}/>
+            <span className="font-[var(--font-display)] text-2xl italic tracking-wide text-ink">{APP_NAME}</span>
           </Link>
           <nav className="flex items-center gap-6">
             <Link href="/explore" className="text-sm text-muted hover:text-ink transition-colors tracking-wide uppercase hidden sm:block">Explore</Link>

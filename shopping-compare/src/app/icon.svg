@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Left cart (handle left, basket opens right) -->
+  <g fill="#C4603C">
+    <!-- Handle grip (horizontal) -->
+    <rect x="5" y="18" width="18" height="4"/>
+    <!-- Handle post (vertical, connects grip to basket) -->
+    <rect x="5" y="18" width="4" height="14"/>
+    <!-- Basket body (trapezoid: wider at top) -->
+    <path d="M11,26 L52,26 L48,60 L15,60 Z"/>
+    <!-- Grid: horizontal white cuts -->
+    <rect x="13" y="36" width="37" height="3" fill="white"/>
+    <rect x="14" y="48" width="33" height="3" fill="white"/>
+    <!-- Grid: vertical white cuts -->
+    <rect x="26" y="26" width="3" height="34" fill="white"/>
+    <rect x="38" y="26" width="3" height="34" fill="white"/>
+    <!-- Axle bar -->
+    <rect x="15" y="60" width="33" height="4"/>
+    <!-- Wheel left -->
+    <circle cx="22" cy="71" r="7"/>
+    <circle cx="22" cy="71" r="3.5" fill="white"/>
+    <!-- Wheel right -->
+    <circle cx="40" cy="71" r="7"/>
+    <circle cx="40" cy="71" r="3.5" fill="white"/>
+  </g>
+
+  <!-- Right cart (handle right, basket opens left, mirrored) -->
+  <g fill="#C4603C">
+    <!-- Handle grip (horizontal) -->
+    <rect x="105" y="18" width="18" height="4"/>
+    <!-- Handle post (vertical) -->
+    <rect x="119" y="18" width="4" height="14"/>
+    <!-- Basket body (trapezoid mirrored) -->
+    <path d="M76,26 L117,26 L113,60 L80,60 Z"/>
+    <!-- Grid: horizontal white cuts -->
+    <rect x="78" y="36" width="37" height="3" fill="white"/>
+    <rect x="81" y="48" width="33" height="3" fill="white"/>
+    <!-- Grid: vertical white cuts -->
+    <rect x="87" y="26" width="3" height="34" fill="white"/>
+    <rect x="99" y="26" width="3" height="34" fill="white"/>
+    <!-- Axle bar -->
+    <rect x="80" y="60" width="33" height="4"/>
+    <!-- Wheel left -->
+    <circle cx="88" cy="71" r="7"/>
+    <circle cx="88" cy="71" r="3.5" fill="white"/>
+    <!-- Wheel right -->
+    <circle cx="106" cy="71" r="7"/>
+    <circle cx="106" cy="71" r="3.5" fill="white"/>
+  </g>
+
+  <!-- Center: bidirectional arrow + equals -->
+  <g fill="#C4603C">
+    <!-- ↔ arrow as single polygon -->
+    <polygon points="52,40 61,32 61,36 67,36 67,32 76,40 67,48 67,44 61,44 61,48"/>
+    <!-- Equals bars -->
+    <rect x="53" y="54" width="22" height="3.5"/>
+    <rect x="53" y="61" width="22" height="3.5"/>
+  </g>
+</svg>

@@ -26,7 +26,10 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-warm-border px-6 h-16 flex items-center">
-        <Link href="/" className="font-[var(--font-display)] text-2xl italic tracking-wide text-ink">{APP_NAME}</Link>
+        <Link href="/" className="flex items-center gap-2">
+          <img src="/logo-icon.svg" alt="" width={28} height={28}/>
+          <span className="font-[var(--font-display)] text-2xl italic tracking-wide text-ink">{APP_NAME}</span>
+        </Link>
       </header>
       <div className="flex-1 flex items-center justify-center px-4">
         <div className="w-full max-w-sm">
