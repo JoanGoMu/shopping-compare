@@ -2,7 +2,18 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { extractProductFromHtml } from '@/lib/extract-product';
+
+export async function recordReferral(referrerId: string): Promise<void> {
+  if (!referrerId) return;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || user.id === referrerId) return;
+  const admin = createAdminClient();
+  // Ignore duplicate errors - each user can only be referred once
+  await admin.from('referrals').insert({ referrer_id: referrerId, referred_id: user.id });
+}
 
 export async function togglePriceAlerts(enabled: boolean) {
   const supabase = await createClient();

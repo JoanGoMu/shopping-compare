@@ -59,6 +59,15 @@ create table if not exists shared_comparisons (
   view_count integer not null default 0
 );
 
+-- Referrals: tracks who referred whom
+create table if not exists referrals (
+  id uuid primary key default gen_random_uuid(),
+  referrer_id uuid references auth.users(id) on delete cascade not null,
+  referred_id uuid references auth.users(id) on delete cascade not null,
+  created_at timestamptz not null default now(),
+  unique(referred_id)
+);
+
 -- Feedback: user-submitted feedback and bug reports
 create table if not exists feedback (
   id uuid primary key default gen_random_uuid(),
@@ -106,6 +115,16 @@ create policy "Anyone can view shared comparisons"
 create policy "Users can manage their own shared comparisons"
   on shared_comparisons for all
   using (auth.uid() = user_id);
+
+alter table referrals enable row level security;
+
+create policy "Users can read their own referrals"
+  on referrals for select
+  using (auth.uid() = referrer_id);
+
+create policy "Authenticated users can insert referrals"
+  on referrals for insert
+  with check (auth.uid() = referred_id);
 
 create policy "Anyone can submit feedback"
   on feedback for insert

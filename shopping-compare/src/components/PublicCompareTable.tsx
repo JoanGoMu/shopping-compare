@@ -44,23 +44,22 @@ export default function PublicCompareTable({ products, updatedAt }: Props) {
     const specs = (p.specs as Record<string, unknown>) ?? {};
     return Object.keys(specs).filter((k) => isCleanSpecValue(specs[k]));
   })));
-  const n = products.length;
-  const minCoverage = n <= 1 ? 1 : n <= 6 ? 2 : Math.ceil(n * 0.3);
 
   type SpecEntry = { key: string; count: number };
   const keysWithCoverage: SpecEntry[] = allSpecKeys.map((key) => ({
     key,
     count: products.filter((p) => isCleanSpecValue(((p.specs as Record<string, unknown>) ?? {})[key])).length,
   }));
-  const sortSpecKeys = (a: SpecEntry, b: SpecEntry) => {
-    const ai = PRIORITY_SPEC_KEYS.indexOf(a.key), bi = PRIORITY_SPEC_KEYS.indexOf(b.key);
-    if (ai >= 0 && bi >= 0) return ai - bi;
-    if (ai >= 0) return -1;
-    if (bi >= 0) return 1;
-    return b.count - a.count;
-  };
-  const visibleSpecKeys = keysWithCoverage.filter((e) => e.count >= minCoverage).sort(sortSpecKeys);
-  const hiddenSpecKeys = keysWithCoverage.filter((e) => e.count < minCoverage).sort(sortSpecKeys);
+  // Visible = priority keys present in at least 1 product, in priority order
+  const visibleSpecKeys = PRIORITY_SPEC_KEYS
+    .map((key) => keysWithCoverage.find((e) => e.key === key))
+    .filter((e): e is SpecEntry => e != null && e.count > 0);
+
+  // Hidden = everything else, sorted by coverage desc
+  const hiddenSpecKeys = keysWithCoverage
+    .filter((e) => !PRIORITY_SPEC_KEYS.includes(e.key))
+    .sort((a, b) => b.count - a.count);
+
   const displayedSpecKeys = showAllSpecs ? [...visibleSpecKeys, ...hiddenSpecKeys] : visibleSpecKeys;
 
   return (

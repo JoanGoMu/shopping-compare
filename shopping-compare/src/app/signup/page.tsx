@@ -1,10 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { APP_NAME } from '@/lib/constants';
+
+function RefCapture() {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const ref = searchParams.get('ref');
+    if (ref) localStorage.setItem('pending_ref', ref);
+  }, [searchParams]);
+  return null;
+}
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -52,8 +61,12 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <Suspense><RefCapture /></Suspense>
       <header className="border-b border-warm-border px-6 h-16 flex items-center">
-        <Link href="/" className="font-[var(--font-display)] text-2xl italic tracking-wide text-ink">{APP_NAME}</Link>
+        <Link href="/" className="flex items-center gap-2">
+          <img src="/logo-icon.svg" alt="" width={28} height={28}/>
+          <span className="font-[var(--font-display)] text-2xl italic tracking-wide text-ink">{APP_NAME}</span>
+        </Link>
       </header>
       <div className="flex-1 flex items-center justify-center px-4">
         <div className="w-full max-w-sm">

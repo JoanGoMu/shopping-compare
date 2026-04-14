@@ -150,6 +150,27 @@ export interface Database {
         };
         Relationships: [];
       };
+      referrals: {
+        Row: {
+          id: string;
+          referrer_id: string;
+          referred_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          referrer_id: string;
+          referred_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          referrer_id?: string;
+          referred_id?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       feedback: {
         Row: {
           id: string;
@@ -215,3 +236,4 @@ export type SharedComparison = Omit<Database['public']['Tables']['shared_compari
 
 export type Feedback = Database['public']['Tables']['feedback']['Row'];
 export type FeedbackInsert = Database['public']['Tables']['feedback']['Insert'];
+export type Referral = Database['public']['Tables']['referrals']['Row'];
