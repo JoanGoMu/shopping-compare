@@ -13,24 +13,16 @@ export default function ReferralCard({ userId, count }: { userId: string; count:
   }
 
   return (
-    <div className="mb-6 border border-warm-border bg-surface px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
-      <div className="flex-1 min-w-0">
-        <p className="text-xs tracking-widest uppercase text-muted mb-1">Invite friends</p>
-        <p className="text-sm text-ink truncate">{link}</p>
-      </div>
-      <div className="flex items-center gap-4 shrink-0">
-        {count > 0 && (
-          <span className="text-xs text-muted">
-            <span className="text-ink font-medium">{count}</span> {count === 1 ? 'friend' : 'friends'} joined
-          </span>
-        )}
-        <button
-          onClick={handleCopy}
-          className="text-xs bg-terra text-white px-4 py-2 tracking-widest uppercase hover:bg-terra-dark transition-colors"
-        >
-          {copied ? 'Copied!' : 'Copy link'}
-        </button>
-      </div>
+    <div className="mb-6 flex items-center gap-3 text-sm text-muted">
+      <button
+        onClick={handleCopy}
+        className="text-xs border border-warm-border text-muted px-3 py-1.5 tracking-widest uppercase hover:border-terra hover:text-terra transition-colors"
+      >
+        {copied ? 'Link copied!' : 'Invite a friend'}
+      </button>
+      {count > 0 && (
+        <span className="text-xs text-muted">{count} {count === 1 ? 'friend' : 'friends'} joined</span>
+      )}
     </div>
   );
 }
