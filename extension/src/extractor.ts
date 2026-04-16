@@ -77,9 +77,9 @@ function isVariantAvailable(variant: any): boolean {
 // Texts that are definitely not size values — CTA buttons, labels, links
 const NON_SIZE_TEXT = /^(toevoegen|add to (cart|bag)|add|buy|order|checkout|submit|notify\s*me|size\s*guide|maten?wijzer|herinnering|wishlist|save|share|zoom|view|select|kies|choose|pick|afhandelen|winkelwagen|bekijk)$/i;
 
-// Standard clothing/shoe size patterns used for content-based <select> detection
-// (does NOT rely on class names, so works on stores with obfuscated CSS like Zara)
-const SIZE_VAL = /^(XXS|XS|S|M|L|XL|XXL|XXXL|\d{2,3}(\/\d{2,3})?)$/i;
+// Standard clothing/shoe size patterns used for content-based detection
+// Supports: S, M, L, XL, XXL, 2XL, 3XL, 38, 42/44, 36-38, EU 38, US 6, UK 10
+const SIZE_VAL = /^((\d?X{0,3}[SML])(\/[SML])?|\d{2,3}([\/-]\d{2,3})?|(EU|US|UK|IT|FR|DE)\s?\d{2,3})$/i;
 
 function extractAvailableSizes(selectors: string): string[] {
   const sizes: string[] = [];
@@ -635,7 +635,24 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
         }
       }
 
-      // Approach D: native <select> fallback (content-based, no class names needed)
+      // Approach D: content-based ul > li detection scoped to main (matches Zara's plain <ul> with no special attrs)
+      if (!specs['size']) {
+        for (const ul of document.querySelectorAll<HTMLUListElement>('main ul')) {
+          const items = ul.querySelectorAll<HTMLLIElement>(':scope > li');
+          if (items.length < 2) continue;
+          const texts = [...new Set(
+            Array.from(items)
+              .map(li => (li.textContent ?? '').trim())
+              .filter(t => t.length > 0 && t.length <= 10 && !NON_SIZE_TEXT.test(t))
+          )];
+          if (texts.length >= 2 && texts.every(t => SIZE_VAL.test(t))) {
+            specs['size'] = texts.join(', ');
+            break;
+          }
+        }
+      }
+
+      // Approach E: native <select> fallback (content-based, no class names needed)
       if (!specs['size']) {
         for (const sel of document.querySelectorAll<HTMLSelectElement>('select')) {
           const unique = [...new Set(
