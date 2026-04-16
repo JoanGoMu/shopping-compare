@@ -150,6 +150,30 @@ export interface Database {
         };
         Relationships: [];
       };
+      price_history: {
+        Row: {
+          id: string;
+          product_url: string;
+          price: number;
+          currency: string;
+          recorded_at: string;
+        };
+        Insert: {
+          id?: string;
+          product_url: string;
+          price: number;
+          currency: string;
+          recorded_at?: string;
+        };
+        Update: {
+          id?: string;
+          product_url?: string;
+          price?: number;
+          currency?: string;
+          recorded_at?: string;
+        };
+        Relationships: [];
+      };
       referrals: {
         Row: {
           id: string;

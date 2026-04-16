@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { Product } from '@/lib/supabase/types';
 import { shareComparison, unshareComparison } from '@/app/compare/actions';
+import PriceSparkline from '@/components/PriceSparkline';
 
 interface Props {
   products: Product[];
@@ -331,6 +332,16 @@ export default function CompareTable({ products: initialProducts, allProducts = 
                         Buy →
                       </a>
                     </div>
+                  </td>
+                ))}
+                {addableProducts.length > 0 && <td />}
+              </tr>
+
+              <tr className="bg-cream/50">
+                <td className="text-xs tracking-widest uppercase text-muted py-3 pr-6">Price history</td>
+                {filtered.map((p) => (
+                  <td key={p.id} className="py-3 px-4 align-top">
+                    <PriceSparkline productUrl={p.product_url} currency={p.currency} />
                   </td>
                 ))}
                 {addableProducts.length > 0 && <td />}

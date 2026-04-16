@@ -8,6 +8,7 @@ import { Resend } from 'resend';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { extractProductFromHtml } from '@/lib/extract-product';
 import { buildPriceEmail, type PriceChange } from '@/lib/price-email';
+import { recordPriceHistory } from '@/lib/price-history';
 
 const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 const FETCH_HEADERS = {
@@ -87,6 +88,9 @@ export async function GET(request: NextRequest) {
           price_check_failed: false,
           ...specsUpdate,
         }).eq('id', product.id);
+        // Record both old and new price in history
+        if (product.price != null) await recordPriceHistory(supabase, product.product_url, product.price, product.currency);
+        await recordPriceHistory(supabase, product.product_url, extracted.price, product.currency);
         changed++;
         changedProductIds.add(product.id);
 

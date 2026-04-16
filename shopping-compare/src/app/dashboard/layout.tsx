@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import SignOutButton from '@/components/SignOutButton';
 import ExtensionAuthBridge from '@/components/ExtensionAuthBridge';
+import OnboardingTour from '@/components/OnboardingTour';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -44,6 +45,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {children}
       </main>
       <ExtensionAuthBridge />
+      <OnboardingTour />
     </div>
   );
 }

@@ -214,11 +214,11 @@ export default function PublicCompareTable({ products, updatedAt }: Props) {
             Install the browser extension, click &ldquo;Save&rdquo; on any product page, and compare. Free, no credit card.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center items-center mb-8">
-            <a href="/signup" className="bg-terra text-white px-8 py-3.5 text-sm tracking-widest uppercase hover:bg-terra-dark transition-colors w-full sm:w-auto text-center">
-              Start for free
+            <a href="https://chromewebstore.google.com/detail/comparecart-save-to-compa/emfdbbbkcaheaakehmkicmapjcilpdoj" target="_blank" rel="noopener noreferrer" className="bg-terra text-white px-8 py-3.5 text-sm tracking-widest uppercase hover:bg-terra-dark transition-colors w-full sm:w-auto text-center">
+              Add to Chrome - Free
             </a>
-            <a href="/login" className="border border-warm-border text-ink px-8 py-3.5 text-sm tracking-widest uppercase hover:bg-cream transition-colors w-full sm:w-auto text-center">
-              Sign in
+            <a href="/signup" className="border border-warm-border text-ink px-8 py-3.5 text-sm tracking-widest uppercase hover:bg-cream transition-colors w-full sm:w-auto text-center">
+              Sign up
             </a>
           </div>
           <div className="flex items-center justify-center gap-6 sm:gap-10 text-xs text-muted">

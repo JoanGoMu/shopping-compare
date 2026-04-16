@@ -827,7 +827,6 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
     image_url: document.querySelector<HTMLImageElement>('[class*="product-detail-main-image-container"] img')?.src ?? null,
     specs: (() => {
       const specs: Record<string, string> = {};
-      // Product description accordion - "Composition: 100% Cotton" list items
       document.querySelectorAll<HTMLElement>('[class*="description-accordion"] [class*="description-item"], [class*="product-description"] li, [data-testid*="description"] li').forEach((el) => {
         const text = el.textContent?.trim() ?? '';
         const colonIdx = text.indexOf(':');
@@ -835,6 +834,116 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
           specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
         }
       });
+      return specs;
+    })(),
+  }),
+
+  'ikea.': () => ({
+    name: document.querySelector<HTMLElement>('[class*="pip-header-section__title"], h1[class*="product-title"], h1')?.textContent?.trim() ?? null,
+    price: (() => {
+      // IKEA price: integer + decimals in separate spans, or meta tag
+      const meta = document.querySelector<HTMLMetaElement>('meta[property="product:price:amount"]')?.content;
+      if (meta) return parseFloat(meta);
+      const raw = document.querySelector<HTMLElement>('[class*="pip-price__integer"], [class*="pip-price"] [class*="price-module__integer"]')?.textContent;
+      return raw ? parsePrice(raw).price : null;
+    })(),
+    currency: (() => {
+      return document.querySelector<HTMLMetaElement>('meta[property="product:price:currency"]')?.content ?? 'EUR';
+    })(),
+    image_url: document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? null,
+    specs: (() => {
+      const specs: Record<string, string> = {};
+      // IKEA product details table: label/value pairs in definition list
+      document.querySelectorAll<HTMLElement>('[class*="pip-product-details__list"] [class*="pip-product-details__label"]').forEach((label) => {
+        const key = label.textContent?.trim() ?? '';
+        const value = label.nextElementSibling?.textContent?.trim() ?? '';
+        if (key && value && key.length < 60) specs[key] = value;
+      });
+      // Measurements table
+      document.querySelectorAll<HTMLElement>('[class*="pip-product-measurements"] tr').forEach((row) => {
+        const cells = row.querySelectorAll('td, th');
+        if (cells.length >= 2) {
+          const key = cells[0].textContent?.trim() ?? '';
+          const value = cells[1].textContent?.trim() ?? '';
+          if (key && value && key.length < 60) specs[key] = value;
+        }
+      });
+      // Sizes (e.g. mattress/frame sizes)
+      const sizeItems = Array.from(document.querySelectorAll<HTMLElement>('[class*="pip-product-dimensions"], [data-testid*="size"] button, [class*="size-selector"] button'))
+        .map(el => el.textContent?.trim() ?? '').filter(t => t.length > 0 && t.length <= 20 && !NON_SIZE_TEXT.test(t));
+      if (sizeItems.length >= 2) specs['Size'] = [...new Set(sizeItems)].join(', ');
+      return specs;
+    })(),
+  }),
+
+  'uniqlo.': () => ({
+    name: document.querySelector<HTMLElement>('h1[class*="product-name"], h1[class*="pdp-title"], h1')?.textContent?.trim() ?? null,
+    price: (() => {
+      const meta = document.querySelector<HTMLMetaElement>('meta[property="product:price:amount"]')?.content;
+      if (meta) return parseFloat(meta);
+      const raw = document.querySelector<HTMLElement>('[class*="price-text"], [class*="product-price__amount"], [class*="fr-price"]')?.textContent;
+      return raw ? parsePrice(raw).price : null;
+    })(),
+    currency: (() => {
+      return document.querySelector<HTMLMetaElement>('meta[property="product:price:currency"]')?.content ?? 'EUR';
+    })(),
+    image_url: document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? null,
+    specs: (() => {
+      const specs: Record<string, string> = {};
+      // Material/composition from product description
+      document.querySelectorAll<HTMLElement>('[class*="product-detail__list"] li, [class*="pdp-information"] li').forEach((li) => {
+        const text = li.textContent?.trim() ?? '';
+        const colonIdx = text.indexOf(':');
+        if (colonIdx > 0 && colonIdx < 60) {
+          specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+        }
+      });
+      // Colors
+      const colorEls = Array.from(document.querySelectorAll<HTMLElement>('[class*="color-selector"] [aria-label], [class*="swatch"] [aria-label]'))
+        .map(el => el.getAttribute('aria-label')?.trim() ?? '').filter(Boolean);
+      if (colorEls.length > 0) specs['Color'] = colorEls[0];
+      // Sizes
+      const sizeEls = Array.from(document.querySelectorAll<HTMLElement>('[class*="size-selector"] button, [class*="size-grid"] button'))
+        .filter(el => el.getAttribute('aria-disabled') !== 'true' && !el.hasAttribute('disabled'))
+        .map(el => el.textContent?.trim() ?? '').filter(t => t.length > 0 && t.length <= 10 && SIZE_VAL.test(t));
+      if (sizeEls.length >= 2) specs['Size'] = [...new Set(sizeEls)].join(', ');
+      return specs;
+    })(),
+  }),
+
+  'mango.': () => ({
+    name: document.querySelector<HTMLElement>('h1[class*="product-name"], h1[class*="name-"], h1')?.textContent?.trim() ?? null,
+    price: (() => {
+      const meta = document.querySelector<HTMLMetaElement>('meta[property="product:price:amount"]')?.content;
+      if (meta) return parseFloat(meta);
+      const raw = document.querySelector<HTMLElement>('[class*="price-sale"], [class*="price__sale"], [class*="product-price"]')?.textContent;
+      return raw ? parsePrice(raw).price : null;
+    })(),
+    currency: (() => {
+      return document.querySelector<HTMLMetaElement>('meta[property="product:price:currency"]')?.content ?? 'EUR';
+    })(),
+    image_url: document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? null,
+    specs: (() => {
+      const specs: Record<string, string> = {};
+      // Composition/care details
+      document.querySelectorAll<HTMLElement>('[class*="composition"] li, [class*="product-details"] li, [class*="details-list"] li').forEach((li) => {
+        const text = li.textContent?.trim() ?? '';
+        const colonIdx = text.indexOf(':');
+        if (colonIdx > 0 && colonIdx < 60) {
+          specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+        } else if (text.length > 0 && text.length < 80) {
+          specs['Details'] = text;
+        }
+      });
+      // Color from active color swatch
+      const colorEl = document.querySelector<HTMLElement>('[class*="color-selector"] [aria-checked="true"], [class*="color-selector"] .selected, [class*="color__name"]');
+      const color = colorEl?.getAttribute('aria-label') ?? colorEl?.textContent?.trim();
+      if (color && color.length < 60) specs['Color'] = color;
+      // Sizes from size selector buttons
+      const sizeEls = Array.from(document.querySelectorAll<HTMLElement>('[class*="size-selector"] button, [class*="sizes-list"] button, [class*="size-list"] li'))
+        .filter(el => el.getAttribute('aria-disabled') !== 'true' && !el.classList.contains('disabled'))
+        .map(el => el.textContent?.trim() ?? '').filter(t => t.length > 0 && t.length <= 10 && !NON_SIZE_TEXT.test(t) && SIZE_VAL.test(t));
+      if (sizeEls.length >= 2) specs['Size'] = [...new Set(sizeEls)].join(', ');
       return specs;
     })(),
   }),

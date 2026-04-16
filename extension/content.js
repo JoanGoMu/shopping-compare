@@ -353,7 +353,7 @@
     return offers.some(isOfferAvailable);
   }
   var NON_SIZE_TEXT = /^(toevoegen|add to (cart|bag)|add|buy|order|checkout|submit|notify\s*me|size\s*guide|maten?wijzer|herinnering|wishlist|save|share|zoom|view|select|kies|choose|pick|afhandelen|winkelwagen|bekijk)$/i;
-  var SIZE_VAL = /^(XXS|XS|S|M|L|XL|XXL|XXXL|\d{2,3}(\/\d{2,3})?)$/i;
+  var SIZE_VAL = /^((\d?X{0,3}[SML])(\/[SML])?|\d{2,3}([\/-]\d{2,3})?|(EU|US|UK|IT|FR|DE)\s?\d{2,3})$/i;
   function extractAvailableSizes(selectors) {
     const sizes = [];
     document.querySelectorAll(selectors).forEach((el) => {
@@ -778,6 +778,19 @@
           }
         }
         if (!specs["size"]) {
+          for (const ul of document.querySelectorAll("main ul")) {
+            const items = ul.querySelectorAll(":scope > li");
+            if (items.length < 2) continue;
+            const texts = [...new Set(
+              Array.from(items).map((li) => (li.textContent ?? "").trim()).filter((t) => t.length > 0 && t.length <= 10 && !NON_SIZE_TEXT.test(t))
+            )];
+            if (texts.length >= 2 && texts.every((t) => SIZE_VAL.test(t))) {
+              specs["size"] = texts.join(", ");
+              break;
+            }
+          }
+        }
+        if (!specs["size"]) {
           for (const sel of document.querySelectorAll("select")) {
             const unique = [...new Set(
               Array.from(sel.options).filter((o) => !o.disabled && o.value !== "" && o.textContent?.trim()).map((o) => o.textContent.trim()).filter((t) => t.length <= 6 && !t.includes(" ") && !NON_SIZE_TEXT.test(t))
@@ -918,6 +931,97 @@
             specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
           }
         });
+        return specs;
+      })()
+    }),
+    "ikea.": () => ({
+      name: document.querySelector('[class*="pip-header-section__title"], h1[class*="product-title"], h1')?.textContent?.trim() ?? null,
+      price: (() => {
+        const meta = document.querySelector('meta[property="product:price:amount"]')?.content;
+        if (meta) return parseFloat(meta);
+        const raw = document.querySelector('[class*="pip-price__integer"], [class*="pip-price"] [class*="price-module__integer"]')?.textContent;
+        return raw ? parsePrice(raw).price : null;
+      })(),
+      currency: (() => {
+        return document.querySelector('meta[property="product:price:currency"]')?.content ?? "EUR";
+      })(),
+      image_url: document.querySelector('meta[property="og:image"]')?.content ?? null,
+      specs: (() => {
+        const specs = {};
+        document.querySelectorAll('[class*="pip-product-details__list"] [class*="pip-product-details__label"]').forEach((label) => {
+          const key = label.textContent?.trim() ?? "";
+          const value = label.nextElementSibling?.textContent?.trim() ?? "";
+          if (key && value && key.length < 60) specs[key] = value;
+        });
+        document.querySelectorAll('[class*="pip-product-measurements"] tr').forEach((row) => {
+          const cells = row.querySelectorAll("td, th");
+          if (cells.length >= 2) {
+            const key = cells[0].textContent?.trim() ?? "";
+            const value = cells[1].textContent?.trim() ?? "";
+            if (key && value && key.length < 60) specs[key] = value;
+          }
+        });
+        const sizeItems = Array.from(document.querySelectorAll('[class*="pip-product-dimensions"], [data-testid*="size"] button, [class*="size-selector"] button')).map((el) => el.textContent?.trim() ?? "").filter((t) => t.length > 0 && t.length <= 20 && !NON_SIZE_TEXT.test(t));
+        if (sizeItems.length >= 2) specs["Size"] = [...new Set(sizeItems)].join(", ");
+        return specs;
+      })()
+    }),
+    "uniqlo.": () => ({
+      name: document.querySelector('h1[class*="product-name"], h1[class*="pdp-title"], h1')?.textContent?.trim() ?? null,
+      price: (() => {
+        const meta = document.querySelector('meta[property="product:price:amount"]')?.content;
+        if (meta) return parseFloat(meta);
+        const raw = document.querySelector('[class*="price-text"], [class*="product-price__amount"], [class*="fr-price"]')?.textContent;
+        return raw ? parsePrice(raw).price : null;
+      })(),
+      currency: (() => {
+        return document.querySelector('meta[property="product:price:currency"]')?.content ?? "EUR";
+      })(),
+      image_url: document.querySelector('meta[property="og:image"]')?.content ?? null,
+      specs: (() => {
+        const specs = {};
+        document.querySelectorAll('[class*="product-detail__list"] li, [class*="pdp-information"] li').forEach((li) => {
+          const text = li.textContent?.trim() ?? "";
+          const colonIdx = text.indexOf(":");
+          if (colonIdx > 0 && colonIdx < 60) {
+            specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+          }
+        });
+        const colorEls = Array.from(document.querySelectorAll('[class*="color-selector"] [aria-label], [class*="swatch"] [aria-label]')).map((el) => el.getAttribute("aria-label")?.trim() ?? "").filter(Boolean);
+        if (colorEls.length > 0) specs["Color"] = colorEls[0];
+        const sizeEls = Array.from(document.querySelectorAll('[class*="size-selector"] button, [class*="size-grid"] button')).filter((el) => el.getAttribute("aria-disabled") !== "true" && !el.hasAttribute("disabled")).map((el) => el.textContent?.trim() ?? "").filter((t) => t.length > 0 && t.length <= 10 && SIZE_VAL.test(t));
+        if (sizeEls.length >= 2) specs["Size"] = [...new Set(sizeEls)].join(", ");
+        return specs;
+      })()
+    }),
+    "mango.": () => ({
+      name: document.querySelector('h1[class*="product-name"], h1[class*="name-"], h1')?.textContent?.trim() ?? null,
+      price: (() => {
+        const meta = document.querySelector('meta[property="product:price:amount"]')?.content;
+        if (meta) return parseFloat(meta);
+        const raw = document.querySelector('[class*="price-sale"], [class*="price__sale"], [class*="product-price"]')?.textContent;
+        return raw ? parsePrice(raw).price : null;
+      })(),
+      currency: (() => {
+        return document.querySelector('meta[property="product:price:currency"]')?.content ?? "EUR";
+      })(),
+      image_url: document.querySelector('meta[property="og:image"]')?.content ?? null,
+      specs: (() => {
+        const specs = {};
+        document.querySelectorAll('[class*="composition"] li, [class*="product-details"] li, [class*="details-list"] li').forEach((li) => {
+          const text = li.textContent?.trim() ?? "";
+          const colonIdx = text.indexOf(":");
+          if (colonIdx > 0 && colonIdx < 60) {
+            specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+          } else if (text.length > 0 && text.length < 80) {
+            specs["Details"] = text;
+          }
+        });
+        const colorEl = document.querySelector('[class*="color-selector"] [aria-checked="true"], [class*="color-selector"] .selected, [class*="color__name"]');
+        const color = colorEl?.getAttribute("aria-label") ?? colorEl?.textContent?.trim();
+        if (color && color.length < 60) specs["Color"] = color;
+        const sizeEls = Array.from(document.querySelectorAll('[class*="size-selector"] button, [class*="sizes-list"] button, [class*="size-list"] li')).filter((el) => el.getAttribute("aria-disabled") !== "true" && !el.classList.contains("disabled")).map((el) => el.textContent?.trim() ?? "").filter((t) => t.length > 0 && t.length <= 10 && !NON_SIZE_TEXT.test(t) && SIZE_VAL.test(t));
+        if (sizeEls.length >= 2) specs["Size"] = [...new Set(sizeEls)].join(", ");
         return specs;
       })()
     })

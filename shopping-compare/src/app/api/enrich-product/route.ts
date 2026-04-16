@@ -10,6 +10,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { normalizeSpecs } from '@/lib/normalize-specs';
 import { buildPriceEmail, type PriceChange } from '@/lib/price-email';
+import { recordPriceHistory } from '@/lib/price-history';
 
 export async function POST(request: NextRequest) {
   // Verify caller is an authenticated user via their Supabase access token
@@ -88,6 +89,8 @@ export async function POST(request: NextRequest) {
         update.previous_price = product.price;
         update.price = price;
         update.price_updated_at = now;
+        if (product.price != null) await recordPriceHistory(supabase, url, product.price, currency);
+        await recordPriceHistory(supabase, url, price, currency);
 
         // Queue email for users with price alerts (including the caller — they want to know too)
         if (product.price_alerts !== false && product.price != null) {
