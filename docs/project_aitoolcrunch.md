@@ -6,7 +6,7 @@ type: project
 
 ## What this project is
 
-An affiliate comparison website for AI tools at **aitoolcrunch.com**. Revenue model: affiliate commissions (20-45% recurring) when users sign up for AI tools via links on the site. The site compares tools across 5 categories: AI Writing, AI Image, AI Code, AI Video, AI Audio.
+An affiliate comparison website for AI tools at **aitoolcrunch.com**. Revenue model: affiliate commissions (20-45% recurring) when users sign up for AI tools via links on the site. The site compares tools across 6 categories: AI Writing, AI Image, AI Code, AI Video, AI Audio, AI Automation.
 
 **Why:** Joan wants a passive income project that Claude can mostly build and maintain, with low/zero running costs.
 
@@ -17,7 +17,7 @@ An affiliate comparison website for AI tools at **aitoolcrunch.com**. Revenue mo
 - **GitHub repo:** https://github.com/JoanGoMu/ai-tools-hub (private)
 - **Domain registrar:** Porkbun (aitoolcrunch.com, ~$11/year)
 - **Google Search Console:** verified, sitemap submitted at https://aitoolcrunch.com/sitemap.xml
-- **Local project path:** `/Users/joan.mussone/Desktop/Projects/AI Tools Hub/ai-tools-hub` (note the space in the parent folder name)
+- **Local project path:** `/Users/joan.mussone/Desktop/Projects/AI Tools Hub/ai-tools-hub` (note the space in "AI Tools Hub")
 
 ## Tech stack
 
@@ -27,48 +27,96 @@ An affiliate comparison website for AI tools at **aitoolcrunch.com**. Revenue mo
 - **Automation:** GitHub Actions cron (daily 6am UTC) — scrapes Product Hunt + RSS feeds
 - **Node.js:** installed via Homebrew at `/opt/homebrew/opt/node@20/bin/` (must use `export PATH="/opt/homebrew/opt/node@20/bin:$PATH"` in terminal)
 
-## Current site content (as of April 13, 2026)
+## Current site content (as of April 16, 2026)
 
-**30 tools across 6 categories:**
+**37 tools across 6 categories:**
 - AI Writing: jasper, copy-ai, writesonic, rytr, claude, chatgpt, gemini, perplexity, generateppt, notebooklm
-- AI Image: midjourney, dall-e, leonardo-ai, ideogram, apimage
-- AI Code: github-copilot, cursor, tabnine, goose, mercury-edit, codictate, openclaw
+- AI Image: midjourney, dall-e, leonardo-ai, ideogram, apimage (+ chatgpt cross-listed)
+- AI Code: github-copilot, cursor, tabnine, goose, mercury-edit, codictate, openclaw (+ claude, chatgpt, gemini cross-listed)
 - AI Video: runway, synthesia, heygen, pika, slide2video, google-vids, pixverse
 - AI Audio: elevenlabs, descript, murf-ai, voiceos, fluently
-- AI Automation: make, n8n, gumloop
+- AI Automation: make, n8n, gumloop (+ openclaw cross-listed)
 
-**74 comparison pages** (8 added April 13, 2026: codictate-vs-cursor, codictate-vs-github-copilot, codictate-vs-goose, codictate-vs-mercury-edit, codictate-vs-openclaw, codictate-vs-tabnine, claude-vs-goose, goose-vs-tabnine)
+**142 comparison pages** - full intra-category coverage achieved April 16, 2026. No gaps remain.
 
 **6 categories:** ai-writing, ai-image, ai-code, ai-video, ai-audio, ai-automation
 
-**24 blog posts** (7 added April 10-13, 2026 with author "AIToolCrunch"):
-- anthropic-blocks-openclaw-claude-subscriptions (Apr 10)
-- claude-code-caveman-skill-saves-tokens (Apr 10)
-- anthropic-project-glasswing-security-initiative (Apr 11)
-- claude-managed-agents-what-you-need-to-know (Apr 11)
-- microsoft-copilot-naming-confusion (Apr 12)
-- running-gemma-4-locally-lm-studio-claude-code (Apr 12)
-- taste-in-the-age-of-ai (Apr 13)
+**32 blog posts** (last updated April 16, 2026). Author for all new posts: "AIToolCrunch". Older posts have fake author names (alex-chen, sara-morales, etc.) - not yet backfilled.
 
-**Note on blog author:** New posts use "AIToolCrunch" as the author, not fake individual names. Older posts still have individual names (alex-chen, sara-morales, etc.) - those have not been backfilled.
+Recent posts (Apr 16): anthropic-cowork-claude-desktop-agent, coding-agent-infrastructure-freestyle-twill, nouscoder-14b-open-source-coding-model, claudraband-claude-code-power-user-tools, gaia-local-ai-agents-framework
+
+Recent posts (Apr 14): ai-agent-benchmarks-are-broken, claude-for-word-anthropic-microsoft, reallocating-claude-code-spend-zed-openrouter
+
+**RSS items still uncovered:** Railway $100M raise, CSS Studio, Eve (managed OpenClaw), sllm, Hippo memory framework.
+
+## Affiliate programs — full status (as of April 16, 2026)
+
+### Active (4) - links live on site
+| Tool | Commission | Affiliate URL |
+|------|-----------|--------------|
+| ElevenLabs | 22% recurring | https://try.elevenlabs.io/vxfn4lqln9sn |
+| HeyGen | 35% first 3 months | https://www.heygen.com/?sid=rewardful&via=joan-gomez-mussone |
+| Synthesia | 20% recurring | https://www.synthesia.io/?via=joan |
+| Murf AI | 30% recurring | https://get.murf.ai/34eyx2rd5e73 |
+
+### Pending application (2)
+| Tool | Commission | Apply at |
+|------|-----------|---------|
+| Jasper | 30% recurring | app.impact.com - search Jasper |
+| Writesonic | 30% recurring | writesonic.com/affiliates |
+
+### Closed / not available
+| Tool | Notes |
+|------|-------|
+| Copy.ai | Program discontinued - confirmed April 2026. Do not apply. |
+| ChatGPT / OpenAI | No affiliate program |
+| Claude / Anthropic | No affiliate program |
+| Gemini / Google | No affiliate program |
+| NotebookLM | Google product, no affiliate |
+| Google Vids | Google product, no affiliate |
+| GitHub Copilot | Microsoft, no affiliate |
+| Goose | Open source (Block), no affiliate |
+| OpenClaw | Open source, no affiliate |
+| Midjourney | No public affiliate program (never launched one) |
+
+### Can apply next (confirmed programs exist)
+| Tool | Est. Commission | Apply at |
+|------|----------------|---------|
+| Rytr | ~30% recurring | rytr.me/affiliates |
+| Cursor | ~20% recurring | cursor.com/affiliate |
+| Descript | ~15% recurring | descript.com/affiliate |
+| Runway | ~20% recurring | runwayml.com/affiliates |
+| Leonardo AI | ~15-20% | leonardo.ai (account settings) |
+| Make | ~20% recurring | make.com/referral-program |
+
+### Worth checking manually (unclear status)
+Perplexity, Tabnine (enterprise partner program), Pika, Ideogram, n8n (credits not cash), Gumloop
+
+## When an affiliate is approved
+
+1. Update `data/affiliate-links.json`: set `"status": "active"` and add the real affiliate URL
+2. `git add data/affiliate-links.json && git commit -m "add: ToolName affiliate link" && git push`
+3. Netlify rebuilds - site-wide CTAs and tool pages update automatically
 
 ## Key file structure
 
 ```
 data/
-  tools/*.json          — one file per tool (18 files)
-  categories.json       — 5 categories
-  comparisons.json      — 7 comparison page definitions
+  tools/*.json          — one file per tool (37 files)
+  categories.json       — 6 categories
+  comparisons.json      — 142 comparison page definitions
   deals.json            — empty (no deals yet)
-  affiliate-links.json  — affiliate URLs (all "pending" — not yet enrolled)
-  scraped-suggestions.json  — auto-created by GitHub Actions scraper
-  rss-feed-items.json       — auto-created by GitHub Actions scraper
+  affiliate-links.json  — affiliate URLs and statuses
+  blog/*.json           — 32 blog post files
+  blog-ideas.json       — populated daily by GitHub Actions scraper
+  rss-feed-items.json   — AI news from RSS feeds, updated daily
 
 src/
   app/page.tsx                    — homepage
   app/tools/[slug]/page.tsx       — tool detail pages
   app/category/[slug]/page.tsx    — category pages
   app/compare/[slug]/page.tsx     — comparison pages
+  app/blog/[slug]/page.tsx        — blog post pages
   app/deals/page.tsx              — deals page
   app/sitemap.ts                  — auto-generated sitemap
   lib/types.ts                    — TypeScript interfaces
@@ -115,14 +163,14 @@ scripts/
   "rating": 4.5,
   "logoUrl": "/images/tools/tool-name.png",
   "screenshotUrl": null,
-  "lastUpdated": "2026-04-04",
+  "lastUpdated": "2026-04-16",
   "source": "manual",
   "status": "active",
   "featured": false
 }
 ```
 
-## Comparison JSON schema (for adding new comparisons)
+## Comparison JSON schema
 
 Add entries to `data/comparisons.json`:
 ```json
@@ -136,80 +184,83 @@ Add entries to `data/comparisons.json`:
 }
 ```
 
-## Affiliate programs (priority order to apply)
+**Slug rule:** always alphabetical - the tool whose name comes first alphabetically goes on the left. `toolA` and `toolB` must match the slug order.
 
-All currently `"status": "pending"` in `data/affiliate-links.json`. When approved, change to `"status": "active"` and add the real affiliate URL, then push.
+## Blog post JSON schema
 
-| Tool | Commission | Network | Apply at |
-|------|-----------|---------|----------|
-| Copy.ai | 45% first year, 20% lifetime | PartnerStack | partners.copy.ai |
-| Writesonic | 30% lifetime recurring | Direct | writesonic.com/affiliates |
-| ElevenLabs | 22% recurring | Direct | elevenlabs.io/affiliates |
-| Jasper | 30% recurring 1yr | Impact | app.impact.com |
-| Synthesia | 20% recurring | PartnerStack | synthesia.partnerstack.com |
+Files in `data/blog/slug.json`:
+```json
+{
+  "slug": "post-slug",
+  "title": "Post Title",
+  "excerpt": "1-2 sentence summary.",
+  "author": "AIToolCrunch",
+  "publishedAt": "2026-04-16",
+  "tags": ["ai-code", "ai-trends"],
+  "status": "published",
+  "featured": true,
+  "coverImage": "https://images.unsplash.com/photo-XXXX?w=1200&q=80",
+  "content": "<p>HTML content</p>"
+}
+```
+
+**Cover image rule:** every post must have a unique Unsplash photo ID. Check for duplicates with: `grep -h '"coverImage"' data/blog/*.json | sort | uniq -d`
 
 ## How to deploy changes
 
 ```bash
 export PATH="/opt/homebrew/opt/node@20/bin:$PATH"
-cd /Users/joan.mussone/Desktop/Projects/ai-tools-hub
+cd "/Users/joan.mussone/Desktop/Projects/AI Tools Hub/ai-tools-hub"
+npm run build   # verify before pushing
 git add .
 git commit -m "description"
 git push
 # Netlify auto-deploys in ~1 min
 ```
 
-## How to add a new tool
-
-1. Create `data/tools/slug-name.json` using the schema above
-2. `git add . && git commit -m "add: ToolName" && git push`
-3. Done — page appears at aitoolcrunch.com/tools/slug-name
-
-## How to add a new comparison
-
-1. Add entry to `data/comparisons.json`
-2. Push — page appears at aitoolcrunch.com/compare/tool-a-vs-tool-b
-
 ## GitHub Actions scraper
 
 - Runs daily at **6am UTC** (8am Spain time)
-- Writes to `data/scraped-suggestions.json` (new tool suggestions from Product Hunt)
-- Writes to `data/rss-feed-items.json` (AI news from RSS feeds)
+- Writes to `data/blog-ideas.json` and `data/rss-feed-items.json`
 - Auto-commits if there are changes
-- After it runs, do `git pull` locally to see results
+- After it runs, do `git pull` to see fresh ideas
 - To trigger manually: GitHub repo → Actions → "Daily Tool Scraper" → "Run workflow"
 
 ## Current open tasks / next steps
 
-**Immediate (revenue-generating):**
-1. Apply for affiliate programs (Copy.ai first — easiest approval)
-2. When approved, update `data/affiliate-links.json` with real URLs + change status to "active"
-3. Push → entire site rebuilds with monetized links
+**Revenue (immediate):**
+1. Apply for Jasper affiliate (app.impact.com - 30% recurring)
+2. Apply for Writesonic affiliate (writesonic.com/affiliates - 30% recurring)
+3. Apply for Rytr affiliate (rytr.me/affiliates - next wave)
+4. Apply for Cursor affiliate (cursor.com/affiliate - next wave, high traffic)
+5. When any affiliate approved: update data/affiliate-links.json status + URL, push
 
 **Growth:**
-4. All 9 pending Product Hunt items reviewed April 13 - all skipped (no affiliate or too niche). Pipeline is clean.
-5. Blog pipeline: blog-ideas.json has fresh ideas - run next content batch in a few days
-6. Share on Reddit (r/artificial, r/SideProject, r/MachineLearning)
-7. Set up Google Analytics 4
+6. Set up Google Analytics 4 (still not done - can't measure traffic)
+7. Share on Reddit: r/artificial, r/SideProject, r/MachineLearning
+8. Submit to directories: Product Hunt, IndieHackers, BetaList
+9. Blog: keep 3-5 posts/week cadence using RSS scraper items
+10. Add "Best of" roundup posts for video, audio, automation categories
 
-**Future automation (when ready):**
-8. Add Claude API integration to GitHub Actions for fully automated content generation
-   - Needs Anthropic API key (separate from Claude Pro, pay-as-you-go)
-   - claude-haiku-4-5 costs ~$0.01 per tool page generated
-   - Would make the site fully self-maintaining
+**Technical improvements:**
+11. Add JSON-LD structured data (SoftwareApplication schema for tools)
+12. Add email newsletter signup (Buttondown free tier)
+13. Add Claude API to GitHub Actions for fully automated content generation
+    - Needs Anthropic API key (pay-as-you-go, separate from Claude Pro)
+    - claude-haiku-4-5 costs ~$0.01 per page generated
 
 ## Known issues / decisions
 
-- Cloudflare Pages was tried first but failed (their new UI routes Next.js 14 through OpenNext which requires Next.js 15+). Switched to Netlify which works perfectly.
-- Node.js installed via Homebrew at `/opt/homebrew/opt/node@20/bin/` — always need to export PATH
+- Cloudflare Pages failed (their UI routes Next.js 14 through OpenNext which requires 15+). Use Netlify only.
+- Node.js installed via Homebrew at `/opt/homebrew/opt/node@20/bin/` - always export PATH
 - `scripts/` directory excluded from tsconfig to avoid build errors
-- RSS scraper had a hanging issue — fixed with 15s per-feed timeout wrapper
-- HTTPS on aitoolcrunch.com: auto-provisioned by Netlify, should activate within 24h of DNS propagation
+- RSS scraper had a hanging issue - fixed with 15s per-feed timeout wrapper
+- Copy.ai affiliate program was confirmed closed/discontinued April 2026
 
 ## Joan's preferences
 
 - Wants low maintenance ("self-maintained")
-- Comfortable with Claude doing the writing work — just needs to review
+- Comfortable with Claude doing the writing work - just needs to review
 - Wants to understand before automating (do automation in phases)
-- Budget-conscious — prefers free tiers
+- Budget-conscious - prefers free tiers
 - Made the GitHub repo private (concern about others copying)

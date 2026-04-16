@@ -148,7 +148,14 @@ Amazon detail sections changed. Now queries:
 
 **Domain:** comparecart.app - LIVE. Purchased on Porkbun, DNS on Porkbun pointing to Vercel. Resend verified. Supabase Auth Site URL updated. NEXT_PUBLIC_APP_URL set in Vercel.
 
-**Chrome extension:** Published and approved on Chrome Web Store. ID: emfdbbbkcaheaakehmkicmapjcilpdoj
+**Chrome extension:** Published and approved on Chrome Web Store. ID: emfdbbbkcaheaakehmkicmapjcilpdoj. Version 0.1.1 submitted Apr 16 (fixed icon PNGs - were solid orange squares, now show cart design).
+
+## Extension stores supported (Apr 16 2026)
+Amazon, eBay, AliExpress, Etsy, Zalando, Zara, Sephora, The North Face, ASOS, H&M, IKEA, Uniqlo, Mango (added Apr 16)
+
+## SIZE_VAL regex (Apr 16 2026)
+Broadened to: `/^((\d?X{0,3}[SML])(\/[SML])?|\d{2,3}([\/-]\d{2,3})?|(EU|US|UK|IT|FR|DE)\s?\d{2,3})$/i`
+Supports: S/M/L/XL, 2XL, 38, 36-38, 42/44, EU 38, US 6, UK 10
 
 ## Pages (Apr 14 2026)
 - `/` - homepage
@@ -160,13 +167,14 @@ Amazon detail sections changed. Now queries:
 - `/feedback` - feedback form (stores to Supabase `feedback` table)
 - `/privacy`, `/login`, `/signup`
 
-## Supabase tables (Apr 14 2026)
+## Supabase tables (Apr 16 2026)
 - `products` - saved products (images, price_alerts columns added vs original schema)
 - `comparison_groups`, `comparison_items` - grouping
 - `shared_comparisons` - public snapshots
 - `user_preferences` - price_alerts toggle
 - `feedback` - user feedback submissions
 - `referrals` - referrer_id, referred_id, unique(referred_id)
+- `price_history` - (product_url, price, currency, recorded_at) - snapshots on every price change. Written by cron + enrich-product via `src/lib/price-history.ts`. Index on (product_url, recorded_at DESC).
 
 ## Referral system
 - Link: `https://comparecart.app/signup?ref=USER_ID`
@@ -188,8 +196,14 @@ Amazon detail sections changed. Now queries:
 - Everything else collapsed under "Show X more details"
 - Garbage spec values filtered: length > 200 chars, or contains JS code patterns
 
-## Open issues to verify (Apr 13 2026)
+## Changes Apr 16 2026
+- **Session lifetime**: proxy.ts now sets cookie maxAge 90 days. Extension signOut uses `scope: 'local'` to avoid revoking web app session.
+- **Extension icons**: Regenerated PNGs from SVG (were solid orange, now show cart design). Version bumped to 0.1.1, submitted to Web Store.
+- **Zara sizes**: Fixed - content-based ul>li detection (Approach D), broadened SIZE_VAL regex.
+- **New stores**: IKEA, Uniqlo, Mango extractors added to extension.
+- **Price history**: `price_history` table + `src/lib/price-history.ts` helper. SVG sparkline in Compare table (`src/components/PriceSparkline.tsx`).
+- **Viral loop**: Public comparison CTA (`PublicCompareTable.tsx`) now has direct "Add to Chrome" button to Web Store.
+- **Onboarding tour**: Built then removed - was showing every visit, too disruptive.
+- **Privacy policy URL**: Updated in Chrome Web Store to comparecart.app/privacy (was old Vercel URL).
 
-- **Zara sizes**: Multiple fixes applied (4-approach extractor + bestSizeForUrl tracker + mergeSpecsSafe). User reported "still wrong" multiple times before the tracker fix. Needs real-world verification on Zara product pages after latest changes.
-- **Iframe refresh**: New implementation untested by user yet. Need to verify iframes actually load and extract data on real stores (Zara, Amazon, etc.). Some stores may block via X-Frame-Options - need to check which.
-- **Amazon metadata**: Fixed selectors for #detailBullets_feature_div and #productDetails_feature_div. User confirmed button appeared but metadata capture needs verification (was showing empty Brand/Color/Size for Amazon products before fix).
+## No open issues as of Apr 16 2026
