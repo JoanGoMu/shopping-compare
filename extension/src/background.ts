@@ -99,7 +99,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 
   if (type === 'SIGN_OUT') {
-    supabase.auth.signOut().then(async () => {
+    supabase.auth.signOut({ scope: 'local' }).then(async () => {
       await chrome.storage.local.remove(SESSION_KEY);
       sendResponse({ ok: true });
     });
