@@ -28,11 +28,15 @@ export default function SignupPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email, password,
-      options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard` },
     });
     if (error) { setError(error.message); setLoading(false); }
+    else if (data.user?.identities?.length === 0) {
+      setError('An account with this email already exists. Please sign in instead.');
+      setLoading(false);
+    }
     else { setDone(true); }
   }
 
