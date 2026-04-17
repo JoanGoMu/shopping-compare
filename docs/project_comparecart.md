@@ -212,5 +212,10 @@ Supports: S/M/L/XL, 2XL, 38, 36-38, 42/44, EU 38, US 6, UK 10
 - **SignOutButton scope**: Changed to `signOut({ scope: 'local' })` so web app sign-out doesn't revoke the refresh token server-side. Previously used global scope which killed all sessions including extension.
 - **Auto-logout investigation**: Daily logouts likely caused by Supabase Refresh Token Expiry being too short (default could be 1 day). Need to check Supabase dashboard Auth > Configuration > Refresh Token Expiry and increase to 7-30 days. Also check Refresh Token Rotation - if ON with no reuse interval, extension session sharing could invalidate web app's refresh token.
 
-## Open items as of Apr 17 2026
-- Check Supabase dashboard: Auth > Configuration > Refresh Token Expiry (increase to 7-30 days if short) and Refresh Token Rotation settings
+## Supabase Auth settings (Apr 17 2026)
+- **Refresh token rotation/revocation**: Turned OFF ("Detect and revoke potentially compromised refresh tokens"). Was causing daily logouts - extension's stale tokens were triggering full session revocation for the web app. Free tier default was ON with 10s reuse interval.
+- **Inactivity timeout / Time-box sessions**: Both 0 (never) - Pro-only to change, not needed.
+- **Confirm email**: ON (required - explains why existing user signup fix needed identities check)
+- **Refresh token expiry**: Not exposed on free tier, defaults to 1 week (fine).
+
+## No open issues as of Apr 17 2026
