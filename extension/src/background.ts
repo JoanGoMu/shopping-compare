@@ -136,6 +136,24 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (type === 'GET_STORE_RULES') {
+    // Returns cached AI-generated CSS selector rules for a domain (24h TTL)
+    handleGetStoreRules(message.domain).then(sendResponse);
+    return true;
+  }
+
+  if (type === 'REQUEST_EXTRACTOR_GENERATION') {
+    // Sends simplified HTML to the server to generate and cache selector rules
+    handleRequestExtractorGeneration(message.domain, message.url, message.html).then(sendResponse);
+    return true;
+  }
+
+  if (type === 'REPORT_EXTRACTION_RESULT') {
+    // Fire-and-forget: tells the server whether the AI rules worked on this page
+    handleReportExtractionResult(message.domain, message.success);
+    return false;
+  }
+
 });
 
 async function handleUpdatePriceIfSaved(url: string, price: number, currency: string, specs?: Record<string, string>) {
@@ -287,6 +305,79 @@ async function handleUpdateSpecsForUrl(url: string, specs: Record<string, string
 const lastDomainRefresh = new Map<string, number>();
 const BG_REFRESH_COOLDOWN = 60 * 60 * 1000;
 const BG_MAX_PRODUCTS = 5;
+
+// ---------------------------------------------------------------------------
+// AI-generated extractor rule handlers
+// ---------------------------------------------------------------------------
+
+const RULES_CACHE_KEY_PREFIX = 'store_rules_';
+const RULES_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+interface CachedRules {
+  rules: object;
+  timestamp: number;
+}
+
+// Returns AI-generated selector rules for a domain from local cache (24h TTL).
+// Cache miss returns null — the caller should then invoke REQUEST_EXTRACTOR_GENERATION.
+async function handleGetStoreRules(domain: string): Promise<{ rules: object | null }> {
+  try {
+    const key = RULES_CACHE_KEY_PREFIX + domain;
+    const stored = await chrome.storage.local.get(key);
+    const entry: CachedRules | undefined = stored[key];
+    if (entry && Date.now() - entry.timestamp < RULES_CACHE_TTL) {
+      return { rules: entry.rules };
+    }
+    return { rules: null };
+  } catch { return { rules: null }; }
+}
+
+// Calls the server to generate CSS selector rules for this domain.
+// On success, caches the rules locally and returns them.
+async function handleRequestExtractorGeneration(
+  domain: string,
+  url: string,
+  html: string,
+): Promise<{ rules: object | null }> {
+  try {
+    const stored = await chrome.storage.local.get(SESSION_KEY);
+    if (!stored[SESSION_KEY]) return { rules: null };
+    const { access_token } = JSON.parse(stored[SESSION_KEY]);
+    if (!access_token) return { rules: null };
+
+    const res = await fetch(`${APP_URL}/api/generate-extractor`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access_token}` },
+      body: JSON.stringify({ domain, url, html }),
+    });
+
+    if (!res.ok) return { rules: null };
+    const data = await res.json() as { ok: boolean; rules?: object };
+    if (!data.ok || !data.rules) return { rules: null };
+
+    // Cache locally with timestamp
+    const key = RULES_CACHE_KEY_PREFIX + domain;
+    await chrome.storage.local.set({ [key]: { rules: data.rules, timestamp: Date.now() } as CachedRules });
+
+    return { rules: data.rules };
+  } catch { return { rules: null }; }
+}
+
+// Reports whether the AI-generated rules worked for a given domain.
+// The server uses this to detect stale rules that need regeneration.
+async function handleReportExtractionResult(domain: string, success: boolean): Promise<void> {
+  try {
+    const stored = await chrome.storage.local.get(SESSION_KEY);
+    if (!stored[SESSION_KEY]) return;
+    const { access_token } = JSON.parse(stored[SESSION_KEY]);
+    if (!access_token) return;
+    await fetch(`${APP_URL}/api/report-extractor`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access_token}` },
+      body: JSON.stringify({ domain, success }),
+    });
+  } catch { /* silent */ }
+}
 
 // Returns saved product URLs from the same domain so content.ts can inject them
 // as hidden iframes — completely invisible, uses real browser session/cookies.

@@ -1082,3 +1082,169 @@ export function extractProduct(): ExtractedProduct {
 
   return merged;
 }
+
+// ---------------------------------------------------------------------------
+// AI-generated rule engine
+// ---------------------------------------------------------------------------
+
+export interface StoreSelectorRules {
+  product_name?: { selector: string; method: 'text' | 'attr'; attr?: string };
+  price?: { selector: string; method: 'text'; regex?: string };
+  currency?: { value: string } | { selector: string; method: 'text' | 'attr'; attr?: string };
+  image?: { selector: string; method: 'attr'; attr: string };
+  specs?: Array<{
+    selector: string;
+    method: 'pairs' | 'list' | 'dl';
+    label_selector?: string;
+    value_selector?: string;
+  }>;
+}
+
+/**
+ * Applies AI-generated CSS selector rules to the live DOM.
+ * Returns a partial ExtractedProduct that can be merged with other sources.
+ */
+export function extractWithRules(rules: StoreSelectorRules): Partial<ExtractedProduct> & { specs: Record<string, string> } {
+  const result: Partial<ExtractedProduct> & { specs: Record<string, string> } = { specs: {} };
+
+  try {
+    if (rules.product_name) {
+      const { selector, method, attr } = rules.product_name;
+      const el = document.querySelector<HTMLElement>(selector);
+      if (el) {
+        result.name = (method === 'attr' && attr ? el.getAttribute(attr) : el.textContent)?.trim() ?? undefined;
+      }
+    }
+  } catch { /* ignore invalid selectors */ }
+
+  try {
+    if (rules.price) {
+      const { selector, regex } = rules.price;
+      const el = document.querySelector<HTMLElement>(selector);
+      if (el) {
+        const raw = el.textContent?.trim() ?? '';
+        const numStr = regex ? (raw.match(new RegExp(regex))?.[0] ?? '') : raw;
+        const parsed = parsePrice(numStr || raw);
+        if (parsed.price != null) {
+          result.price = parsed.price;
+          result.currency = parsed.currency;
+        }
+      }
+    }
+  } catch { /* ignore */ }
+
+  try {
+    if (rules.currency && 'value' in rules.currency) {
+      result.currency = rules.currency.value;
+    } else if (rules.currency) {
+      const { selector, method, attr } = rules.currency as { selector: string; method: string; attr?: string };
+      const el = document.querySelector<HTMLElement>(selector);
+      if (el) {
+        result.currency = (method === 'attr' && attr ? el.getAttribute(attr) : el.textContent)?.trim() ?? undefined;
+      }
+    }
+  } catch { /* ignore */ }
+
+  try {
+    if (rules.image) {
+      const { selector, attr } = rules.image;
+      const el = document.querySelector<HTMLElement>(selector);
+      if (el) {
+        const val = el.getAttribute(attr);
+        if (val) result.image_url = val;
+      }
+    }
+  } catch { /* ignore */ }
+
+  try {
+    if (rules.specs?.length) {
+      for (const specRule of rules.specs) {
+        const { selector, method, label_selector, value_selector } = specRule;
+        if (method === 'dl' || method === 'pairs') {
+          const container = document.querySelector(selector);
+          if (container) {
+            const labels = container.querySelectorAll<HTMLElement>(label_selector ?? 'dt, th, b, strong');
+            labels.forEach((label) => {
+              const key = label.textContent?.trim() ?? '';
+              const valueEl = value_selector
+                ? label.closest('tr, li')?.querySelector<HTMLElement>(value_selector) ?? label.nextElementSibling as HTMLElement
+                : label.nextElementSibling as HTMLElement;
+              const value = valueEl?.textContent?.trim() ?? '';
+              if (key && value && key.length < 60 && value.length < 300) {
+                result.specs[key] = value;
+              }
+            });
+          }
+        } else if (method === 'list') {
+          document.querySelectorAll<HTMLElement>(selector).forEach((el) => {
+            const text = el.textContent?.trim() ?? '';
+            const colonIdx = text.indexOf(':');
+            if (colonIdx > 0 && colonIdx < 60) {
+              result.specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+            }
+          });
+        }
+      }
+    }
+  } catch { /* ignore */ }
+
+  return result;
+}
+
+/**
+ * Returns a simplified, privacy-safe HTML string suitable for sending to the AI extractor API.
+ * Strips scripts, styles, SVGs, and personal data. Prioritizes the main content area.
+ * Result is truncated to ~20KB.
+ */
+export function simplifyHtml(): string {
+  const MAX_BYTES = 20000;
+
+  // Clone the document body to avoid mutating the live DOM
+  const clone = document.body.cloneNode(true) as HTMLElement;
+
+  // Remove noise tags entirely
+  const noiseTags = ['script', 'style', 'svg', 'noscript', 'iframe', 'canvas', 'video', 'audio', 'picture'];
+  noiseTags.forEach(tag => clone.querySelectorAll(tag).forEach(el => el.remove()));
+
+  // Remove form input values (privacy)
+  clone.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea').forEach(el => {
+    el.removeAttribute('value');
+    if ('value' in el) (el as HTMLInputElement).defaultValue = '';
+  });
+
+  // Keep only useful attributes; strip everything else
+  const KEEP_ATTRS = new Set(['class', 'id', 'itemprop', 'itemtype', 'content', 'href', 'src', 'data-src',
+    'aria-label', 'aria-selected', 'aria-disabled', 'role', 'type', 'alt', 'title',
+    'data-option-name', 'data-attribute-name', 'data-qa-qualifier', 'property', 'name']);
+
+  function cleanAttrs(el: Element) {
+    const toRemove: string[] = [];
+    for (const attr of el.attributes) {
+      if (!KEEP_ATTRS.has(attr.name) && !attr.name.startsWith('data-')) {
+        toRemove.push(attr.name);
+      }
+    }
+    toRemove.forEach(a => el.removeAttribute(a));
+    for (const child of el.children) cleanAttrs(child);
+  }
+  cleanAttrs(clone);
+
+  // Try to focus on the main product content area
+  const mainEl = clone.querySelector<HTMLElement>('main, [role="main"], #content, #main, .product-page, .pdp')
+    ?? clone;
+
+  let html = mainEl.innerHTML;
+
+  // Collapse excessive whitespace
+  html = html.replace(/\s{3,}/g, ' ').replace(/>\s+</g, '><');
+
+  // Truncate to MAX_BYTES
+  if (html.length > MAX_BYTES) {
+    html = html.slice(0, MAX_BYTES);
+    // Don't leave a partial tag at the end
+    const lastClose = html.lastIndexOf('>');
+    if (lastClose > MAX_BYTES - 200) html = html.slice(0, lastClose + 1);
+  }
+
+  return html;
+}

@@ -2,7 +2,7 @@
  * Content script: injects the "Save to Compare" button on product pages.
  */
 
-import { extractProduct } from './extractor';
+import { extractProduct, extractWithRules, simplifyHtml, type StoreSelectorRules } from './extractor';
 
 const BUTTON_ID = 'comparecart-save-btn';
 const TOAST_ID = 'comparecart-toast';
@@ -10,6 +10,76 @@ const TOAST_ID = 'comparecart-toast';
 // Track the best Size value seen per URL to prevent retries from
 // overwriting a good extraction with a worse one (SPA DOM state flipping).
 let bestSizeForUrl = { url: '', size: '', count: 0 };
+
+// AI-generated selector rules for this domain, pre-fetched on page load.
+let cachedAiRules: StoreSelectorRules | null = null;
+// Prevent sending the same domain for generation more than once per page session.
+let aiRulesRequested = false;
+
+/**
+ * Merges AI-generated rule extraction results on top of an existing product.
+ * Only fills in missing fields - does not overwrite good data already extracted.
+ */
+function applyAiRules(product: ReturnType<typeof extractProduct>): void {
+  if (!cachedAiRules) return;
+  try {
+    const aiData = extractWithRules(cachedAiRules);
+    if (!product.name || product.name === 'Unknown product') {
+      if (aiData.name) product.name = aiData.name;
+    }
+    if (product.price == null && aiData.price != null) {
+      product.price = aiData.price;
+      product.currency = aiData.currency ?? product.currency;
+    }
+    if (!product.image_url && aiData.image_url) {
+      product.image_url = aiData.image_url;
+    }
+    // Merge specs: AI rules fill in any keys not already present
+    for (const [k, v] of Object.entries(aiData.specs ?? {})) {
+      if (!product.specs[k]) product.specs[k] = v;
+    }
+  } catch { /* silent - AI rules are best-effort */ }
+}
+
+/**
+ * Pre-fetches AI-generated selector rules for this domain.
+ * On cache miss, sends simplified HTML to the server for generation.
+ * Called once per page load from initWithRetry() after the DOM has settled.
+ */
+function prefetchAiRules() {
+  if (!chrome.runtime?.id) return;
+  if (isOwnApp()) return;
+  if (window.self !== window.top) return;
+
+  const domain = window.location.hostname.replace(/^www\./, '');
+
+  // Step 1: check local cache in background service worker
+  chrome.runtime.sendMessage({ type: 'GET_STORE_RULES', domain }, (response) => {
+    if (chrome.runtime.lastError) return;
+    if (response?.rules) {
+      cachedAiRules = response.rules as StoreSelectorRules;
+      return;
+    }
+
+    // Step 2: cache miss - only request generation if extraction was incomplete
+    if (aiRulesRequested) return;
+    const product = extractProduct();
+    const isIncomplete = product.price == null || product.name === 'Unknown product';
+    if (!isIncomplete) return; // Existing extraction is fine, no AI needed
+
+    aiRulesRequested = true;
+    const html = simplifyHtml();
+    chrome.runtime.sendMessage(
+      { type: 'REQUEST_EXTRACTOR_GENERATION', domain, url: window.location.href, html },
+      (genResponse) => {
+        if (chrome.runtime.lastError) return;
+        if (genResponse?.rules) {
+          cachedAiRules = genResponse.rules as StoreSelectorRules;
+        }
+      }
+    );
+  });
+}
 
 function isOwnApp(): boolean {
   try { return window.location.origin === new URL(APP_URL).origin; } catch { return false; }
@@ -90,6 +160,7 @@ function handleSave(btn: HTMLButtonElement) {
   btn.style.opacity = '0.7';
 
   const product = extractProduct();
+  applyAiRules(product);
 
   function reset() {
     btn.textContent = '🛒 Save to Compare';
@@ -149,7 +220,18 @@ function tryUpdateSavedPrice() {
   if (isOwnApp()) return;
   try {
     const product = extractProduct();
+    applyAiRules(product);
     if (product.price == null && Object.keys(product.specs ?? {}).length === 0) return;
+
+    // Report whether AI rules helped (for quality feedback loop)
+    if (cachedAiRules) {
+      const domain = window.location.hostname.replace(/^www\./, '');
+      chrome.runtime.sendMessage({
+        type: 'REPORT_EXTRACTION_RESULT',
+        domain,
+        success: product.price != null,
+      });
+    }
 
     // Client-side size protection: never downgrade within a page session.
     // Zara's SPA re-renders sizes asynchronously; retries can catch the DOM in different states.
@@ -217,6 +299,9 @@ function initWithRetry() {
       tryUpdateSavedPrice();
     }, delay);
   }
+  // Pre-fetch AI-generated selector rules at 5s - DOM has stabilized by then.
+  // On cache miss for incomplete extractions, this also triggers server-side generation.
+  window.setTimeout(prefetchAiRules, 5000);
   // After page has settled, refresh other saved products from this domain via iframes
   window.setTimeout(tryRefreshRelatedProducts, 12000);
 }

@@ -1130,11 +1130,196 @@
     if (!merged.specs["Color"] && generic.color) merged.specs["Color"] = generic.color;
     return merged;
   }
+  function extractWithRules(rules) {
+    const result = { specs: {} };
+    try {
+      if (rules.product_name) {
+        const { selector, method, attr } = rules.product_name;
+        const el = document.querySelector(selector);
+        if (el) {
+          result.name = (method === "attr" && attr ? el.getAttribute(attr) : el.textContent)?.trim() ?? void 0;
+        }
+      }
+    } catch {
+    }
+    try {
+      if (rules.price) {
+        const { selector, regex } = rules.price;
+        const el = document.querySelector(selector);
+        if (el) {
+          const raw = el.textContent?.trim() ?? "";
+          const numStr = regex ? raw.match(new RegExp(regex))?.[0] ?? "" : raw;
+          const parsed = parsePrice(numStr || raw);
+          if (parsed.price != null) {
+            result.price = parsed.price;
+            result.currency = parsed.currency;
+          }
+        }
+      }
+    } catch {
+    }
+    try {
+      if (rules.currency && "value" in rules.currency) {
+        result.currency = rules.currency.value;
+      } else if (rules.currency) {
+        const { selector, method, attr } = rules.currency;
+        const el = document.querySelector(selector);
+        if (el) {
+          result.currency = (method === "attr" && attr ? el.getAttribute(attr) : el.textContent)?.trim() ?? void 0;
+        }
+      }
+    } catch {
+    }
+    try {
+      if (rules.image) {
+        const { selector, attr } = rules.image;
+        const el = document.querySelector(selector);
+        if (el) {
+          const val = el.getAttribute(attr);
+          if (val) result.image_url = val;
+        }
+      }
+    } catch {
+    }
+    try {
+      if (rules.specs?.length) {
+        for (const specRule of rules.specs) {
+          const { selector, method, label_selector, value_selector } = specRule;
+          if (method === "dl" || method === "pairs") {
+            const container = document.querySelector(selector);
+            if (container) {
+              const labels = container.querySelectorAll(label_selector ?? "dt, th, b, strong");
+              labels.forEach((label) => {
+                const key = label.textContent?.trim() ?? "";
+                const valueEl = value_selector ? label.closest("tr, li")?.querySelector(value_selector) ?? label.nextElementSibling : label.nextElementSibling;
+                const value = valueEl?.textContent?.trim() ?? "";
+                if (key && value && key.length < 60 && value.length < 300) {
+                  result.specs[key] = value;
+                }
+              });
+            }
+          } else if (method === "list") {
+            document.querySelectorAll(selector).forEach((el) => {
+              const text = el.textContent?.trim() ?? "";
+              const colonIdx = text.indexOf(":");
+              if (colonIdx > 0 && colonIdx < 60) {
+                result.specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+              }
+            });
+          }
+        }
+      }
+    } catch {
+    }
+    return result;
+  }
+  function simplifyHtml() {
+    const MAX_BYTES = 2e4;
+    const clone = document.body.cloneNode(true);
+    const noiseTags = ["script", "style", "svg", "noscript", "iframe", "canvas", "video", "audio", "picture"];
+    noiseTags.forEach((tag) => clone.querySelectorAll(tag).forEach((el) => el.remove()));
+    clone.querySelectorAll("input, textarea").forEach((el) => {
+      el.removeAttribute("value");
+      if ("value" in el) el.defaultValue = "";
+    });
+    const KEEP_ATTRS = /* @__PURE__ */ new Set([
+      "class",
+      "id",
+      "itemprop",
+      "itemtype",
+      "content",
+      "href",
+      "src",
+      "data-src",
+      "aria-label",
+      "aria-selected",
+      "aria-disabled",
+      "role",
+      "type",
+      "alt",
+      "title",
+      "data-option-name",
+      "data-attribute-name",
+      "data-qa-qualifier",
+      "property",
+      "name"
+    ]);
+    function cleanAttrs(el) {
+      const toRemove = [];
+      for (const attr of el.attributes) {
+        if (!KEEP_ATTRS.has(attr.name) && !attr.name.startsWith("data-")) {
+          toRemove.push(attr.name);
+        }
+      }
+      toRemove.forEach((a) => el.removeAttribute(a));
+      for (const child of el.children) cleanAttrs(child);
+    }
+    cleanAttrs(clone);
+    const mainEl = clone.querySelector('main, [role="main"], #content, #main, .product-page, .pdp') ?? clone;
+    let html = mainEl.innerHTML;
+    html = html.replace(/\s{3,}/g, " ").replace(/>\s+</g, "><");
+    if (html.length > MAX_BYTES) {
+      html = html.slice(0, MAX_BYTES);
+      const lastClose = html.lastIndexOf(">");
+      if (lastClose > MAX_BYTES - 200) html = html.slice(0, lastClose + 1);
+    }
+    return html;
+  }
 
   // src/content.ts
   var BUTTON_ID = "comparecart-save-btn";
   var TOAST_ID = "comparecart-toast";
   var bestSizeForUrl = { url: "", size: "", count: 0 };
+  var cachedAiRules = null;
+  var aiRulesRequested = false;
+  function applyAiRules(product) {
+    if (!cachedAiRules) return;
+    try {
+      const aiData = extractWithRules(cachedAiRules);
+      if (!product.name || product.name === "Unknown product") {
+        if (aiData.name) product.name = aiData.name;
+      }
+      if (product.price == null && aiData.price != null) {
+        product.price = aiData.price;
+        product.currency = aiData.currency ?? product.currency;
+      }
+      if (!product.image_url && aiData.image_url) {
+        product.image_url = aiData.image_url;
+      }
+      for (const [k, v] of Object.entries(aiData.specs ?? {})) {
+        if (!product.specs[k]) product.specs[k] = v;
+      }
+    } catch {
+    }
+  }
+  function prefetchAiRules() {
+    if (!chrome.runtime?.id) return;
+    if (isOwnApp()) return;
+    if (window.self !== window.top) return;
+    const domain = window.location.hostname.replace(/^www\./, "");
+    chrome.runtime.sendMessage({ type: "GET_STORE_RULES", domain }, (response) => {
+      if (chrome.runtime.lastError) return;
+      if (response?.rules) {
+        cachedAiRules = response.rules;
+        return;
+      }
+      if (aiRulesRequested) return;
+      const product = extractProduct();
+      const isIncomplete = product.price == null || product.name === "Unknown product";
+      if (!isIncomplete) return;
+      aiRulesRequested = true;
+      const html = simplifyHtml();
+      chrome.runtime.sendMessage(
+        { type: "REQUEST_EXTRACTOR_GENERATION", domain, url: window.location.href, html },
+        (genResponse) => {
+          if (chrome.runtime.lastError) return;
+          if (genResponse?.rules) {
+            cachedAiRules = genResponse.rules;
+          }
+        }
+      );
+    });
+  }
   function isOwnApp() {
     try {
       return window.location.origin === new URL(APP_URL).origin;
@@ -1214,6 +1399,7 @@
     btn.textContent = "Saving...";
     btn.style.opacity = "0.7";
     const product = extractProduct();
+    applyAiRules(product);
     function reset() {
       btn.textContent = "\u{1F6D2} Save to Compare";
       btn.style.opacity = "1";
@@ -1266,7 +1452,16 @@
     if (isOwnApp()) return;
     try {
       const product = extractProduct();
+      applyAiRules(product);
       if (product.price == null && Object.keys(product.specs ?? {}).length === 0) return;
+      if (cachedAiRules) {
+        const domain = window.location.hostname.replace(/^www\./, "");
+        chrome.runtime.sendMessage({
+          type: "REPORT_EXTRACTION_RESULT",
+          domain,
+          success: product.price != null
+        });
+      }
       const currentSize = product.specs["Size"] ?? "";
       const sizeTokens = currentSize.split(",").filter((s) => s.trim()).length;
       if (product.product_url === bestSizeForUrl.url) {
@@ -1319,6 +1514,7 @@
         tryUpdateSavedPrice();
       }, delay);
     }
+    window.setTimeout(prefetchAiRules, 5e3);
     window.setTimeout(tryRefreshRelatedProducts, 12e3);
   }
   var APP_URL = "https://comparecart.app";

@@ -26,7 +26,7 @@ export default async function DashboardPage() {
             {products?.length ?? 0} saved {products?.length === 1 ? 'product' : 'products'}
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 w-full sm:w-auto">
           <AddByUrlForm variant="toolbar" />
         </div>
       </div>

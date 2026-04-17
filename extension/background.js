@@ -20084,6 +20084,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     handleGetRelatedUrls(message.domain, message.currentUrl).then(sendResponse);
     return true;
   }
+  if (type === "GET_STORE_RULES") {
+    handleGetStoreRules(message.domain).then(sendResponse);
+    return true;
+  }
+  if (type === "REQUEST_EXTRACTOR_GENERATION") {
+    handleRequestExtractorGeneration(message.domain, message.url, message.html).then(sendResponse);
+    return true;
+  }
+  if (type === "REPORT_EXTRACTION_RESULT") {
+    handleReportExtractionResult(message.domain, message.success);
+    return false;
+  }
 });
 async function handleUpdatePriceIfSaved(url, price, currency, specs) {
   try {
@@ -20188,6 +20200,56 @@ async function handleUpdateSpecsForUrl(url, specs) {
 var lastDomainRefresh = /* @__PURE__ */ new Map();
 var BG_REFRESH_COOLDOWN = 60 * 60 * 1e3;
 var BG_MAX_PRODUCTS = 5;
+var RULES_CACHE_KEY_PREFIX = "store_rules_";
+var RULES_CACHE_TTL = 24 * 60 * 60 * 1e3;
+async function handleGetStoreRules(domain) {
+  try {
+    const key = RULES_CACHE_KEY_PREFIX + domain;
+    const stored = await chrome.storage.local.get(key);
+    const entry = stored[key];
+    if (entry && Date.now() - entry.timestamp < RULES_CACHE_TTL) {
+      return { rules: entry.rules };
+    }
+    return { rules: null };
+  } catch {
+    return { rules: null };
+  }
+}
+async function handleRequestExtractorGeneration(domain, url, html) {
+  try {
+    const stored = await chrome.storage.local.get(SESSION_KEY);
+    if (!stored[SESSION_KEY]) return { rules: null };
+    const { access_token } = JSON.parse(stored[SESSION_KEY]);
+    if (!access_token) return { rules: null };
+    const res = await fetch(`${APP_URL}/api/generate-extractor`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${access_token}` },
+      body: JSON.stringify({ domain, url, html })
+    });
+    if (!res.ok) return { rules: null };
+    const data = await res.json();
+    if (!data.ok || !data.rules) return { rules: null };
+    const key = RULES_CACHE_KEY_PREFIX + domain;
+    await chrome.storage.local.set({ [key]: { rules: data.rules, timestamp: Date.now() } });
+    return { rules: data.rules };
+  } catch {
+    return { rules: null };
+  }
+}
+async function handleReportExtractionResult(domain, success) {
+  try {
+    const stored = await chrome.storage.local.get(SESSION_KEY);
+    if (!stored[SESSION_KEY]) return;
+    const { access_token } = JSON.parse(stored[SESSION_KEY]);
+    if (!access_token) return;
+    await fetch(`${APP_URL}/api/report-extractor`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${access_token}` },
+      body: JSON.stringify({ domain, success })
+    });
+  } catch {
+  }
+}
 async function handleGetRelatedUrls(domain, currentUrl) {
   try {
     const last = lastDomainRefresh.get(domain) ?? 0;
