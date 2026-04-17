@@ -14,18 +14,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
   if (!user) redirect('/login');
 
   return (
-    <div className="min-h-screen flex flex-col bg-cream">
+    <div className="min-h-dvh flex flex-col bg-cream">
       <header className="bg-surface border-b border-warm-border sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-2">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-4 sm:gap-8">
+            <Link href="/" className="flex items-center gap-2 shrink-0">
               <img src="/logo-icon.svg" alt="" width={24} height={24}/>
               <span className="font-[var(--font-display)] text-xl italic text-ink">{APP_NAME}</span>
             </Link>
-            <nav className="hidden sm:flex items-center gap-6">
-              <Link href="/dashboard" className="text-xs tracking-widest uppercase text-muted hover:text-ink transition-colors">Collection</Link>
-              <Link href="/compare" className="text-xs tracking-widest uppercase text-muted hover:text-ink transition-colors">Compare</Link>
-              <Link href="/mobile" className="text-xs tracking-widest uppercase text-muted hover:text-ink transition-colors">On mobile</Link>
+            <nav className="flex items-center gap-4 sm:gap-6">
+              <Link href="/dashboard" className="text-[10px] sm:text-xs tracking-widest uppercase text-muted hover:text-ink transition-colors">Collection</Link>
+              <Link href="/compare" className="text-[10px] sm:text-xs tracking-widest uppercase text-muted hover:text-ink transition-colors">Compare</Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">

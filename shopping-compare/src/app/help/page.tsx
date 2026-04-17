@@ -99,10 +99,18 @@ export default function HelpPage() {
       <div className="max-w-2xl mx-auto px-6 py-16">
         <p className="text-xs tracking-widest uppercase text-muted mb-3">Help Center</p>
         <h1 className="font-[var(--font-display)] italic text-3xl text-ink mb-2">Frequently asked questions</h1>
-        <p className="text-sm text-muted mb-12">
+        <p className="text-sm text-muted mb-8">
           Can&apos;t find what you&apos;re looking for?{' '}
           <a href="/feedback" className="text-terra hover:underline">Send us a message</a>.
         </p>
+
+        <a href="/mobile" className="flex items-center justify-between gap-4 p-4 bg-surface border border-warm-border hover:border-terra transition-colors mb-12 group">
+          <div>
+            <p className="text-sm font-medium text-ink mb-0.5">Using CompareCart on your phone?</p>
+            <p className="text-xs text-muted">Step-by-step guide for Android and iPhone - no app download needed.</p>
+          </div>
+          <span className="text-muted group-hover:text-terra transition-colors text-lg shrink-0">→</span>
+        </a>
 
         <div className="space-y-12">
           {faqs.map(section => (
