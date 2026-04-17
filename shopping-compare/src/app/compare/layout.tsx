@@ -22,6 +22,7 @@ export default async function CompareLayout({ children }: { children: React.Reac
             <nav className="hidden sm:flex items-center gap-6">
               <Link href="/dashboard" className="text-xs tracking-widest uppercase text-muted hover:text-ink transition-colors">Collection</Link>
               <Link href="/compare" className="text-xs tracking-widest uppercase text-muted hover:text-ink transition-colors">Compare</Link>
+              <Link href="/mobile" className="text-xs tracking-widest uppercase text-muted hover:text-ink transition-colors">On mobile</Link>
             </nav>
           </div>
           <div className="flex items-center gap-4">

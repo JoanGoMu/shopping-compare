@@ -15,6 +15,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             <Link href="/stores" className="text-sm text-muted hover:text-ink transition-colors tracking-wide uppercase hidden sm:block">Stores</Link>
             <Link href="/deals" className="text-sm text-muted hover:text-ink transition-colors tracking-wide uppercase hidden sm:block">Deals</Link>
             <Link href="/help" className="text-sm text-muted hover:text-ink transition-colors tracking-wide uppercase hidden sm:block">Help</Link>
+            <Link href="/mobile" className="text-sm text-muted hover:text-ink transition-colors tracking-wide uppercase hidden sm:block">On mobile</Link>
             <Link href="/feedback" className="text-sm text-muted hover:text-ink transition-colors tracking-wide uppercase hidden sm:block">Feedback</Link>
             <a
               href="https://buymeacoffee.com/joangm"
@@ -43,6 +44,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             <Link href="/stores" className="hover:text-ink transition-colors">Stores</Link>
             <Link href="/deals" className="hover:text-ink transition-colors">Deals</Link>
             <Link href="/help" className="hover:text-ink transition-colors">Help</Link>
+            <Link href="/mobile" className="hover:text-ink transition-colors">On mobile</Link>
             <Link href="/feedback" className="hover:text-ink transition-colors">Feedback</Link>
             <Link href="/privacy" className="hover:text-ink transition-colors">Privacy</Link>
             <a href="https://buymeacoffee.com/joangm" target="_blank" rel="noopener noreferrer" className="hover:text-ink transition-colors">
