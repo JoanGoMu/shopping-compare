@@ -206,4 +206,11 @@ Supports: S/M/L/XL, 2XL, 38, 36-38, 42/44, EU 38, US 6, UK 10
 - **Onboarding tour**: Built then removed - was showing every visit, too disruptive.
 - **Privacy policy URL**: Updated in Chrome Web Store to comparecart.app/privacy (was old Vercel URL).
 
-## No open issues as of Apr 16 2026
+## Changes Apr 17 2026
+- **Signup: existing user detection**: `signup/page.tsx` now checks `data.user?.identities?.length === 0` after `signUp()`. Supabase returns no error for existing users (email enumeration prevention) but identities is empty - previously always showed "Check your email". Now shows "account already exists" inline error.
+- **Auth callback route**: Added `src/app/auth/callback/route.ts` - standard Supabase code exchange pattern. `emailRedirectTo` in signup now points to `/auth/callback?next=/dashboard` instead of directly to `/dashboard`.
+- **SignOutButton scope**: Changed to `signOut({ scope: 'local' })` so web app sign-out doesn't revoke the refresh token server-side. Previously used global scope which killed all sessions including extension.
+- **Auto-logout investigation**: Daily logouts likely caused by Supabase Refresh Token Expiry being too short (default could be 1 day). Need to check Supabase dashboard Auth > Configuration > Refresh Token Expiry and increase to 7-30 days. Also check Refresh Token Rotation - if ON with no reuse interval, extension session sharing could invalidate web app's refresh token.
+
+## Open items as of Apr 17 2026
+- Check Supabase dashboard: Auth > Configuration > Refresh Token Expiry (increase to 7-30 days if short) and Refresh Token Rotation settings
