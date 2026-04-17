@@ -41,13 +41,13 @@ An affiliate comparison website for AI tools at **aitoolcrunch.com**. Revenue mo
 
 **6 categories:** ai-writing, ai-image, ai-code, ai-video, ai-audio, ai-automation
 
-**32 blog posts** (last updated April 16, 2026). Author for all new posts: "AIToolCrunch". Older posts have fake author names (alex-chen, sara-morales, etc.) - not yet backfilled.
+**37 blog posts** (last updated April 17, 2026). Author for all new posts: "AIToolCrunch". Older posts have fake author names (alex-chen, sara-morales, etc.) - not yet backfilled.
+
+Recent posts (Apr 17): claude-opus-4-7-launch, claude-code-routines-saved-workflows, qwen-3-6-open-source-beats-opus, openai-codex-2-claude-code-competitor, chatgpt-for-excel-spreadsheets
 
 Recent posts (Apr 16): anthropic-cowork-claude-desktop-agent, coding-agent-infrastructure-freestyle-twill, nouscoder-14b-open-source-coding-model, claudraband-claude-code-power-user-tools, gaia-local-ai-agents-framework
 
-Recent posts (Apr 14): ai-agent-benchmarks-are-broken, claude-for-word-anthropic-microsoft, reallocating-claude-code-spend-zed-openrouter
-
-**RSS items still uncovered:** Railway $100M raise, CSS Studio, Eve (managed OpenClaw), sllm, Hippo memory framework.
+**RSS items still uncovered:** Railway $100M raise, CSS Studio, Eve (managed OpenClaw), sllm, Hippo memory framework, LangAlpha (Claude Code for finance, 131 HN pts), CodeBurn (token usage analyzer, 88 HN pts), GPT-Rosalind (OpenAI life sciences), Kampala YC W26.
 
 ## Affiliate programs — full status (as of April 16, 2026)
 

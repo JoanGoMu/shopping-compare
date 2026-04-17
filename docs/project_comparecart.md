@@ -218,4 +218,29 @@ Supports: S/M/L/XL, 2XL, 38, 36-38, 42/44, EU 38, US 6, UK 10
 - **Confirm email**: ON (required - explains why existing user signup fix needed identities check)
 - **Refresh token expiry**: Not exposed on free tier, defaults to 1 week (fine).
 
+## Changes Apr 17 2026 (continued)
+
+### Mobile PWA
+- **Web app manifest**: `public/manifest.json` with share_target pointing to `/api/share-target`. Icons at `/logo-icon-192.png` and `/logo-icon-512.png`.
+- **Service worker**: `public/sw.js` (minimal, network-first). Registered via `src/components/ServiceWorkerRegistration.tsx` in root layout.
+- **Share Target API**: `src/app/api/share-target/route.ts` - handles Android/iOS share sheet. Extracts product from shared URL, saves to Supabase, redirects to `/dashboard?share=success|duplicate|error&reason=...`.
+- **ShareToast**: `src/components/ShareToast.tsx` - client component in dashboard layout, reads `?share=` params and shows toast notification. Added inside `<Suspense>`.
+- **InstallPrompt**: `src/components/InstallPrompt.tsx` - shows "Add to Home Screen" banner. Uses `beforeinstallprompt` (Android) and manual instructions (iOS Safari). Session-dismissed.
+- **AddByUrlForm**: Now full-width on mobile (`w-full sm:w-64`).
+- layout.tsx: Added manifest link, theme-color, apple-touch meta tags.
+
+### AI Auto-Extraction
+- **store_extractors Supabase table**: SQL in `docs/schema_store_extractors.sql`. Columns: domain (PK), selectors (JSONB), sample_url, success_count, fail_count, status (active/stale/disabled). Public read RLS.
+- **`/api/generate-extractor`**: Receives `{ domain, url, html }` from extension. Checks cache first. Calls Claude Haiku (claude-haiku-4-5) with simplified HTML to generate CSS selector rules. Validates with Cheerio (name/price/image checks). Retries once on failure. Upserts to `store_extractors`. Requires `ANTHROPIC_API_KEY` env var.
+- **`/api/report-extractor`**: Increments success/fail counts per domain. Sets `status = 'stale'` when fail_count >= 10 AND > 2x success_count. Stale rules trigger regeneration on next visit.
+- **`StoreSelectorRules` interface** (shared between web and extension): `{ product_name, price, currency, image, specs[] }` with selector/method/regex fields.
+- **Extension `extractor.ts`**: Added `extractWithRules(rules)` (applies cached selectors to live DOM), `simplifyHtml()` (strips noise, truncates to 20KB for API), both exported.
+- **Extension `content.ts`**: Added `cachedAiRules` module variable, `applyAiRules(product)` (merges AI data without overwriting good existing data), `prefetchAiRules()` (called at 5s in initWithRetry - fetches cached rules or triggers generation for incomplete extractions). `REPORT_EXTRACTION_RESULT` sent from `tryUpdateSavedPrice` when AI rules were used.
+- **Extension `background.ts`**: New handlers: `GET_STORE_RULES` (local cache with 24h TTL in chrome.storage.local), `REQUEST_EXTRACTOR_GENERATION` (calls `/api/generate-extractor`, caches result), `REPORT_EXTRACTION_RESULT` (calls `/api/report-extractor`).
+- `@anthropic-ai/sdk` added to web app dependencies.
+
+### To activate AI extraction
+Run SQL in Supabase dashboard: `docs/schema_store_extractors.sql`
+Add `ANTHROPIC_API_KEY` to Vercel env vars and `.env.local`.
+
 ## No open issues as of Apr 17 2026
