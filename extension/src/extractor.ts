@@ -201,6 +201,8 @@ function extractGenericSizeColor(): { size: string | null; color: string | null 
     '[class*="size-selector"]', '[class*="size-picker"]', '[class*="size-options"]', '[class*="size-list"]',
     '[class*="color-selector"]', '[class*="color-picker"]', '[class*="color-options"]',
     '[class*="variant-selector"]', '[class*="swatch-container"]', '[class*="swatches"]',
+    // Birkenstock / Salesforce Commerce Cloud
+    '[class*="variations_item"]', '[class*="variation-"]',
   ].join(', ');
 
   document.querySelectorAll<HTMLElement>(CONTAINER_SEL).forEach((container) => {
@@ -211,10 +213,22 @@ function extractGenericSizeColor(): { size: string | null; color: string | null 
       'button, [role="radio"], [role="option"], [role="menuitem"], li'
     )).filter((el) => isAvailable(el));
     const values = items
-      .map((el) => el.getAttribute('aria-label') || el.textContent?.trim())
-      .filter((v): v is string => !!v && v.length > 0 && v.length <= 20);
+      .map((el) => {
+        const ariaLabel = el.getAttribute('aria-label');
+        if (ariaLabel && ariaLabel.length <= 20) return ariaLabel;
+        const full = el.textContent?.trim() ?? '';
+        if (full.length <= 20) return full;
+        // Button text is long (e.g. "6 38.5 EU" on Birkenstock) — try first child span text
+        const firstChild = el.querySelector<HTMLElement>('span, div');
+        const childText = firstChild?.textContent?.trim() ?? '';
+        if (childText.length > 0 && childText.length <= 10) return childText;
+        return '';
+      })
+      .filter((v): v is string => v.length > 0);
     if (values.length === 0) return;
-    if (!size && SIZE_KW.test(label)) size = values.join(', ');
+    // SIZE_KW matches "size", "taille", etc. Also accept containers labelled as a size system ("EU", "US", "UK")
+    const isSizeLabel = SIZE_KW.test(label) || /\b(EU|US|UK)\b/i.test(label);
+    if (!size && isSizeLabel) size = values.join(', ');
     if (!color && COLOR_KW.test(label)) color = values[0];
   });
 
@@ -907,6 +921,127 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
         .filter(el => el.getAttribute('aria-disabled') !== 'true' && !el.hasAttribute('disabled'))
         .map(el => el.textContent?.trim() ?? '').filter(t => t.length > 0 && t.length <= 10 && SIZE_VAL.test(t));
       if (sizeEls.length >= 2) specs['Size'] = [...new Set(sizeEls)].join(', ');
+      return specs;
+    })(),
+  }),
+
+  // Birkenstock: Salesforce Commerce Cloud platform.
+  // Sizes are in tab-based radio groups (US/EU). Each button has two child spans:
+  // first = US size (e.g. "6"), second = EU size (e.g. "38.5 EU"). We prefer EU.
+  'birkenstock.': () => ({
+    name: document.querySelector<HTMLElement>('h1[class*="product-name"], h1[class*="b-product_name"], h1[class*="pdp"], h1')?.textContent?.trim() ?? null,
+    price: (() => {
+      const meta = document.querySelector<HTMLMetaElement>('meta[property="product:price:amount"]')?.content;
+      if (meta) return parseFloat(meta);
+      const raw = document.querySelector<HTMLElement>('[class*="b-price__value"], [class*="b-price"] [class*="value"], [class*="price-value"]')?.textContent;
+      return raw ? parsePrice(raw).price : null;
+    })(),
+    currency: (() => {
+      return document.querySelector<HTMLMetaElement>('meta[property="product:price:currency"]')?.content ?? 'EUR';
+    })(),
+    image_url: document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? null,
+    specs: (() => {
+      const specs: Record<string, string> = {};
+      // Size buttons: class "b-variation_swatch" with role="radio"
+      // Each button has two child spans: index 0 = US, index 1 = EU
+      const sizeButtons = Array.from(document.querySelectorAll<HTMLElement>(
+        'button.b-variation_swatch[role="radio"], [class*="variation_swatch"][role="radio"]'
+      )).filter(el =>
+        el.getAttribute('aria-disabled') !== 'true' && !el.hasAttribute('disabled')
+      );
+      if (sizeButtons.length >= 2) {
+        // Prefer EU sizes (second child span) if available, else first span
+        const sizes = sizeButtons.map(btn => {
+          const spans = btn.querySelectorAll<HTMLElement>('[class*="value_inner"], span');
+          // Second span often shows EU size
+          const euSpan = spans[1]?.textContent?.trim() ?? '';
+          const usSpan = spans[0]?.textContent?.trim() ?? '';
+          // Pick EU if it looks like a 2-digit number or "X EU", else US
+          const candidate = euSpan && /\d{2}/.test(euSpan) ? euSpan : usSpan;
+          // Strip the " EU" suffix so we store just the number
+          return candidate.replace(/\s*EU$/i, '').trim();
+        }).filter(s => s.length > 0 && s.length <= 10 && !NON_SIZE_TEXT.test(s));
+        if (sizes.length >= 2) specs['Size'] = [...new Set(sizes)].join(', ');
+      }
+      // Color: active color swatch label or aria-label
+      const colorEl = document.querySelector<HTMLElement>(
+        '[class*="b-swatch"][aria-checked="true"], [class*="b-swatch"][aria-selected="true"], [class*="color-swatch"][aria-checked="true"]'
+      );
+      const color = colorEl?.getAttribute('aria-label') ?? colorEl?.getAttribute('title');
+      if (color && color.length < 60) specs['Color'] = color;
+      // Material/details from product description
+      document.querySelectorAll<HTMLElement>('[class*="b-product_details"] li, [class*="product-details"] li, [class*="pdp-details"] li').forEach(li => {
+        const text = li.textContent?.trim() ?? '';
+        const colonIdx = text.indexOf(':');
+        if (colonIdx > 0 && colonIdx < 60) specs[text.slice(0, colonIdx).trim()] = text.slice(colonIdx + 1).trim();
+      });
+      return specs;
+    })(),
+  }),
+
+  // Converse: uses a standard size picker pattern (radio buttons or select)
+  'converse.': () => ({
+    name: document.querySelector<HTMLElement>('h1[class*="product-title"], h1[class*="ProductTitle"], h1[class*="pdp"], h1')?.textContent?.trim() ?? null,
+    price: (() => {
+      const meta = document.querySelector<HTMLMetaElement>('meta[property="product:price:amount"]')?.content;
+      if (meta) return parseFloat(meta);
+      const raw = document.querySelector<HTMLElement>('[class*="product-price"], [class*="ProductPrice"], [class*="price"]')?.textContent;
+      return raw ? parsePrice(raw).price : null;
+    })(),
+    currency: (() => {
+      return document.querySelector<HTMLMetaElement>('meta[property="product:price:currency"]')?.content ?? 'EUR';
+    })(),
+    image_url: document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? null,
+    specs: (() => {
+      const specs: Record<string, string> = {};
+      // Sizes: Converse uses select or radio buttons labelled "Size"
+      const sizeEls = Array.from(document.querySelectorAll<HTMLElement>(
+        '[aria-label*="Size"] button, [aria-label*="Size"] [role="radio"], ' +
+        '[class*="SizeSelector"] button, [class*="size-selector"] button, ' +
+        '[data-testid*="size"] button, select[name*="size"] option'
+      )).filter(el =>
+        el.getAttribute('aria-disabled') !== 'true' && !el.hasAttribute('disabled')
+        && !(el as HTMLOptionElement).disabled
+      ).map(el => el.textContent?.trim() ?? '').filter(t => t.length > 0 && t.length <= 10 && !NON_SIZE_TEXT.test(t));
+      if (sizeEls.length >= 2) specs['Size'] = [...new Set(sizeEls)].join(', ');
+      // Color from OG or active swatch
+      const color = document.querySelector<HTMLElement>('[class*="ColorSelector"] [aria-checked="true"], [class*="color-selector"] [aria-checked="true"]')
+        ?.getAttribute('aria-label');
+      if (color) specs['Color'] = color;
+      return specs;
+    })(),
+  }),
+
+  // Dr. Martens
+  'drmartens.': () => ({
+    name: document.querySelector<HTMLElement>('h1[class*="product-title"], h1[class*="product-name"], h1')?.textContent?.trim() ?? null,
+    price: (() => {
+      const meta = document.querySelector<HTMLMetaElement>('meta[property="product:price:amount"]')?.content;
+      if (meta) return parseFloat(meta);
+      const raw = document.querySelector<HTMLElement>('[class*="product-price__price"], [class*="price__sale"], [class*="current-price"]')?.textContent;
+      return raw ? parsePrice(raw).price : null;
+    })(),
+    currency: (() => {
+      return document.querySelector<HTMLMetaElement>('meta[property="product:price:currency"]')?.content ?? 'EUR';
+    })(),
+    image_url: document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? null,
+    specs: (() => {
+      const specs: Record<string, string> = {};
+      // Sizes: buttons or radio inputs in size picker
+      const sizeEls = Array.from(document.querySelectorAll<HTMLElement>(
+        '[class*="size-picker"] button, [class*="size-selector"] button, [class*="sizes"] button, ' +
+        '[data-testid*="size"] button, [class*="SizePicker"] button, ' +
+        'input[type="radio"][name*="size"], input[type="radio"][id*="size"]'
+      )).filter(el =>
+        el.getAttribute('aria-disabled') !== 'true' && !el.hasAttribute('disabled')
+      ).map(el => el.textContent?.trim() || (el as HTMLInputElement).value || '')
+        .filter(t => t.length > 0 && t.length <= 10 && !NON_SIZE_TEXT.test(t));
+      if (sizeEls.length >= 2) specs['Size'] = [...new Set(sizeEls)].join(', ');
+      // Color from active swatch
+      const color = document.querySelector<HTMLElement>(
+        '[class*="colour-swatch--selected"], [class*="color-swatch--active"], [class*="swatch"][aria-checked="true"]'
+      )?.getAttribute('aria-label') ?? document.querySelector<HTMLElement>('[class*="selected-colour"], [class*="selected-color"]')?.textContent?.trim();
+      if (color && color.length < 60) specs['Color'] = color;
       return specs;
     })(),
   }),
