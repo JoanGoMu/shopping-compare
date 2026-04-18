@@ -61,16 +61,20 @@ function prefetchAiRules() {
       return;
     }
 
-    // Step 2: cache miss - only request generation if extraction was incomplete
+    // Step 2: cache miss - request generation if price OR specs are missing
     if (aiRulesRequested) return;
     const product = extractProduct();
-    const isIncomplete = product.price == null || product.name === 'Unknown product';
-    if (!isIncomplete) return; // Existing extraction is fine, no AI needed
+    const hasPrice = product.price != null;
+    const hasSpecs = Object.keys(product.specs).length >= 2;
+    const hasName = product.name && product.name !== 'Unknown product';
+    if (hasPrice && hasSpecs) return; // Existing extraction is good enough
 
     aiRulesRequested = true;
     const html = simplifyHtml();
+    // Pass the product name so Claude knows what category to look for (e.g. shoe sizes)
+    const productName = hasName ? product.name : undefined;
     chrome.runtime.sendMessage(
-      { type: 'REQUEST_EXTRACTOR_GENERATION', domain, url: window.location.href, html },
+      { type: 'REQUEST_EXTRACTOR_GENERATION', domain, url: window.location.href, html, productName },
       (genResponse) => {
         if (chrome.runtime.lastError) return;
         if (genResponse?.rules) {

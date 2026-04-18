@@ -20089,7 +20089,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
   if (type === "REQUEST_EXTRACTOR_GENERATION") {
-    handleRequestExtractorGeneration(message.domain, message.url, message.html).then(sendResponse);
+    handleRequestExtractorGeneration(message.domain, message.url, message.html, message.productName).then(sendResponse);
     return true;
   }
   if (type === "REPORT_EXTRACTION_RESULT") {
@@ -20215,7 +20215,7 @@ async function handleGetStoreRules(domain) {
     return { rules: null };
   }
 }
-async function handleRequestExtractorGeneration(domain, url, html) {
+async function handleRequestExtractorGeneration(domain, url, html, productName) {
   try {
     const stored = await chrome.storage.local.get(SESSION_KEY);
     if (!stored[SESSION_KEY]) return { rules: null };
@@ -20224,7 +20224,7 @@ async function handleRequestExtractorGeneration(domain, url, html) {
     const res = await fetch(`${APP_URL}/api/generate-extractor`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${access_token}` },
-      body: JSON.stringify({ domain, url, html })
+      body: JSON.stringify({ domain, url, html, productName })
     });
     if (!res.ok) return { rules: null };
     const data = await res.json();

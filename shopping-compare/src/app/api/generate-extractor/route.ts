@@ -30,7 +30,7 @@ export interface StoreSelectorRules {
   }>;
 }
 
-const SYSTEM_PROMPT = `You are a product page data extractor. Given HTML from an e-commerce product page, return CSS selectors to extract product data.
+const SYSTEM_PROMPT = `You are a product page data extractor for an e-commerce comparison tool. Given HTML from a product page, return CSS selectors to extract product data.
 
 Return ONLY valid JSON with NO explanation, comments, or markdown. The JSON must match this schema exactly:
 {
@@ -48,14 +48,37 @@ Return ONLY valid JSON with NO explanation, comments, or markdown. The JSON must
   ]
 }
 
-Rules:
-- "method: pairs" means alternating label/value siblings (like dl>dt+dd, or tr>th+td)
-- "method: list" means each element has "Label: Value" text
-- "method: dl" means a definition list (dl with dt/dd children)
-- For currency, prefer a hardcoded ISO code (USD/EUR/GBP/etc) if the domain makes it obvious
-- Specs array can be empty [] if no structured specs are visible in the HTML
-- All selectors must be valid CSS selectors that Cheerio can process
-- Omit fields you cannot find (do not guess)`;
+Schema rules:
+- "method: pairs" means alternating label/value siblings (like dl>dt+dd, tr>th+td, or span+span)
+- "method: list" means each element contains "Label: Value" text in one element
+- "method: dl" means a proper definition list (dl with dt/dd children)
+- For currency, prefer a hardcoded ISO code (EUR/GBP/USD) based on the store's country
+- All selectors must be valid CSS selectors
+- Omit fields you cannot find (do not guess)
+
+IMPORTANT - specs extraction priority:
+The most valuable specs for shoppers are: Size, Color, Material, Brand, Fit. Focus on finding these.
+
+For SIZE specifically - this is the highest priority spec:
+- Look for size picker elements: buttons with size values, radio inputs, select dropdowns, list items in a size grid
+- Shoe sizes appear as numbers: 36, 37, 38, 39, 40, 41, 42, 43, 44 (EU), or 6, 7, 8, 9, 10 (US), or prefixed: "EU 38", "UK 8"
+- Clothing sizes appear as: XS, S, M, L, XL, XXL or numeric waist/length combos
+- Use a selector that targets the size option elements themselves (e.g. buttons in a size grid), not just a wrapper
+- If sizes are in a <select>, target the <option> elements
+- Only include sizes that are available (not disabled/sold-out) - look for aria-disabled="true" or disabled attribute to exclude
+
+For COLOR - look for swatch buttons, color option buttons, or a color label near swatches.
+
+For specs key/value pairs - look for:
+- Definition lists (dl/dt/dd)
+- Tables with label/value rows
+- List items with "Label: Value" format
+- Divs/spans with alternating label and value children`;
+
+function buildUserPrompt(domain: string, html: string, productName?: string): string {
+  const hint = productName ? `\nProduct hint: "${productName}"` : '';
+  return `Domain: ${domain}${hint}\n\nHTML:\n${html}`;
+}
 
 export async function POST(request: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -74,19 +97,19 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await authClient.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  let body: { domain: string; url: string; html: string };
+  let body: { domain: string; url: string; html: string; productName?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
   }
 
-  const { domain, url, html } = body;
+  const { domain, url, html, productName } = body;
   if (!domain || !html) return NextResponse.json({ error: 'Missing domain or html' }, { status: 400 });
 
   const supabase = createAdminClient();
 
-  // Check cache
+  // Check cache - but only use it if it has specs rules (old cached rules may lack them)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: cached } = await (supabase as any)
     .from('store_extractors')
@@ -95,9 +118,10 @@ export async function POST(request: NextRequest) {
     .eq('status', 'active')
     .maybeSingle() as { data: { selectors: StoreSelectorRules } | null };
 
-  if (cached) {
+  if (cached && cached.selectors.specs && cached.selectors.specs.length > 0) {
     return NextResponse.json({ ok: true, rules: cached.selectors, cached: true });
   }
+  // Fall through to (re)generate if cached rules have no specs
 
   // Generate rules via Claude Haiku
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -107,8 +131,8 @@ export async function POST(request: NextRequest) {
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const userContent = attempt === 0
-      ? `Domain: ${domain}\n\nHTML:\n${html}`
-      : `Domain: ${domain}\n\nPrevious attempt failed validation: ${lastError}\n\nHTML:\n${html}`;
+      ? buildUserPrompt(domain, html, productName)
+      : `${buildUserPrompt(domain, html, productName)}\n\nPrevious attempt failed validation: ${lastError}. Fix the selectors and try again.`;
 
     try {
       const message = await anthropic.messages.create({

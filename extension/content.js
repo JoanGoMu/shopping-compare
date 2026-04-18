@@ -1305,12 +1305,15 @@
       }
       if (aiRulesRequested) return;
       const product = extractProduct();
-      const isIncomplete = product.price == null || product.name === "Unknown product";
-      if (!isIncomplete) return;
+      const hasPrice = product.price != null;
+      const hasSpecs = Object.keys(product.specs).length >= 2;
+      const hasName = product.name && product.name !== "Unknown product";
+      if (hasPrice && hasSpecs) return;
       aiRulesRequested = true;
       const html = simplifyHtml();
+      const productName = hasName ? product.name : void 0;
       chrome.runtime.sendMessage(
-        { type: "REQUEST_EXTRACTOR_GENERATION", domain, url: window.location.href, html },
+        { type: "REQUEST_EXTRACTOR_GENERATION", domain, url: window.location.href, html, productName },
         (genResponse) => {
           if (chrome.runtime.lastError) return;
           if (genResponse?.rules) {

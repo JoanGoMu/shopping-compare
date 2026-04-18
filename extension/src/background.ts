@@ -144,7 +144,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (type === 'REQUEST_EXTRACTOR_GENERATION') {
     // Sends simplified HTML to the server to generate and cache selector rules
-    handleRequestExtractorGeneration(message.domain, message.url, message.html).then(sendResponse);
+    handleRequestExtractorGeneration(message.domain, message.url, message.html, message.productName).then(sendResponse);
     return true;
   }
 
@@ -338,6 +338,7 @@ async function handleRequestExtractorGeneration(
   domain: string,
   url: string,
   html: string,
+  productName?: string,
 ): Promise<{ rules: object | null }> {
   try {
     const stored = await chrome.storage.local.get(SESSION_KEY);
@@ -348,7 +349,7 @@ async function handleRequestExtractorGeneration(
     const res = await fetch(`${APP_URL}/api/generate-extractor`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access_token}` },
-      body: JSON.stringify({ domain, url, html }),
+      body: JSON.stringify({ domain, url, html, productName }),
     });
 
     if (!res.ok) return { rules: null };
