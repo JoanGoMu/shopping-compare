@@ -35,9 +35,16 @@ function parsePrice(raw: string | number | undefined | null): { price: number | 
 
   const str = String(raw).trim();
 
-  // Detect currency
+  // Detect currency from symbol
   const currency = str.includes('€') ? 'EUR'
     : str.includes('£') ? 'GBP'
+    : str.includes('₹') ? 'INR'
+    : str.includes('¥') || str.includes('￥') ? 'JPY'
+    : str.includes('₩') ? 'KRW'
+    : str.includes('₺') ? 'TRY'
+    : str.includes('zł') ? 'PLN'
+    : str.includes('CHF') ? 'CHF'
+    : str.includes('kr') ? 'SEK' // approximate; could be NOK/DKK/SEK - caller can override
     : 'USD';
 
   // Remove all non-numeric except . and ,
@@ -420,7 +427,33 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
       if (!whole) return null;
       return parseFloat(`${whole}.${frac ?? '0'}`);
     })(),
-    currency: window.location.hostname.includes('.nl') || window.location.hostname.includes('.de') || window.location.hostname.includes('.fr') ? 'EUR' : 'USD',
+    currency: (() => {
+      const host = window.location.hostname;
+      if (/\.(nl|de|fr|es|it|be|at|pl|se)\./.test(host) || /\.(nl|de|fr|es|it|be|at)$/.test(host)) return 'EUR';
+      if (/\.co\.uk$/.test(host)) return 'GBP';
+      if (/\.co\.jp$/.test(host) || /\.jp$/.test(host)) return 'JPY';
+      if (/\.in$/.test(host)) return 'INR';
+      if (/\.ca$/.test(host)) return 'CAD';
+      if (/\.com\.au$/.test(host)) return 'AUD';
+      if (/\.com\.br$/.test(host)) return 'BRL';
+      if (/\.com\.mx$/.test(host)) return 'MXN';
+      if (/\.sg$/.test(host)) return 'SGD';
+      if (/\.ae$/.test(host)) return 'AED';
+      if (/\.sa$/.test(host)) return 'SAR';
+      if (/\.se$/.test(host)) return 'SEK';
+      if (/\.pl$/.test(host)) return 'PLN';
+      if (/\.com\.tr$/.test(host)) return 'TRY';
+      // Read from price element as fallback - parsePrice will detect ₹, £, € etc.
+      const priceEl = document.querySelector('.a-price-symbol, .a-price .a-offscreen');
+      if (priceEl?.textContent) {
+        const sym = priceEl.textContent.trim();
+        if (sym === '€') return 'EUR';
+        if (sym === '£') return 'GBP';
+        if (sym === '₹') return 'INR';
+        if (sym === '¥' || sym === '￥') return 'JPY';
+      }
+      return 'USD';
+    })(),
     image_url: (() => {
       // Amazon lazy-loads images - try data-old-hires first, then src
       const img = document.querySelector<HTMLImageElement>('#landingImage, #imgTagWrapperId img');

@@ -13,27 +13,45 @@ function Sparkline({ points, currency }: { points: PricePoint[]; currency: strin
   const max = Math.max(...prices);
   const range = max - min || 1;
 
-  const W = 120;
-  const H = 32;
-  const pad = 3;
+  const W = 160;
+  const H = 36;
+  const padX = 4;
+  const padY = 14; // vertical padding for labels above/below the line
+
+  const fmt = (p: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(p);
 
   const coords = points.map((p, i) => {
-    const x = pad + (i / (points.length - 1)) * (W - pad * 2);
-    const y = pad + (1 - (p.price - min) / range) * (H - pad * 2);
+    const x = padX + (i / (points.length - 1)) * (W - padX * 2);
+    const y = padY + (1 - (p.price - min) / range) * (H - padY * 2);
     return { x, y, price: p.price, date: p.recorded_at };
   });
 
-  const pathD = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ');
   const current = points[points.length - 1].price;
   const first = points[0].price;
   const trend = current < first ? 'down' : current > first ? 'up' : 'flat';
   const color = trend === 'down' ? '#16a34a' : trend === 'up' ? '#ef4444' : '#C4603C';
 
-  const fmt = (p: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(p);
+  // Show label at first and last point always; for intermediate points only when <= 4 total
+  const showLabelAt = (i: number) =>
+    i === 0 || i === points.length - 1 || points.length <= 4;
+
+  // Position label above the dot when dot is in the lower half, below when in the upper half
+  const labelY = (y: number) => y > H / 2 ? y - 6 : y + 14;
+
+  // Anchor label text: first point left-aligned, last point right-aligned, others centered
+  const labelAnchor = (i: number) =>
+    i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'middle';
 
   return (
-    <div className="flex items-center gap-3">
-      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
+    <div>
+      <svg
+        width={W}
+        height={H + padY}
+        viewBox={`0 0 ${W} ${H + padY}`}
+        className="overflow-visible block"
+        style={{ marginBottom: 2 }}
+      >
+        {/* Line */}
         <polyline
           points={coords.map((c) => `${c.x},${c.y}`).join(' ')}
           fill="none"
@@ -42,13 +60,28 @@ function Sparkline({ points, currency }: { points: PricePoint[]; currency: strin
           strokeLinejoin="round"
           strokeLinecap="round"
         />
-        {/* Current price dot */}
-        <circle cx={coords[coords.length - 1].x} cy={coords[coords.length - 1].y} r="2.5" fill={color} />
+        {/* Dots and labels */}
+        {coords.map((c, i) => (
+          <g key={i}>
+            <circle cx={c.x} cy={c.y} r="2.5" fill={color} />
+            {showLabelAt(i) && (
+              <text
+                x={c.x}
+                y={labelY(c.y)}
+                textAnchor={labelAnchor(i)}
+                fontSize="8"
+                fill="#666"
+                fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+              >
+                {fmt(c.price)}
+              </text>
+            )}
+            {/* Tooltip on hover */}
+            <title>{fmt(c.price)} - {new Date(c.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</title>
+          </g>
+        ))}
       </svg>
-      <div className="text-xs text-muted leading-tight">
-        <div className="text-ink font-medium">{fmt(min)} - {fmt(max)}</div>
-        <div>{points.length} price{points.length === 1 ? '' : 's'} tracked</div>
-      </div>
+      <div className="text-xs text-muted">{points.length} price{points.length === 1 ? '' : 's'} tracked</div>
     </div>
   );
 }

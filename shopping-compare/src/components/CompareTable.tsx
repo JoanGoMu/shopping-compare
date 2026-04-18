@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import type { Product } from '@/lib/supabase/types';
 import { shareComparison, unshareComparison } from '@/app/compare/actions';
 import PriceSparkline from '@/components/PriceSparkline';
+import { normalizeSpecs } from '@/lib/normalize-specs';
 
 interface Props {
   products: Product[];
@@ -110,7 +111,14 @@ export default function CompareTable({ products: initialProducts, allProducts = 
   }
 
   const lowest = lowestPrice(products);
-  const filtered = products.filter((p) => {
+  // Apply spec normalization at render time so existing stored foreign-language keys
+  // (e.g. "Bovenmateriaal", "Dekzool") display as their canonical English equivalents
+  // without requiring a DB migration.
+  const productsWithNormalizedSpecs = products.map((p) => ({
+    ...p,
+    specs: normalizeSpecs((p.specs as Record<string, string>) ?? {}),
+  }));
+  const filtered = productsWithNormalizedSpecs.filter((p) => {
     if (minPrice && (p.price == null || p.price < parseFloat(minPrice))) return false;
     if (maxPrice && (p.price == null || p.price > parseFloat(maxPrice))) return false;
     return true;

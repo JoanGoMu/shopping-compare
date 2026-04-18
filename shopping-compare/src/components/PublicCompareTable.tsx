@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { getAffiliateUrl } from '@/lib/affiliate';
 import type { SharedProduct } from '@/lib/supabase/types';
+import { normalizeSpecs } from '@/lib/normalize-specs';
 
 interface Props {
   products: SharedProduct[];
@@ -28,7 +29,13 @@ export default function PublicCompareTable({ products, updatedAt }: Props) {
   function getImgIndex(i: number) { return imgIndexes[i] ?? 0; }
   function setImgIndex(i: number, idx: number) { setImgIndexes((prev) => ({ ...prev, [i]: idx })); }
 
-  const lowest = lowestPrice(products);
+  // Apply spec normalization at render time to fix existing stored foreign-language keys
+  const normalizedProducts = products.map((p) => ({
+    ...p,
+    specs: normalizeSpecs((p.specs as Record<string, string>) ?? {}),
+  }));
+
+  const lowest = lowestPrice(normalizedProducts);
 
   // Category-aware spec key ordering
   const CATEGORY_SPECS: Record<string, string[]> = {
@@ -55,7 +62,7 @@ export default function PublicCompareTable({ products, updatedAt }: Props) {
     return 'default';
   }
 
-  const category = detectCategory(products);
+  const category = detectCategory(normalizedProducts);
   const PRIORITY_SPEC_KEYS = CATEGORY_SPECS[category] ?? CATEGORY_SPECS.default;
 
   function isCleanSpecValue(val: unknown): boolean {
@@ -66,7 +73,7 @@ export default function PublicCompareTable({ products, updatedAt }: Props) {
     return true;
   }
 
-  const allSpecKeys = Array.from(new Set(products.flatMap((p) => {
+  const allSpecKeys = Array.from(new Set(normalizedProducts.flatMap((p) => {
     const specs = (p.specs as Record<string, unknown>) ?? {};
     return Object.keys(specs).filter((k) => isCleanSpecValue(specs[k]));
   })));
@@ -74,7 +81,7 @@ export default function PublicCompareTable({ products, updatedAt }: Props) {
   type SpecEntry = { key: string; count: number };
   const keysWithCoverage: SpecEntry[] = allSpecKeys.map((key) => ({
     key,
-    count: products.filter((p) => isCleanSpecValue(((p.specs as Record<string, unknown>) ?? {})[key])).length,
+    count: normalizedProducts.filter((p) => isCleanSpecValue(((p.specs as Record<string, unknown>) ?? {})[key])).length,
   }));
   // Visible = priority keys present in at least 1 product, in category priority order
   const visibleSpecKeys = PRIORITY_SPEC_KEYS
@@ -185,7 +192,7 @@ export default function PublicCompareTable({ products, updatedAt }: Props) {
             {displayedSpecKeys.map(({ key }, ki) => (
               <tr key={key} className={ki % 2 === 0 ? '' : 'bg-cream/50'}>
                 <td className="text-xs tracking-widest uppercase text-muted py-3 pr-6">{key}</td>
-                {products.map((p, i) => {
+                {normalizedProducts.map((p, i) => {
                   const val = ((p.specs as Record<string, unknown>) ?? {})[key];
                   const clean = isCleanSpecValue(val) ? String(val) : null;
                   return (
@@ -199,7 +206,7 @@ export default function PublicCompareTable({ products, updatedAt }: Props) {
 
             {hiddenSpecKeys.length > 0 && (
               <tr>
-                <td colSpan={products.length + 1} className="py-2">
+                <td colSpan={normalizedProducts.length + 1} className="py-2">
                   <button
                     onClick={() => setShowAllSpecs((v) => !v)}
                     className="text-xs text-muted hover:text-ink transition-colors tracking-wide"

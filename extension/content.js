@@ -343,7 +343,7 @@
     if (raw == null) return { price: null, currency: "USD" };
     if (typeof raw === "number") return { price: raw, currency: "USD" };
     const str = String(raw).trim();
-    const currency = str.includes("\u20AC") ? "EUR" : str.includes("\xA3") ? "GBP" : "USD";
+    const currency = str.includes("\u20AC") ? "EUR" : str.includes("\xA3") ? "GBP" : str.includes("\u20B9") ? "INR" : str.includes("\xA5") || str.includes("\uFFE5") ? "JPY" : str.includes("\u20A9") ? "KRW" : str.includes("\u20BA") ? "TRY" : str.includes("z\u0142") ? "PLN" : str.includes("CHF") ? "CHF" : str.includes("kr") ? "SEK" : "USD";
     let cleaned = str.replace(/[^0-9.,]/g, "");
     if (/\d{1,3}(\.\d{3})+(,\d+)?$/.test(cleaned)) {
       cleaned = cleaned.replace(/\./g, "").replace(",", ".");
@@ -614,7 +614,32 @@
         if (!whole) return null;
         return parseFloat(`${whole}.${frac ?? "0"}`);
       })(),
-      currency: window.location.hostname.includes(".nl") || window.location.hostname.includes(".de") || window.location.hostname.includes(".fr") ? "EUR" : "USD",
+      currency: (() => {
+        const host = window.location.hostname;
+        if (/\.(nl|de|fr|es|it|be|at|pl|se)\./.test(host) || /\.(nl|de|fr|es|it|be|at)$/.test(host)) return "EUR";
+        if (/\.co\.uk$/.test(host)) return "GBP";
+        if (/\.co\.jp$/.test(host) || /\.jp$/.test(host)) return "JPY";
+        if (/\.in$/.test(host)) return "INR";
+        if (/\.ca$/.test(host)) return "CAD";
+        if (/\.com\.au$/.test(host)) return "AUD";
+        if (/\.com\.br$/.test(host)) return "BRL";
+        if (/\.com\.mx$/.test(host)) return "MXN";
+        if (/\.sg$/.test(host)) return "SGD";
+        if (/\.ae$/.test(host)) return "AED";
+        if (/\.sa$/.test(host)) return "SAR";
+        if (/\.se$/.test(host)) return "SEK";
+        if (/\.pl$/.test(host)) return "PLN";
+        if (/\.com\.tr$/.test(host)) return "TRY";
+        const priceEl = document.querySelector(".a-price-symbol, .a-price .a-offscreen");
+        if (priceEl?.textContent) {
+          const sym = priceEl.textContent.trim();
+          if (sym === "\u20AC") return "EUR";
+          if (sym === "\xA3") return "GBP";
+          if (sym === "\u20B9") return "INR";
+          if (sym === "\xA5" || sym === "\uFFE5") return "JPY";
+        }
+        return "USD";
+      })(),
       image_url: (() => {
         const img = document.querySelector("#landingImage, #imgTagWrapperId img");
         return img?.getAttribute("data-old-hires") || img?.src || null;
