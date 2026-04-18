@@ -2,7 +2,7 @@
  * Content script: injects the "Save to Compare" button on product pages.
  */
 
-import { extractProduct, extractWithRules, simplifyHtml, type StoreSelectorRules } from './extractor';
+import { extractProduct, extractWithRules, applySpecTranslations, simplifyHtml, type StoreSelectorRules } from './extractor';
 
 const BUTTON_ID = 'comparecart-save-btn';
 const TOAST_ID = 'comparecart-toast';
@@ -19,6 +19,7 @@ let aiRulesRequested = false;
 /**
  * Merges AI-generated rule extraction results on top of an existing product.
  * Only fills in missing fields - does not overwrite good data already extracted.
+ * Also applies AI-generated spec key translations to normalize foreign-language labels.
  */
 function applyAiRules(product: ReturnType<typeof extractProduct>): void {
   if (!cachedAiRules) return;
@@ -33,6 +34,11 @@ function applyAiRules(product: ReturnType<typeof extractProduct>): void {
     }
     if (!product.image_url && aiData.image_url) {
       product.image_url = aiData.image_url;
+    }
+    // Apply AI-generated spec key translations to both existing and incoming specs
+    const translations = cachedAiRules.spec_translations ?? {};
+    if (Object.keys(translations).length > 0) {
+      product.specs = applySpecTranslations(product.specs, translations);
     }
     // Merge specs: AI rules fill in any keys not already present
     for (const [k, v] of Object.entries(aiData.specs ?? {})) {
@@ -163,7 +169,7 @@ function handleSave(btn: HTMLButtonElement) {
   btn.textContent = 'Saving...';
   btn.style.opacity = '0.7';
 
-  const product = extractProduct();
+  const product = extractProduct(cachedAiRules?.detected_currency);
   applyAiRules(product);
 
   function reset() {
@@ -223,7 +229,7 @@ function tryUpdateSavedPrice() {
   if (!chrome.runtime?.id) return;
   if (isOwnApp()) return;
   try {
-    const product = extractProduct();
+    const product = extractProduct(cachedAiRules?.detected_currency);
     applyAiRules(product);
     if (product.price == null && Object.keys(product.specs ?? {}).length === 0) return;
 

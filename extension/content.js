@@ -32,6 +32,9 @@
     "outer material": "Material",
     "upper": "Material",
     "upper material": "Material",
+    "bovenmateriaal": "Material",
+    "buitenmateriaal": "Material",
+    "schachtmaterial": "Material",
     // Composition (fiber breakdown, often percentage-based)
     "composition": "Composition",
     "composicion": "Composition",
@@ -62,11 +65,17 @@
     "suola": "Sole",
     "sole material": "Sole",
     "outsole": "Sole",
+    "binnenzool": "Sole",
+    "dekzool": "Sole",
+    "buitenzool": "Sole",
+    "inlegzool": "Sole",
     // Lining
     "lining": "Lining",
     "doublure": "Lining",
     "futter": "Lining",
     "voering": "Lining",
+    "binnenmateriaal": "Lining",
+    "binnenkant": "Lining",
     // Weight
     "weight": "Weight",
     "poids": "Weight",
@@ -134,6 +143,7 @@
     ["composic", "Composition"],
     ["zusammensetz", "Composition"],
     ["samenstell", "Composition"],
+    ["materiaal", "Material"],
     ["material", "Material"],
     ["fabric", "Material"],
     ["fibre", "Material"],
@@ -144,11 +154,13 @@
     ["kleur", "Color"],
     ["composition", "Composition"],
     ["lining", "Lining"],
+    ["voering", "Lining"],
     ["country of origin", "Country of Origin"],
     ["made in", "Country of Origin"],
     ["care", "Care"],
     ["washing", "Care"],
     ["lavage", "Care"],
+    ["zool", "Sole"],
     ["sole", "Sole"],
     ["brand", "Brand"],
     ["weight", "Weight"],
@@ -1062,7 +1074,11 @@
         return raw ? parsePrice(raw).price : null;
       })(),
       currency: (() => {
-        return document.querySelector('meta[property="product:price:currency"]')?.content ?? "EUR";
+        const host = window.location.hostname;
+        if (/\.co\.uk$/i.test(host)) return "GBP";
+        if (/\.(nl|de|fr|es|it|be|at|pt|pl|se|dk|fi|ie|cz|ro|hu|bg|sk|si|hr|lt|lv|ee)$/i.test(host)) return "EUR";
+        const meta = document.querySelector('meta[property="product:price:currency"]')?.content;
+        return meta || "USD";
       })(),
       image_url: document.querySelector('meta[property="og:image"]')?.content ?? null,
       specs: (() => {
@@ -1138,6 +1154,15 @@
       })()
     })
   };
+  function applySpecTranslations(specs, translations) {
+    if (!translations || Object.keys(translations).length === 0) return specs;
+    const result = {};
+    for (const [key, value] of Object.entries(specs)) {
+      const canonical = translations[key] ?? key;
+      result[canonical] = value;
+    }
+    return result;
+  }
   function getStoreDomain() {
     return window.location.hostname.replace("www.", "");
   }
@@ -1145,7 +1170,7 @@
     const parts = domain.split(".");
     return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
   }
-  function extractProduct() {
+  function extractProduct(aiDetectedCurrency) {
     const domain = getStoreDomain();
     const storeName = getStoreName(domain);
     const productUrl = window.location.href;
@@ -1209,7 +1234,7 @@
     const merged = {
       name: storeData.name ?? jsonLd.name ?? og.name ?? document.title ?? "Unknown product",
       price: storeData.price ?? jsonLd.price ?? og.price ?? domFallback?.price ?? textFallback?.price ?? null,
-      currency: storeData.currency ?? jsonLd.currency ?? og.currency ?? domFallback?.currency ?? textFallback?.currency ?? "USD",
+      currency: storeData.currency ?? jsonLd.currency ?? og.currency ?? domFallback?.currency ?? aiDetectedCurrency ?? textFallback?.currency ?? "USD",
       image_url: allImages[0] ?? storeData.image_url ?? jsonLd.image_url ?? og.image_url ?? null,
       images: allImages,
       product_url: productUrl,
@@ -1398,6 +1423,10 @@
       if (!product.image_url && aiData.image_url) {
         product.image_url = aiData.image_url;
       }
+      const translations = cachedAiRules.spec_translations ?? {};
+      if (Object.keys(translations).length > 0) {
+        product.specs = applySpecTranslations(product.specs, translations);
+      }
       for (const [k, v] of Object.entries(aiData.specs ?? {})) {
         if (!product.specs[k]) product.specs[k] = v;
       }
@@ -1513,7 +1542,7 @@
     }
     btn.textContent = "Saving...";
     btn.style.opacity = "0.7";
-    const product = extractProduct();
+    const product = extractProduct(cachedAiRules?.detected_currency);
     applyAiRules(product);
     function reset() {
       btn.textContent = "\u{1F6D2} Save to Compare";
@@ -1566,7 +1595,7 @@
     if (!chrome.runtime?.id) return;
     if (isOwnApp()) return;
     try {
-      const product = extractProduct();
+      const product = extractProduct(cachedAiRules?.detected_currency);
       applyAiRules(product);
       if (product.price == null && Object.keys(product.specs ?? {}).length === 0) return;
       if (cachedAiRules) {

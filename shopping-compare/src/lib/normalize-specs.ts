@@ -13,6 +13,7 @@ const KEY_MAP: Record<string, string> = {
   'materiale': 'Material', 'fabric type': 'Material', 'fabric': 'Material', 'outer': 'Material',
   'outer shell': 'Material', 'shell': 'Material', 'outer material': 'Material', 'upper': 'Material',
   'upper material': 'Material',
+  'bovenmateriaal': 'Material', 'buitenmateriaal': 'Material', 'schachtmaterial': 'Material',
   // Composition (fiber breakdown, often percentage-based)
   'composition': 'Composition', 'composicion': 'Composition', 'zusammensetzung': 'Composition',
   'samenstelling': 'Composition', 'composizione': 'Composition', 'fiber content': 'Composition',
@@ -25,8 +26,10 @@ const KEY_MAP: Record<string, string> = {
   // Sole (shoes)
   'sole': 'Sole', 'semelle': 'Sole', 'sohle': 'Sole', 'zool': 'Sole', 'suola': 'Sole',
   'sole material': 'Sole', 'outsole': 'Sole',
+  'binnenzool': 'Sole', 'dekzool': 'Sole', 'buitenzool': 'Sole', 'inlegzool': 'Sole',
   // Lining
   'lining': 'Lining', 'doublure': 'Lining', 'futter': 'Lining', 'voering': 'Lining',
+  'binnenmateriaal': 'Lining', 'binnenkant': 'Lining',
   // Weight
   'weight': 'Weight', 'poids': 'Weight', 'gewicht': 'Weight', 'gewigt': 'Weight', 'peso': 'Weight',
   // Volume / Size for beauty
@@ -61,12 +64,12 @@ const KEY_MAP: Record<string, string> = {
 // Substring patterns: if the key *contains* one of these, map to canonical
 const KEY_SUBSTRING_MAP: [string, string][] = [
   ['composic', 'Composition'], ['zusammensetz', 'Composition'], ['samenstell', 'Composition'],
-  ['material', 'Material'], ['fabric', 'Material'], ['fibre', 'Material'], ['fiber', 'Material'],
+  ['materiaal', 'Material'], ['material', 'Material'], ['fabric', 'Material'], ['fibre', 'Material'], ['fiber', 'Material'],
   ['colour', 'Color'], ['color', 'Color'], ['farbe', 'Color'], ['kleur', 'Color'],
-  ['composition', 'Composition'], ['lining', 'Lining'],
+  ['composition', 'Composition'], ['lining', 'Lining'], ['voering', 'Lining'],
   ['country of origin', 'Country of Origin'], ['made in', 'Country of Origin'],
   ['care', 'Care'], ['washing', 'Care'], ['lavage', 'Care'],
-  ['sole', 'Sole'], ['brand', 'Brand'], ['weight', 'Weight'], ['volume', 'Volume'],
+  ['zool', 'Sole'], ['sole', 'Sole'], ['brand', 'Brand'], ['weight', 'Weight'], ['volume', 'Volume'],
   ['season', 'Season'], ['closure', 'Closure'], ['neckline', 'Neckline'],
   ['sleeve', 'Sleeve'], ['pattern', 'Pattern'], ['gender', 'Gender'],
 ];

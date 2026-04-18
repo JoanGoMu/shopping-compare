@@ -28,9 +28,13 @@ export interface StoreSelectorRules {
     label_selector?: string;
     value_selector?: string;
   }>;
+  // AI-detected metadata about this domain
+  category?: 'shoes' | 'clothing' | 'electronics' | 'beauty' | 'home' | 'general';
+  detected_currency?: string; // ISO currency code (EUR, GBP, USD, etc.)
+  spec_translations?: Record<string, string>; // raw store label -> canonical English key
 }
 
-const SYSTEM_PROMPT = `You are a product page data extractor for an e-commerce comparison tool. Given HTML from a product page, return CSS selectors to extract product data.
+const SYSTEM_PROMPT = `You are a product page data extractor for an e-commerce comparison tool. Given HTML from a product page, return CSS selectors to extract product data, plus metadata about the page.
 
 Return ONLY valid JSON with NO explanation, comments, or markdown. The JSON must match this schema exactly:
 {
@@ -45,16 +49,50 @@ Return ONLY valid JSON with NO explanation, comments, or markdown. The JSON must
       "label_selector": "child selector for label (optional)",
       "value_selector": "child selector for value (optional)"
     }
-  ]
+  ],
+  "category": "one of: shoes, clothing, electronics, beauty, home, general",
+  "detected_currency": "ISO currency code detected from price symbols and locale on this page",
+  "spec_translations": {
+    "Raw Label From Page": "Canonical English Key"
+  }
 }
 
 Schema rules:
 - "method: pairs" means alternating label/value siblings (like dl>dt+dd, tr>th+td, or span+span)
 - "method: list" means each element contains "Label: Value" text in one element
 - "method: dl" means a proper definition list (dl with dt/dd children)
-- For currency, prefer a hardcoded ISO code (EUR/GBP/USD) based on the store's country
+- For "currency" field, prefer a hardcoded ISO code (EUR/GBP/USD) based on the store's country
 - All selectors must be valid CSS selectors
 - Omit fields you cannot find (do not guess)
+
+IMPORTANT - For "detected_currency":
+Look at the price display (currency symbols like €, £, $, kr, CHF), the page locale, domain TLD (.nl/.de/.fr = EUR, .co.uk = GBP, .com = USD unless symbols say otherwise), and meta tags. Return the ISO code the store actually uses.
+
+IMPORTANT - For "category":
+- shoes: footwear, sneakers, boots, sandals, heels, slippers
+- clothing: shirts, pants, dresses, jackets, sportswear, underwear
+- electronics: phones, laptops, headphones, cameras, TVs, appliances
+- beauty: skincare, makeup, perfume, haircare
+- home: furniture, kitchenware, bedding, decor
+- general: anything that doesn't fit the above
+
+IMPORTANT - For "spec_translations":
+Look at the spec label text visible in the HTML (in any language). Map each raw label to the correct canonical English key from these category-specific lists:
+
+Shoes: Brand, Size, Color, Material, Sole, Insole, Lining, Fit, Heel Height, Width, Style, Weight, Country of Origin
+Clothing: Brand, Size, Color, Material, Composition, Fit, Pattern, Neckline, Sleeve, Length, Gender, Season, Care, Country of Origin
+Electronics: Brand, Processor, RAM, Storage, Display, Battery, Weight, OS, Connectivity, Camera, Resolution, Ports
+Beauty: Brand, Volume, Type, Scent, Skin Type, Ingredients, Application
+Home: Brand, Material, Dimensions, Color, Weight, Capacity
+General: Brand, Color, Material, Size, Type, Weight
+
+Only include entries where translation is needed (label differs from canonical key). Examples:
+- "Bovenmateriaal" -> "Material" (Dutch for upper material)
+- "Buitenzool" -> "Sole" (Dutch for outsole)
+- "Dekzool" -> "Insole" (Dutch for sockliner)
+- "Farbe" -> "Color" (German)
+- "Taille" -> "Size" (French)
+- "Zusammensetzung" -> "Composition" (German)
 
 IMPORTANT - specs extraction priority:
 The most valuable specs for shoppers are: Size, Color, Material, Brand, Fit. Focus on finding these.
@@ -113,13 +151,20 @@ export async function POST(request: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: cached } = await (supabase as any)
     .from('store_extractors')
-    .select('selectors')
+    .select('selectors, category, spec_translations, detected_currency')
     .eq('domain', domain)
     .eq('status', 'active')
-    .maybeSingle() as { data: { selectors: StoreSelectorRules } | null };
+    .maybeSingle() as { data: { selectors: StoreSelectorRules; category?: string; spec_translations?: Record<string, string>; detected_currency?: string } | null };
 
   if (cached && cached.selectors.specs && cached.selectors.specs.length > 0) {
-    return NextResponse.json({ ok: true, rules: cached.selectors, cached: true });
+    // Merge top-level metadata into the rules object for backward compatibility
+    const rules: StoreSelectorRules = {
+      ...cached.selectors,
+      category: (cached.category as StoreSelectorRules['category']) ?? cached.selectors.category,
+      spec_translations: cached.spec_translations ?? cached.selectors.spec_translations ?? {},
+      detected_currency: cached.detected_currency ?? cached.selectors.detected_currency,
+    };
+    return NextResponse.json({ ok: true, rules, cached: true });
   }
   // Fall through to (re)generate if cached rules have no specs
 
@@ -137,7 +182,7 @@ export async function POST(request: NextRequest) {
     try {
       const message = await anthropic.messages.create({
         model: 'claude-haiku-4-5',
-        max_tokens: 1024,
+        max_tokens: 1536,
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userContent }],
       });
@@ -165,11 +210,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Could not generate valid rules' });
   }
 
-  // Cache the rules
+  // Cache the rules - store metadata as top-level columns for easy querying
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (supabase as any).from('store_extractors').upsert({
     domain,
     selectors: rules,
+    category: rules.category ?? null,
+    spec_translations: rules.spec_translations ?? {},
+    detected_currency: rules.detected_currency ?? null,
     sample_url: url,
     updated_at: new Date().toISOString(),
     status: 'active',

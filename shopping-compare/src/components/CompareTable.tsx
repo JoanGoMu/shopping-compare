@@ -119,8 +119,33 @@ export default function CompareTable({ products: initialProducts, allProducts = 
   // Products not yet in this comparison (for add picker)
   const addableProducts = allProducts.filter((p) => !products.find((cp) => cp.id === p.id));
 
-  // Spec key ordering and coverage filtering
-  const PRIORITY_SPEC_KEYS = ['Brand', 'Color', 'Material', 'Composition', 'Size', 'Fit'];
+  // Category-aware spec key ordering
+  const CATEGORY_SPECS: Record<string, string[]> = {
+    shoes:       ['Brand', 'Size', 'Color', 'Material', 'Sole', 'Insole', 'Lining', 'Fit', 'Heel Height', 'Width', 'Style', 'Weight', 'Country of Origin'],
+    clothing:    ['Brand', 'Size', 'Color', 'Material', 'Composition', 'Fit', 'Pattern', 'Neckline', 'Sleeve', 'Length', 'Gender', 'Season', 'Care', 'Country of Origin'],
+    electronics: ['Brand', 'Processor', 'RAM', 'Storage', 'Display', 'Battery', 'OS', 'Connectivity', 'Camera', 'Resolution', 'Weight', 'Ports'],
+    beauty:      ['Brand', 'Volume', 'Type', 'Scent', 'Skin Type', 'Ingredients', 'Application'],
+    home:        ['Brand', 'Material', 'Dimensions', 'Color', 'Weight', 'Capacity'],
+    default:     ['Brand', 'Color', 'Material', 'Composition', 'Size', 'Fit'],
+  };
+
+  function detectCategory(prods: typeof filtered): string {
+    const allSpecKeys2 = prods.flatMap(p => Object.keys((p.specs as Record<string, string>) ?? {}));
+    const allNames = prods.map(p => (p.name ?? '').toLowerCase());
+    if (allSpecKeys2.includes('Sole') || allNames.some(n => /\b(shoe|sneaker|boot|sandal|trainer|loafer|slipper|heel|pump)\b/i.test(n)))
+      return 'shoes';
+    if (allSpecKeys2.some(k => ['Processor', 'RAM', 'Storage', 'Display', 'Battery', 'OS', 'Resolution', 'Ports'].includes(k))
+      || allNames.some(n => /\b(laptop|phone|tablet|headphone|speaker|monitor|camera|tv|vacuum|printer)\b/i.test(n)))
+      return 'electronics';
+    if (allSpecKeys2.some(k => ['Scent', 'Volume', 'Skin Type', 'Ingredients'].includes(k)))
+      return 'beauty';
+    if (allSpecKeys2.some(k => ['Size', 'Fit', 'Composition', 'Neckline', 'Sleeve'].includes(k)))
+      return 'clothing';
+    return 'default';
+  }
+
+  const category = detectCategory(filtered);
+  const PRIORITY_SPEC_KEYS = CATEGORY_SPECS[category] ?? CATEGORY_SPECS.default;
 
   // Filter out garbage spec values (e.g. Amazon review widget JS code)
   function isCleanSpecValue(val: unknown): boolean {
@@ -142,7 +167,7 @@ export default function CompareTable({ products: initialProducts, allProducts = 
     count: filtered.filter((p) => isCleanSpecValue(((p.specs as Record<string, unknown>) ?? {})[key])).length,
   }));
 
-  // Visible = priority keys present in at least 1 product, in priority order
+  // Visible = priority keys present in at least 1 product, in category priority order
   const visibleSpecKeys = PRIORITY_SPEC_KEYS
     .map((key) => keysWithCoverage.find((e) => e.key === key))
     .filter((e): e is SpecEntry => e != null && e.count > 0);

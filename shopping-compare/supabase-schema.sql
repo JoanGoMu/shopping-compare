@@ -129,3 +129,36 @@ create policy "Authenticated users can insert referrals"
 create policy "Anyone can submit feedback"
   on feedback for insert
   with check (true);
+
+-- Price history: records price snapshots whenever a price change is detected.
+-- Written server-side via admin key (bypasses RLS). Read by PriceSparkline in the browser.
+create table if not exists price_history (
+  id uuid primary key default gen_random_uuid(),
+  product_url text not null,
+  price numeric not null,
+  currency text not null default 'USD',
+  recorded_at timestamptz not null default now()
+);
+create index if not exists idx_price_history_url_date
+  on price_history (product_url, recorded_at desc);
+alter table price_history enable row level security;
+create policy "Authenticated users can read price history"
+  on price_history for select
+  to authenticated
+  using (true);
+
+-- Store extractors: AI-generated CSS selector rules cached per domain.
+-- Written server-side via admin key. Read by the Chrome extension (authenticated users only).
+create table if not exists store_extractors (
+  domain text primary key,
+  selectors jsonb not null,
+  category text,
+  spec_translations jsonb default '{}',
+  detected_currency text,
+  sample_url text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  success_count int default 0,
+  fail_count int default 0,
+  status text default 'active'
+);

@@ -989,7 +989,13 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
       return raw ? parsePrice(raw).price : null;
     })(),
     currency: (() => {
-      return document.querySelector<HTMLMetaElement>('meta[property="product:price:currency"]')?.content ?? 'EUR';
+      // Converse embeds USD in meta tags globally even on EU/UK regional sites.
+      // Override based on TLD which reliably reflects the store's local currency.
+      const host = window.location.hostname;
+      if (/\.co\.uk$/i.test(host)) return 'GBP';
+      if (/\.(nl|de|fr|es|it|be|at|pt|pl|se|dk|fi|ie|cz|ro|hu|bg|sk|si|hr|lt|lv|ee)$/i.test(host)) return 'EUR';
+      const meta = document.querySelector<HTMLMetaElement>('meta[property="product:price:currency"]')?.content;
+      return meta || 'USD';
     })(),
     image_url: document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? null,
     specs: (() => {
@@ -1084,6 +1090,26 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
   }),
 };
 
+/**
+ * Applies AI-generated spec key translations on top of already-normalized specs.
+ * Used after normalizeSpecs() to catch any remaining foreign-language keys that
+ * the static KEY_MAP didn't handle (e.g. rare Dutch or Italian terms).
+ * Only translates keys; values are handled separately by normalizeSpecs().
+ */
+export function applySpecTranslations(
+  specs: Record<string, string>,
+  translations: Record<string, string>,
+): Record<string, string> {
+  if (!translations || Object.keys(translations).length === 0) return specs;
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(specs)) {
+    const canonical = translations[key] ?? key;
+    // Last writer wins if two raw keys map to the same canonical key
+    result[canonical] = value;
+  }
+  return result;
+}
+
 function getStoreDomain(): string {
   return window.location.hostname.replace('www.', '');
 }
@@ -1094,7 +1120,7 @@ function getStoreName(domain: string): string {
   return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
 }
 
-export function extractProduct(): ExtractedProduct {
+export function extractProduct(aiDetectedCurrency?: string): ExtractedProduct {
   const domain = getStoreDomain();
   const storeName = getStoreName(domain);
   const productUrl = window.location.href;
@@ -1175,7 +1201,7 @@ export function extractProduct(): ExtractedProduct {
   const merged: ExtractedProduct = {
     name: storeData.name ?? jsonLd.name ?? og.name ?? document.title ?? 'Unknown product',
     price: storeData.price ?? jsonLd.price ?? og.price ?? domFallback?.price ?? textFallback?.price ?? null,
-    currency: storeData.currency ?? jsonLd.currency ?? og.currency ?? domFallback?.currency ?? textFallback?.currency ?? 'USD',
+    currency: storeData.currency ?? jsonLd.currency ?? og.currency ?? domFallback?.currency ?? aiDetectedCurrency ?? textFallback?.currency ?? 'USD',
     image_url: allImages[0] ?? storeData.image_url ?? jsonLd.image_url ?? og.image_url ?? null,
     images: allImages,
     product_url: productUrl,
@@ -1233,6 +1259,10 @@ export interface StoreSelectorRules {
     label_selector?: string;
     value_selector?: string;
   }>;
+  // AI-detected metadata about this domain
+  category?: 'shoes' | 'clothing' | 'electronics' | 'beauty' | 'home' | 'general';
+  detected_currency?: string;
+  spec_translations?: Record<string, string>;
 }
 
 /**

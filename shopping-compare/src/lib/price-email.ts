@@ -24,12 +24,12 @@ export function buildPriceEmail(changes: PriceChange[]): { subject: string; html
     return `
       <tr>
         <td style="padding:12px 0;border-bottom:1px solid #f0ebe4;">
-          <div style="font-size:14px;color:#1a1a1a;margin-bottom:4px;">${c.name}</div>
-          <div style="font-size:12px;color:#888;">${c.store_name}</div>
+          <a href="${c.product_url}" style="font-size:14px;color:#1a1a1a;text-decoration:none;display:block;margin-bottom:4px;" target="_blank">${c.name}</a>
+          <a href="${c.product_url}" style="font-size:11px;color:#C4603C;text-decoration:none;" target="_blank">View on ${c.store_name} &rarr;</a>
         </td>
-        <td style="padding:12px 0 12px 16px;border-bottom:1px solid #f0ebe4;text-align:right;white-space:nowrap;">
-          <span style="color:${color};font-weight:600;">${arrow} ${formatPrice(c.new_price, c.currency)}</span>
-          <span style="color:#aaa;font-size:12px;text-decoration:line-through;margin-left:6px;">${formatPrice(c.old_price, c.currency)}</span>
+        <td style="padding:12px 0 12px 16px;border-bottom:1px solid #f0ebe4;text-align:right;white-space:nowrap;vertical-align:top;">
+          <div style="color:${color};font-weight:600;">${arrow} ${formatPrice(c.new_price, c.currency)}</div>
+          <div style="color:#aaa;font-size:12px;text-decoration:line-through;">${formatPrice(c.old_price, c.currency)}</div>
         </td>
       </tr>`;
   }).join('');

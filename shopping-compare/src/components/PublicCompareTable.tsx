@@ -30,7 +30,33 @@ export default function PublicCompareTable({ products, updatedAt }: Props) {
 
   const lowest = lowestPrice(products);
 
-  const PRIORITY_SPEC_KEYS = ['Brand', 'Color', 'Material', 'Composition', 'Size', 'Fit'];
+  // Category-aware spec key ordering
+  const CATEGORY_SPECS: Record<string, string[]> = {
+    shoes:       ['Brand', 'Size', 'Color', 'Material', 'Sole', 'Insole', 'Lining', 'Fit', 'Heel Height', 'Width', 'Style', 'Weight', 'Country of Origin'],
+    clothing:    ['Brand', 'Size', 'Color', 'Material', 'Composition', 'Fit', 'Pattern', 'Neckline', 'Sleeve', 'Length', 'Gender', 'Season', 'Care', 'Country of Origin'],
+    electronics: ['Brand', 'Processor', 'RAM', 'Storage', 'Display', 'Battery', 'OS', 'Connectivity', 'Camera', 'Resolution', 'Weight', 'Ports'],
+    beauty:      ['Brand', 'Volume', 'Type', 'Scent', 'Skin Type', 'Ingredients', 'Application'],
+    home:        ['Brand', 'Material', 'Dimensions', 'Color', 'Weight', 'Capacity'],
+    default:     ['Brand', 'Color', 'Material', 'Composition', 'Size', 'Fit'],
+  };
+
+  function detectCategory(prods: SharedProduct[]): string {
+    const specKeys = prods.flatMap(p => Object.keys((p.specs as Record<string, string>) ?? {}));
+    const names = prods.map(p => (p.name ?? '').toLowerCase());
+    if (specKeys.includes('Sole') || names.some(n => /\b(shoe|sneaker|boot|sandal|trainer|loafer|slipper|heel|pump)\b/i.test(n)))
+      return 'shoes';
+    if (specKeys.some(k => ['Processor', 'RAM', 'Storage', 'Display', 'Battery', 'OS', 'Resolution', 'Ports'].includes(k))
+      || names.some(n => /\b(laptop|phone|tablet|headphone|speaker|monitor|camera|tv|vacuum|printer)\b/i.test(n)))
+      return 'electronics';
+    if (specKeys.some(k => ['Scent', 'Volume', 'Skin Type', 'Ingredients'].includes(k)))
+      return 'beauty';
+    if (specKeys.some(k => ['Size', 'Fit', 'Composition', 'Neckline', 'Sleeve'].includes(k)))
+      return 'clothing';
+    return 'default';
+  }
+
+  const category = detectCategory(products);
+  const PRIORITY_SPEC_KEYS = CATEGORY_SPECS[category] ?? CATEGORY_SPECS.default;
 
   function isCleanSpecValue(val: unknown): boolean {
     if (val == null) return false;
@@ -50,7 +76,7 @@ export default function PublicCompareTable({ products, updatedAt }: Props) {
     key,
     count: products.filter((p) => isCleanSpecValue(((p.specs as Record<string, unknown>) ?? {})[key])).length,
   }));
-  // Visible = priority keys present in at least 1 product, in priority order
+  // Visible = priority keys present in at least 1 product, in category priority order
   const visibleSpecKeys = PRIORITY_SPEC_KEYS
     .map((key) => keysWithCoverage.find((e) => e.key === key))
     .filter((e): e is SpecEntry => e != null && e.count > 0);
