@@ -50,6 +50,70 @@ async function getUser() {
 }
 
 
+// ---------------------------------------------------------------------------
+// Context menu: right-click "Save to CompareCart" on any page or link
+// ---------------------------------------------------------------------------
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.contextMenus.create({
+    id: 'save-page-to-comparecart',
+    title: 'Save to CompareCart',
+    contexts: ['page', 'link'],
+  });
+});
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId !== 'save-page-to-comparecart') return;
+
+  // Use the link URL if right-clicked on a link, otherwise use the page URL
+  const targetUrl = info.linkUrl ?? info.pageUrl ?? tab?.url;
+  if (!targetUrl) return;
+
+  const user = await getUser();
+  if (!user) {
+    // Notify popup that they need to sign in
+    if (tab?.id) {
+      chrome.scripting?.executeScript({
+        target: { tabId: tab.id },
+        func: () => { alert('Sign in via the CompareCart extension popup first.'); },
+      }).catch(() => {});
+    }
+    return;
+  }
+
+  // If on the current page, ask the content script to extract and save
+  if (tab?.id && (!info.linkUrl || info.linkUrl === tab.url)) {
+    chrome.tabs.sendMessage(tab.id, { type: 'CONTEXT_MENU_SAVE' });
+    return;
+  }
+
+  // For a linked URL (different from current page), call the server to fetch + extract
+  try {
+    const stored = await chrome.storage.local.get(SESSION_KEY);
+    if (!stored[SESSION_KEY]) return;
+    const { access_token } = JSON.parse(stored[SESSION_KEY]);
+    const res = await fetch(`${APP_URL}/api/save-from-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access_token}` },
+      body: JSON.stringify({ url: targetUrl }),
+    });
+    const data = await res.json() as { ok: boolean; duplicate?: boolean; error?: string };
+    if (tab?.id) {
+      chrome.scripting?.executeScript({
+        target: { tabId: tab.id },
+        func: (msg: string) => {
+          const el = document.createElement('div');
+          el.style.cssText = 'all:initial;position:fixed;bottom:80px;right:24px;z-index:2147483647;background:#059669;color:white;border-radius:8px;padding:10px 16px;font-size:13px;font-family:-apple-system,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.2);';
+          el.textContent = msg;
+          document.documentElement.appendChild(el);
+          setTimeout(() => el.remove(), 3000);
+        },
+        args: [data.ok ? (data.duplicate ? 'Already in your collection!' : 'Saved to CompareCart!') : ('Could not save: ' + (data.error ?? 'unknown error'))],
+      }).catch(() => {});
+    }
+  } catch { /* silent */ }
+});
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   const type = (message as { type: string }).type;
 
@@ -152,6 +216,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     // Fire-and-forget: tells the server whether the AI rules worked on this page
     handleReportExtractionResult(message.domain, message.success);
     return false;
+  }
+
+  if (type === 'SAVE_FROM_LISTING') {
+    // Save a product from a listing page via server-side fetch + extraction
+    handleSaveFromListing(message.url).then(sendResponse);
+    return true;
   }
 
 });
@@ -362,6 +432,26 @@ async function handleRequestExtractorGeneration(
 
     return { rules: data.rules };
   } catch { return { rules: null }; }
+}
+
+// Saves a product from a listing page by calling the server to fetch + extract the product page.
+async function handleSaveFromListing(url: string): Promise<{ ok: boolean; duplicate?: boolean; error?: string }> {
+  try {
+    const stored = await chrome.storage.local.get(SESSION_KEY);
+    if (!stored[SESSION_KEY]) return { ok: false, error: 'not logged in' };
+    const { access_token } = JSON.parse(stored[SESSION_KEY]);
+    if (!access_token) return { ok: false, error: 'not logged in' };
+
+    const res = await fetch(`${APP_URL}/api/save-from-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access_token}` },
+      body: JSON.stringify({ url }),
+    });
+    if (!res.ok) return { ok: false, error: `Server error ${res.status}` };
+    return await res.json() as { ok: boolean; duplicate?: boolean; error?: string };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'unknown error' };
+  }
 }
 
 // Reports whether the AI-generated rules worked for a given domain.

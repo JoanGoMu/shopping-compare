@@ -9,6 +9,7 @@ interface Props {
   selected: boolean;
   priceAlerts: boolean;
   onToggleSelect: () => void;
+  onOpenDetail: () => void;
   onDeleted: (id: string) => void;
   onAlertToggle: () => void;
 }
@@ -18,7 +19,7 @@ function formatPrice(price: number | null, currency: string) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(price);
 }
 
-export default function ProductCard({ product, selected, priceAlerts, onToggleSelect, onDeleted, onAlertToggle }: Props) {
+export default function ProductCard({ product, selected, priceAlerts, onToggleSelect, onOpenDetail, onDeleted, onAlertToggle }: Props) {
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [notes, setNotes] = useState(product.notes ?? '');
@@ -69,17 +70,20 @@ export default function ProductCard({ product, selected, priceAlerts, onToggleSe
 
   return (
     <div
-      onClick={onToggleSelect}
+      onClick={onOpenDetail}
       className={`
         bg-surface cursor-pointer transition-all group relative overflow-hidden border flex flex-col
         ${selected ? 'border-terra ring-1 ring-terra' : 'border-warm-border hover:border-muted'}
       `}
     >
-      {/* Selection indicator */}
-      <div className={`
-        absolute top-2.5 right-2.5 w-5 h-5 border flex items-center justify-center z-10 transition-colors
-        ${selected ? 'bg-terra border-terra' : 'bg-surface border-warm-border group-hover:border-muted'}
-      `}>
+      {/* Selection checkbox - click toggles selection without opening panel */}
+      <div
+        onClick={(e) => { e.stopPropagation(); onToggleSelect(); }}
+        className={`
+          absolute top-2.5 right-2.5 w-5 h-5 border flex items-center justify-center z-10 transition-colors cursor-pointer
+          ${selected ? 'bg-terra border-terra' : 'bg-surface border-warm-border group-hover:border-muted'}
+        `}
+      >
         {selected && (
           <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -101,11 +105,11 @@ export default function ProductCard({ product, selected, priceAlerts, onToggleSe
         <button
           onClick={handleDelete}
           disabled={deleting}
-          className="absolute top-2.5 left-2.5 z-10 w-6 h-6 bg-white/80 border border-warm-border text-muted hover:text-red-600 hover:border-red-300 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+          className="absolute top-2 left-2 z-10 w-6 h-6 bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 disabled:opacity-50"
           title="Remove"
         >
           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
       )}

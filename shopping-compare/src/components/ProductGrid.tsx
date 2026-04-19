@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import type { Product, ComparisonGroup } from '@/lib/supabase/types';
 import ProductCard from './ProductCard';
+import ProductDetailPanel from './ProductDetailPanel';
 import AddToGroupModal from './AddToGroupModal';
 
 interface Props {
@@ -24,6 +25,7 @@ export default function ProductGrid({ products: initialProducts, groups }: Props
   const [sort, setSort] = useState<SortKey>('date');
   const [filterStore, setFilterStore] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [detailProductId, setDetailProductId] = useState<string | null>(null);
   const [addingToGroup, setAddingToGroup] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
@@ -32,6 +34,11 @@ export default function ProductGrid({ products: initialProducts, groups }: Props
   function handleDeleted(id: string) {
     setItems((prev) => prev.filter((p) => p.id !== id));
     setSelectedIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
+    if (detailProductId === id) setDetailProductId(null);
+  }
+
+  function handleNotesUpdated(id: string, notes: string) {
+    setItems((prev) => prev.map((p) => p.id === id ? { ...p, notes: notes || null } : p));
   }
 
   async function handleAlertToggle(id: string) {
@@ -199,10 +206,34 @@ export default function ProductGrid({ products: initialProducts, groups }: Props
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-px">
           {filtered.map((p) => (
-            <ProductCard key={p.id} product={p} selected={selectedIds.has(p.id)} priceAlerts={alertsMap[p.id] ?? p.price_alerts} onToggleSelect={() => toggleSelect(p.id)} onDeleted={handleDeleted} onAlertToggle={() => handleAlertToggle(p.id)} />
+            <ProductCard
+              key={p.id}
+              product={p}
+              selected={selectedIds.has(p.id)}
+              priceAlerts={alertsMap[p.id] ?? p.price_alerts}
+              onToggleSelect={() => toggleSelect(p.id)}
+              onOpenDetail={() => setDetailProductId(p.id)}
+              onDeleted={handleDeleted}
+              onAlertToggle={() => handleAlertToggle(p.id)}
+            />
           ))}
         </div>
       )}
+
+      {detailProductId && (() => {
+        const dp = items.find((p) => p.id === detailProductId);
+        if (!dp) return null;
+        return (
+          <ProductDetailPanel
+            product={dp}
+            priceAlerts={alertsMap[dp.id] ?? dp.price_alerts}
+            onClose={() => setDetailProductId(null)}
+            onDeleted={handleDeleted}
+            onAlertToggle={() => handleAlertToggle(dp.id)}
+            onNotesUpdated={handleNotesUpdated}
+          />
+        );
+      })()}
 
       {addingToGroup && (
         <AddToGroupModal

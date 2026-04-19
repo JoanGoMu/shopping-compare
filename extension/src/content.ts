@@ -314,7 +314,179 @@ function initWithRetry() {
   window.setTimeout(prefetchAiRules, 5000);
   // After page has settled, refresh other saved products from this domain via iframes
   window.setTimeout(tryRefreshRelatedProducts, 12000);
+  // Inject mini save buttons on listing/carousel pages (runs after DOM is ready)
+  window.setTimeout(tryInjectListingButtons, 2000);
 }
+
+// ---------------------------------------------------------------------------
+// Mini save buttons on product listing/carousel pages
+// ---------------------------------------------------------------------------
+
+interface ListingConfig {
+  cardSelector: string;       // CSS selector for each product card in the listing
+  linkSelector: string;       // CSS selector for the anchor tag within the card
+  insertTarget: string;       // where to insert the button (relative to card)
+  insertPosition: InsertPosition;
+}
+
+// Per-domain config. linkSelector must resolve to an <a> with a product URL.
+const LISTING_CONFIGS: Record<string, ListingConfig> = {
+  'amazon': {
+    cardSelector: '[data-component-type="s-search-result"], [data-asin]:not([data-asin=""])',
+    linkSelector: 'h2 a, a.a-link-normal[href*="/dp/"]',
+    insertTarget: 'self',
+    insertPosition: 'afterbegin',
+  },
+  'zalando': {
+    cardSelector: '[class*="z-grid-item"], article[class*="Cat"]',
+    linkSelector: 'a[href*="/"]',
+    insertTarget: 'self',
+    insertPosition: 'afterbegin',
+  },
+  'asos': {
+    cardSelector: 'article[id^="product-"]',
+    linkSelector: 'a[href*="/prd/"]',
+    insertTarget: 'self',
+    insertPosition: 'afterbegin',
+  },
+  'zara': {
+    cardSelector: '[class*="product-grid-product"]',
+    linkSelector: 'a[class*="product-link"], a[href*="/product"]',
+    insertTarget: 'self',
+    insertPosition: 'afterbegin',
+  },
+};
+
+const LISTING_BTN_CLASS = 'cc-listing-save-btn';
+
+function getListingConfig(): ListingConfig | null {
+  const host = window.location.hostname.replace(/^www\./, '');
+  for (const [key, config] of Object.entries(LISTING_CONFIGS)) {
+    if (host.includes(key)) return config;
+  }
+  return null;
+}
+
+function isListingPage(): boolean {
+  // Must NOT be a product detail page
+  if (isLikelyProductPage()) return false;
+  const config = getListingConfig();
+  if (!config) return false;
+  return document.querySelectorAll(config.cardSelector).length >= 2;
+}
+
+function injectListingSaveButtons() {
+  if (!chrome.runtime?.id) return;
+  if (isOwnApp()) return;
+  if (window.self !== window.top) return;
+  const config = getListingConfig();
+  if (!config) return;
+
+  const cards = document.querySelectorAll<HTMLElement>(config.cardSelector);
+  cards.forEach((card) => {
+    if (card.querySelector(`.${LISTING_BTN_CLASS}`)) return; // already injected
+
+    const link = card.querySelector<HTMLAnchorElement>(config.linkSelector);
+    if (!link?.href) return;
+
+    const btn = document.createElement('button');
+    btn.className = LISTING_BTN_CLASS;
+    btn.title = 'Save to CompareCart';
+    btn.style.cssText = `
+      all: initial;
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      z-index: 100;
+      width: 28px;
+      height: 28px;
+      background: rgba(196, 96, 60, 0.92);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      transition: background 0.15s ease, transform 0.15s ease;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    `;
+    btn.textContent = '+';
+
+    btn.addEventListener('mouseenter', () => {
+      btn.style.background = '#A84E30';
+      btn.style.transform = 'scale(1.1)';
+    });
+    btn.addEventListener('mouseleave', () => {
+      btn.style.background = 'rgba(196, 96, 60, 0.92)';
+      btn.style.transform = 'scale(1)';
+    });
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (!chrome.runtime?.id) return;
+
+      btn.textContent = '...';
+      btn.style.pointerEvents = 'none';
+
+      const productUrl = link.href;
+      chrome.runtime.sendMessage(
+        { type: 'SAVE_FROM_LISTING', url: productUrl },
+        (response) => {
+          if (chrome.runtime.lastError || !response) {
+            btn.textContent = '+';
+            btn.style.pointerEvents = 'auto';
+            return;
+          }
+          if (response.duplicate) {
+            btn.textContent = '✓';
+            btn.style.background = '#6b7280';
+          } else if (response.ok) {
+            btn.textContent = '✓';
+            btn.style.background = '#059669';
+          } else {
+            btn.textContent = '!';
+            btn.style.background = '#dc2626';
+            setTimeout(() => {
+              btn.textContent = '+';
+              btn.style.background = 'rgba(196, 96, 60, 0.92)';
+              btn.style.pointerEvents = 'auto';
+            }, 2000);
+          }
+        }
+      );
+    });
+
+    // Cards need relative positioning for the absolute button
+    const pos = getComputedStyle(card).position;
+    if (pos === 'static') card.style.position = 'relative';
+
+    card.insertAdjacentElement(config.insertPosition, btn);
+  });
+}
+
+function tryInjectListingButtons() {
+  if (!isListingPage()) return;
+  injectListingSaveButtons();
+  // Re-run on DOM changes (infinite scroll / pagination)
+  const observer = new MutationObserver(() => {
+    if (!chrome.runtime?.id) { observer.disconnect(); return; }
+    injectListingSaveButtons();
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
+// Listen for CONTEXT_MENU_SAVE from background (user right-clicked "Save to CompareCart")
+chrome.runtime.onMessage.addListener((message) => {
+  if (message?.type !== 'CONTEXT_MENU_SAVE') return;
+  const fakeBtn = { textContent: '', style: { opacity: '' } } as unknown as HTMLButtonElement;
+  handleSave(fakeBtn);
+});
 
 // Auto sign-in: listen for session tokens posted from the web app (runs on all pages)
 const APP_URL = '__APP_URL__';
