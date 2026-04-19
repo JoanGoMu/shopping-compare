@@ -432,25 +432,16 @@ function injectListingSaveButtons() {
       e.preventDefault();
       if (!chrome.runtime?.id) return;
 
-      btn.textContent = '...';
+      // Optimistic: show saved immediately, revert only on confirmed failure
+      btn.textContent = '✓';
+      btn.style.background = '#059669';
       btn.style.pointerEvents = 'none';
 
       const productUrl = link.href;
       chrome.runtime.sendMessage(
         { type: 'SAVE_FROM_LISTING', url: productUrl },
         (response) => {
-          if (chrome.runtime.lastError || !response) {
-            btn.textContent = '+';
-            btn.style.pointerEvents = 'auto';
-            return;
-          }
-          if (response.duplicate) {
-            btn.textContent = '✓';
-            btn.style.background = '#6b7280';
-          } else if (response.ok) {
-            btn.textContent = '✓';
-            btn.style.background = '#059669';
-          } else {
+          if (chrome.runtime.lastError || !response || (!response.ok && !response.duplicate)) {
             btn.textContent = '!';
             btn.style.background = '#dc2626';
             setTimeout(() => {
@@ -458,7 +449,12 @@ function injectListingSaveButtons() {
               btn.style.background = 'rgba(196, 96, 60, 0.92)';
               btn.style.pointerEvents = 'auto';
             }, 2000);
+            return;
           }
+          if (response.duplicate) {
+            btn.style.background = '#6b7280';
+          }
+          // response.ok: already showing green ✓, nothing more to do
         }
       );
     });
