@@ -226,6 +226,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 });
 
+// Normalize product URL: Amazon → /dp/ASIN, others → strip query params + trailing slash.
+// Applied consistently at save and lookup to ensure URL matching works regardless of tracking params.
+function normalizeProductUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const asin = parsed.pathname.match(/\/dp\/([A-Z0-9]{10})/i)?.[1];
+    if (asin && parsed.hostname.includes('amazon.')) {
+      return `${parsed.origin}/dp/${asin}`;
+    }
+    return parsed.origin + parsed.pathname.replace(/\/$/, '');
+  } catch { return url; }
+}
+
 async function handleUpdatePriceIfSaved(url: string, price: number, currency: string, specs?: Record<string, string>) {
   try {
     // Skip if no stored session to avoid GoTrue making fetch calls that log errors
@@ -235,15 +248,17 @@ async function handleUpdatePriceIfSaved(url: string, price: number, currency: st
     const user = await getUser();
     if (!user) return;
 
+    const normalizedUrl = normalizeProductUrl(url);
     const { data: existing } = await supabase
       .from('products').select('id, price, currency, specs')
-      .eq('user_id', user.id).eq('product_url', url).maybeSingle();
+      .eq('user_id', user.id).eq('product_url', normalizedUrl).maybeSingle();
 
     if (!existing) return;
     // Skip currency mismatch only when product already has a price —
     // if price was null the stored currency was a default guess, so update both.
     if (existing.price !== null && existing.currency !== currency) return;
 
+    url = normalizedUrl;
     const now = new Date().toISOString();
 
     const currentSpecs = (existing.specs ?? {}) as Record<string, string>;
@@ -276,6 +291,8 @@ async function handleSaveProduct(product: {
 }) {
   const user = await getUser();
   if (!user) return { ok: false, error: 'not logged in' };
+
+  product.product_url = normalizeProductUrl(product.product_url);
 
   const { data: existing } = await supabase
     .from('products').select('id')
@@ -341,7 +358,7 @@ async function handleEnrichProduct(url: string, price: number | null, currency: 
     await fetch(`${APP_URL}/api/enrich-product`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access_token}` },
-      body: JSON.stringify({ url, price, currency, specs }),
+      body: JSON.stringify({ url: normalizeProductUrl(url), price, currency, specs }),
     });
   } catch { /* silent */ }
 }
@@ -445,7 +462,7 @@ async function handleSaveFromListing(url: string): Promise<{ ok: boolean; duplic
     const res = await fetch(`${APP_URL}/api/save-from-url`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access_token}` },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url: normalizeProductUrl(url) }),
     });
     if (!res.ok) return { ok: false, error: `Server error ${res.status}` };
     return await res.json() as { ok: boolean; duplicate?: boolean; error?: string };

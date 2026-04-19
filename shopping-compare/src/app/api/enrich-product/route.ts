@@ -32,8 +32,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
   }
 
-  const { url, price, currency, specs } = body;
+  let { url, price, currency, specs } = body;
   if (!url) return NextResponse.json({ error: 'Missing url' }, { status: 400 });
+
+  // Normalize URL: Amazon → /dp/ASIN, others → strip query params
+  try {
+    const parsed = new URL(url);
+    const asin = parsed.pathname.match(/\/dp\/([A-Z0-9]{10})/i)?.[1];
+    if (asin && parsed.hostname.includes('amazon.')) {
+      url = `${parsed.origin}/dp/${asin}`;
+    } else {
+      url = parsed.origin + parsed.pathname.replace(/\/$/, '');
+    }
+  } catch { /* keep original if unparseable */ }
 
   const supabase = createAdminClient();
   const now = new Date().toISOString();

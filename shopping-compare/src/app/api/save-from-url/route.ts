@@ -26,19 +26,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
   }
 
-  const { url } = body;
-  if (!url || typeof url !== 'string') return NextResponse.json({ error: 'Missing url' }, { status: 400 });
+  const { url: rawUrl } = body;
+  if (!rawUrl || typeof rawUrl !== 'string') return NextResponse.json({ error: 'Missing url' }, { status: 400 });
 
   // Validate URL
   let parsed: URL;
   try {
-    parsed = new URL(url);
+    parsed = new URL(rawUrl);
   } catch {
     return NextResponse.json({ error: 'Invalid URL' }, { status: 400 });
   }
   if (!['http:', 'https:'].includes(parsed.protocol)) {
     return NextResponse.json({ error: 'Invalid URL' }, { status: 400 });
   }
+
+  // Normalize: Amazon → /dp/ASIN, others → strip query params
+  const asin = parsed.pathname.match(/\/dp\/([A-Z0-9]{10})/i)?.[1];
+  const url = asin && parsed.hostname.includes('amazon.')
+    ? `${parsed.origin}/dp/${asin}`
+    : parsed.origin + parsed.pathname.replace(/\/$/, '');
 
   const supabase = createAdminClient();
 

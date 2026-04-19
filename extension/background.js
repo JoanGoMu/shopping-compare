@@ -20168,15 +20168,29 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 });
+function normalizeProductUrl(url) {
+  try {
+    const parsed = new URL(url);
+    const asin = parsed.pathname.match(/\/dp\/([A-Z0-9]{10})/i)?.[1];
+    if (asin && parsed.hostname.includes("amazon.")) {
+      return `${parsed.origin}/dp/${asin}`;
+    }
+    return parsed.origin + parsed.pathname.replace(/\/$/, "");
+  } catch {
+    return url;
+  }
+}
 async function handleUpdatePriceIfSaved(url, price, currency, specs) {
   try {
     const stored = await chrome.storage.local.get(SESSION_KEY);
     if (!stored[SESSION_KEY]) return;
     const user = await getUser();
     if (!user) return;
-    const { data: existing } = await supabase.from("products").select("id, price, currency, specs").eq("user_id", user.id).eq("product_url", url).maybeSingle();
+    const normalizedUrl = normalizeProductUrl(url);
+    const { data: existing } = await supabase.from("products").select("id, price, currency, specs").eq("user_id", user.id).eq("product_url", normalizedUrl).maybeSingle();
     if (!existing) return;
     if (existing.price !== null && existing.currency !== currency) return;
+    url = normalizedUrl;
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const currentSpecs = existing.specs ?? {};
     const mergedSpecs = specs && Object.keys(specs).length > 0 ? mergeSpecsSafe(currentSpecs, specs) : null;
@@ -20200,6 +20214,7 @@ async function handleUpdatePriceIfSaved(url, price, currency, specs) {
 async function handleSaveProduct(product) {
   const user = await getUser();
   if (!user) return { ok: false, error: "not logged in" };
+  product.product_url = normalizeProductUrl(product.product_url);
   const { data: existing } = await supabase.from("products").select("id").eq("user_id", user.id).eq("product_url", product.product_url).maybeSingle();
   if (existing) return { ok: true, duplicate: true };
   const { error } = await supabase.from("products").insert({
@@ -20248,7 +20263,7 @@ async function handleEnrichProduct(url, price, currency, specs) {
     await fetch(`${APP_URL}/api/enrich-product`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${access_token}` },
-      body: JSON.stringify({ url, price, currency, specs })
+      body: JSON.stringify({ url: normalizeProductUrl(url), price, currency, specs })
     });
   } catch {
   }
@@ -20316,7 +20331,7 @@ async function handleSaveFromListing(url) {
     const res = await fetch(`${APP_URL}/api/save-from-url`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${access_token}` },
-      body: JSON.stringify({ url })
+      body: JSON.stringify({ url: normalizeProductUrl(url) })
     });
     if (!res.ok) return { ok: false, error: `Server error ${res.status}` };
     return await res.json();
