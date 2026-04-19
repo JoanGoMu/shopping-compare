@@ -356,6 +356,19 @@ const LISTING_CONFIGS: Record<string, ListingConfig> = {
     insertTarget: 'self',
     insertPosition: 'afterbegin',
   },
+  'converse': {
+    // Converse listing cards are li elements containing a product image link
+    cardSelector: 'li[class*="product"], li[class*="Product"]',
+    linkSelector: 'a[href*="/shop/p/"]',
+    insertTarget: 'self',
+    insertPosition: 'afterbegin',
+  },
+  'drmartens': {
+    cardSelector: '[class*="product-item"], [class*="ProductItem"]',
+    linkSelector: 'a[href*="/p/"], a[href$=".html"]',
+    insertTarget: 'self',
+    insertPosition: 'afterbegin',
+  },
 };
 
 const LISTING_BTN_CLASS = 'cc-listing-save-btn';
