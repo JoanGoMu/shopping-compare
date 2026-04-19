@@ -1695,8 +1695,9 @@
       insertPosition: "afterbegin"
     },
     "zalando": {
-      cardSelector: '[class*="z-grid-item"], article[class*="Cat"]',
-      linkSelector: 'a[href*="/"]',
+      // Zalando product cards are <article> elements; product URLs end in .html
+      cardSelector: "article",
+      linkSelector: 'a[href$=".html"], a[href*="/p/"]',
       insertTarget: "self",
       insertPosition: "afterbegin"
     },
@@ -1722,10 +1723,9 @@
     return null;
   }
   function isListingPage() {
-    if (isLikelyProductPage()) return false;
     const config = getListingConfig();
     if (!config) return false;
-    return document.querySelectorAll(config.cardSelector).length >= 2;
+    return document.querySelectorAll(config.cardSelector).length >= 3;
   }
   function injectListingSaveButtons() {
     if (!chrome.runtime?.id) return;

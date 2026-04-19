@@ -1,6 +1,20 @@
 import * as cheerio from 'cheerio';
 import { normalizeSpecs } from './normalize-specs';
 
+function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&ndash;/g, '-')
+    .replace(/&mdash;/g, '-')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)));
+}
+
 export interface ExtractedProduct {
   name: string;
   price: number | null;
@@ -282,7 +296,7 @@ export function extractProductFromHtml(html: string, url: string): ExtractedProd
   const jsonLd = extractFromJsonLd($) ?? {};
   const og = extractFromOpenGraph($);
 
-  const name = (jsonLd.name ?? og.name ?? $('title').text() ?? 'Unknown product').trim().slice(0, 300);
+  const name = decodeHtmlEntities((jsonLd.name ?? og.name ?? $('title').text() ?? 'Unknown product').trim()).slice(0, 300);
   const price = jsonLd.price ?? og.price ?? null;
   const currency = jsonLd.currency ?? og.currency ?? 'USD';
 
