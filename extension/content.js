@@ -1689,11 +1689,13 @@
   }
   var LISTING_CONFIGS = {
     "amazon": {
-      cardSelector: '[data-component-type="s-search-result"]',
-      linkSelector: "h2 a",
-      nameSelector: "h2 span",
-      priceSelector: ".a-price .a-offscreen",
-      imageSelector: "img.s-image",
+      // Search results use [data-component-type="s-search-result"]
+      // Bestsellers / category pages use li[data-asin] inside #zg-ordered-list or #gridItemRoot
+      cardSelector: '[data-component-type="s-search-result"], #zg-ordered-list li[data-asin]:not([data-asin=""]), div[id^="gridItemRoot"] li[data-asin]:not([data-asin=""])',
+      linkSelector: 'h2 a, a[href*="/dp/"]',
+      nameSelector: 'h2 span, .p13n-sc-truncate-desktop-type2, .p13n-sc-truncate, [class*="line-clamp"]',
+      priceSelector: '.a-price .a-offscreen, .p13n-sc-price, [class*="p13n-sc-price"]',
+      imageSelector: "img.s-image, img.p13n-sc-dynamic-image, img",
       insertPosition: "afterbegin"
     },
     "zalando": {
@@ -1731,8 +1733,10 @@
   };
   function parseListingPrice(text) {
     const currency = text.includes("\u20AC") ? "EUR" : text.includes("\xA3") ? "GBP" : text.includes("\u20B9") ? "INR" : text.includes("$") ? "USD" : text.includes("\xA5") ? "JPY" : "USD";
-    let cleaned = text.replace(/[€£₹$¥\s]/g, "").trim();
-    if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(cleaned)) {
+    const match = text.match(/[\d.,]+/);
+    if (!match) return { price: null, currency };
+    let cleaned = match[0];
+    if (/,\d{1,2}$/.test(cleaned)) {
       cleaned = cleaned.replace(/\./g, "").replace(",", ".");
     } else {
       cleaned = cleaned.replace(/,/g, "");
