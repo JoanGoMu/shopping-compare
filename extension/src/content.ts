@@ -334,11 +334,12 @@ interface ListingConfig {
 // Per-domain config. linkSelector must resolve to an <a> with a product URL.
 const LISTING_CONFIGS: Record<string, ListingConfig> = {
   'amazon': {
-    cardSelector: '[data-component-type="s-search-result"]',
-    linkSelector: 'h2 a',
-    nameSelector: 'h2 span',
-    priceSelector: '.a-price .a-offscreen',
-    imageSelector: 'img.s-image',
+    // Search results + bestsellers/category pages (zg-item-immersion)
+    cardSelector: '[data-component-type="s-search-result"], li.zg-item-immersion',
+    linkSelector: 'h2 a, a.a-link-normal[href*="/dp/"]',
+    nameSelector: 'h2 span, .p13n-sc-truncate-desktop-type2, .p13n-sc-truncate',
+    priceSelector: '.a-price .a-offscreen, .p13n-sc-price',
+    imageSelector: 'img.s-image, img.p13n-sc-dynamic-image, img',
     insertPosition: 'afterbegin',
   },
   'zalando': {
@@ -382,11 +383,15 @@ function parseListingPrice(text: string): { price: number | null; currency: stri
     : text.includes('$') ? 'USD'
     : text.includes('¥') ? 'JPY'
     : 'USD';
-  let cleaned = text.replace(/[€£₹$¥\s]/g, '').trim();
-  // European format: 109,95 or 1.234,56
-  if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(cleaned)) {
+  // Extract first numeric token (handles prefixes like "Vanaf" / "From")
+  const match = text.match(/[\d.,]+/);
+  if (!match) return { price: null, currency };
+  let cleaned = match[0];
+  // European decimal: comma followed by exactly 1-2 digits at end → "109,95" or "1.234,56"
+  if (/,\d{1,2}$/.test(cleaned)) {
     cleaned = cleaned.replace(/\./g, '').replace(',', '.');
   } else {
+    // US format: commas are thousands separators → strip them
     cleaned = cleaned.replace(/,/g, '');
   }
   const price = parseFloat(cleaned);
