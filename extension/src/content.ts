@@ -325,38 +325,88 @@ function initWithRetry() {
 interface ListingConfig {
   cardSelector: string;       // CSS selector for each product card in the listing
   linkSelector: string;       // CSS selector for the anchor tag within the card
-  insertTarget: string;       // where to insert the button (relative to card)
+  nameSelector: string;       // CSS selector for product name text within the card
+  priceSelector: string;      // CSS selector for price text within the card
+  imageSelector: string;      // CSS selector for product image within the card
   insertPosition: InsertPosition;
 }
 
 // Per-domain config. linkSelector must resolve to an <a> with a product URL.
 const LISTING_CONFIGS: Record<string, ListingConfig> = {
   'amazon': {
-    cardSelector: '[data-component-type="s-search-result"], [data-asin]:not([data-asin=""])',
-    linkSelector: 'h2 a, a.a-link-normal[href*="/dp/"]',
-    insertTarget: 'self',
+    cardSelector: '[data-component-type="s-search-result"]',
+    linkSelector: 'h2 a',
+    nameSelector: 'h2 span',
+    priceSelector: '.a-price .a-offscreen',
+    imageSelector: 'img.s-image',
     insertPosition: 'afterbegin',
   },
   'zalando': {
-    // Zalando product cards are <article> elements; product URLs end in .html
     cardSelector: 'article',
     linkSelector: 'a[href$=".html"], a[href*="/p/"]',
-    insertTarget: 'self',
+    nameSelector: 'h3, p',
+    priceSelector: 'strong, [class*="price"]',
+    imageSelector: 'img',
     insertPosition: 'afterbegin',
   },
   'asos': {
     cardSelector: 'article[id^="product-"]',
     linkSelector: 'a[href*="/prd/"]',
-    insertTarget: 'self',
+    nameSelector: '[class*="product-description"] p, h3',
+    priceSelector: '[class*="price"] strong, [class*="price"]',
+    imageSelector: 'img',
     insertPosition: 'afterbegin',
   },
   'zara': {
     cardSelector: '[class*="product-grid-product"]',
     linkSelector: 'a[class*="product-link"], a[href*="/product"]',
-    insertTarget: 'self',
+    nameSelector: '[class*="product-name"], h2, p',
+    priceSelector: '[class*="price"]',
+    imageSelector: 'img',
+    insertPosition: 'afterbegin',
+  },
+  'nike': {
+    cardSelector: '[class*="product-card"], figure[class*="product"]',
+    linkSelector: 'a[href*="/t/"], a[href*="/w/"]',
+    nameSelector: 'div[class*="title"], p[class*="title"]',
+    priceSelector: 'div[class*="price"]',
+    imageSelector: 'img',
     insertPosition: 'afterbegin',
   },
 };
+
+function parseListingPrice(text: string): { price: number | null; currency: string } {
+  const currency = text.includes('€') ? 'EUR'
+    : text.includes('£') ? 'GBP'
+    : text.includes('₹') ? 'INR'
+    : text.includes('$') ? 'USD'
+    : text.includes('¥') ? 'JPY'
+    : 'USD';
+  let cleaned = text.replace(/[€£₹$¥\s]/g, '').trim();
+  // European format: 109,95 or 1.234,56
+  if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(cleaned)) {
+    cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+  } else {
+    cleaned = cleaned.replace(/,/g, '');
+  }
+  const price = parseFloat(cleaned);
+  return { price: isNaN(price) ? null : price, currency };
+}
+
+function extractFromListingCard(card: HTMLElement, config: ListingConfig) {
+  const nameEl = card.querySelector(config.nameSelector);
+  const name = (nameEl?.textContent ?? '').trim().replace(/\s+/g, ' ') || 'Unknown product';
+
+  const priceEl = card.querySelector(config.priceSelector);
+  const { price, currency } = parseListingPrice((priceEl?.textContent ?? '').trim());
+
+  const imgEl = card.querySelector<HTMLImageElement>(config.imageSelector);
+  // Try data-src first (lazy loaded images)
+  const image_url = imgEl?.src && !imgEl.src.startsWith('data:') ? imgEl.src
+    : imgEl?.dataset.src ?? null;
+
+  return { name, price, currency, image_url };
+}
 
 const LISTING_BTN_CLASS = 'cc-listing-save-btn';
 
@@ -436,31 +486,53 @@ function injectListingSaveButtons() {
       btn.style.pointerEvents = 'none';
 
       const productUrl = link.href;
-      chrome.runtime.sendMessage(
-        { type: 'SAVE_FROM_LISTING', url: productUrl },
-        (response) => {
-          if (chrome.runtime.lastError || !response) {
-            btn.textContent = '+';
-            btn.style.pointerEvents = 'auto';
-            return;
-          }
-          if (response.duplicate) {
-            btn.textContent = '✓';
-            btn.style.background = '#6b7280';
-          } else if (response.ok) {
-            btn.textContent = '✓';
-            btn.style.background = '#059669';
-          } else {
-            btn.textContent = '!';
-            btn.style.background = '#dc2626';
-            setTimeout(() => {
-              btn.textContent = '+';
-              btn.style.background = 'rgba(196, 96, 60, 0.92)';
-              btn.style.pointerEvents = 'auto';
-            }, 2000);
-          }
+      const domain = window.location.hostname.replace(/^www\./, '');
+      const parts = domain.split('.');
+      const storeName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+      const { name, price, currency, image_url } = extractFromListingCard(card, config);
+
+      // Save immediately with what we can read from the card
+      const product = {
+        name,
+        price,
+        currency,
+        image_url,
+        images: image_url ? [image_url] : [],
+        product_url: productUrl,
+        store_name: storeName,
+        store_domain: domain,
+        specs: {},
+      };
+
+      chrome.runtime.sendMessage({ type: 'SAVE_PRODUCT', product }, (response) => {
+        if (chrome.runtime.lastError || !response) {
+          btn.textContent = '+';
+          btn.style.pointerEvents = 'auto';
+          return;
         }
-      );
+        if (response.duplicate) {
+          btn.textContent = '✓';
+          btn.style.background = '#6b7280';
+        } else if (response.ok) {
+          btn.textContent = '✓';
+          btn.style.background = '#059669';
+          // Open hidden iframe to product page so the content script can do a full
+          // JS-enabled extraction and enrich the record with specs, images, real price
+          const iframe = document.createElement('iframe');
+          iframe.src = productUrl;
+          iframe.style.cssText = 'position:fixed;width:1px;height:1px;top:-9999px;left:-9999px;opacity:0;pointer-events:none;border:none;';
+          window.setTimeout(() => iframe.remove(), 20000);
+          document.documentElement.appendChild(iframe);
+        } else {
+          btn.textContent = '!';
+          btn.style.background = '#dc2626';
+          setTimeout(() => {
+            btn.textContent = '+';
+            btn.style.background = 'rgba(196, 96, 60, 0.92)';
+            btn.style.pointerEvents = 'auto';
+          }, 2000);
+        }
+      });
     });
 
     // Cards need relative positioning for the absolute button

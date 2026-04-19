@@ -1689,31 +1689,66 @@
   }
   var LISTING_CONFIGS = {
     "amazon": {
-      cardSelector: '[data-component-type="s-search-result"], [data-asin]:not([data-asin=""])',
-      linkSelector: 'h2 a, a.a-link-normal[href*="/dp/"]',
-      insertTarget: "self",
+      cardSelector: '[data-component-type="s-search-result"]',
+      linkSelector: "h2 a",
+      nameSelector: "h2 span",
+      priceSelector: ".a-price .a-offscreen",
+      imageSelector: "img.s-image",
       insertPosition: "afterbegin"
     },
     "zalando": {
-      // Zalando product cards are <article> elements; product URLs end in .html
       cardSelector: "article",
       linkSelector: 'a[href$=".html"], a[href*="/p/"]',
-      insertTarget: "self",
+      nameSelector: "h3, p",
+      priceSelector: 'strong, [class*="price"]',
+      imageSelector: "img",
       insertPosition: "afterbegin"
     },
     "asos": {
       cardSelector: 'article[id^="product-"]',
       linkSelector: 'a[href*="/prd/"]',
-      insertTarget: "self",
+      nameSelector: '[class*="product-description"] p, h3',
+      priceSelector: '[class*="price"] strong, [class*="price"]',
+      imageSelector: "img",
       insertPosition: "afterbegin"
     },
     "zara": {
       cardSelector: '[class*="product-grid-product"]',
       linkSelector: 'a[class*="product-link"], a[href*="/product"]',
-      insertTarget: "self",
+      nameSelector: '[class*="product-name"], h2, p',
+      priceSelector: '[class*="price"]',
+      imageSelector: "img",
+      insertPosition: "afterbegin"
+    },
+    "nike": {
+      cardSelector: '[class*="product-card"], figure[class*="product"]',
+      linkSelector: 'a[href*="/t/"], a[href*="/w/"]',
+      nameSelector: 'div[class*="title"], p[class*="title"]',
+      priceSelector: 'div[class*="price"]',
+      imageSelector: "img",
       insertPosition: "afterbegin"
     }
   };
+  function parseListingPrice(text) {
+    const currency = text.includes("\u20AC") ? "EUR" : text.includes("\xA3") ? "GBP" : text.includes("\u20B9") ? "INR" : text.includes("$") ? "USD" : text.includes("\xA5") ? "JPY" : "USD";
+    let cleaned = text.replace(/[€£₹$¥\s]/g, "").trim();
+    if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(cleaned)) {
+      cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+    } else {
+      cleaned = cleaned.replace(/,/g, "");
+    }
+    const price = parseFloat(cleaned);
+    return { price: isNaN(price) ? null : price, currency };
+  }
+  function extractFromListingCard(card, config) {
+    const nameEl = card.querySelector(config.nameSelector);
+    const name = (nameEl?.textContent ?? "").trim().replace(/\s+/g, " ") || "Unknown product";
+    const priceEl = card.querySelector(config.priceSelector);
+    const { price, currency } = parseListingPrice((priceEl?.textContent ?? "").trim());
+    const imgEl = card.querySelector(config.imageSelector);
+    const image_url = imgEl?.src && !imgEl.src.startsWith("data:") ? imgEl.src : imgEl?.dataset.src ?? null;
+    return { name, price, currency, image_url };
+  }
   var LISTING_BTN_CLASS = "cc-listing-save-btn";
   function getListingConfig() {
     const host = window.location.hostname.replace(/^www\./, "");
@@ -1780,31 +1815,48 @@
         btn.textContent = "...";
         btn.style.pointerEvents = "none";
         const productUrl = link.href;
-        chrome.runtime.sendMessage(
-          { type: "SAVE_FROM_LISTING", url: productUrl },
-          (response) => {
-            if (chrome.runtime.lastError || !response) {
-              btn.textContent = "+";
-              btn.style.pointerEvents = "auto";
-              return;
-            }
-            if (response.duplicate) {
-              btn.textContent = "\u2713";
-              btn.style.background = "#6b7280";
-            } else if (response.ok) {
-              btn.textContent = "\u2713";
-              btn.style.background = "#059669";
-            } else {
-              btn.textContent = "!";
-              btn.style.background = "#dc2626";
-              setTimeout(() => {
-                btn.textContent = "+";
-                btn.style.background = "rgba(196, 96, 60, 0.92)";
-                btn.style.pointerEvents = "auto";
-              }, 2e3);
-            }
+        const domain = window.location.hostname.replace(/^www\./, "");
+        const parts = domain.split(".");
+        const storeName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+        const { name, price, currency, image_url } = extractFromListingCard(card, config);
+        const product = {
+          name,
+          price,
+          currency,
+          image_url,
+          images: image_url ? [image_url] : [],
+          product_url: productUrl,
+          store_name: storeName,
+          store_domain: domain,
+          specs: {}
+        };
+        chrome.runtime.sendMessage({ type: "SAVE_PRODUCT", product }, (response) => {
+          if (chrome.runtime.lastError || !response) {
+            btn.textContent = "+";
+            btn.style.pointerEvents = "auto";
+            return;
           }
-        );
+          if (response.duplicate) {
+            btn.textContent = "\u2713";
+            btn.style.background = "#6b7280";
+          } else if (response.ok) {
+            btn.textContent = "\u2713";
+            btn.style.background = "#059669";
+            const iframe = document.createElement("iframe");
+            iframe.src = productUrl;
+            iframe.style.cssText = "position:fixed;width:1px;height:1px;top:-9999px;left:-9999px;opacity:0;pointer-events:none;border:none;";
+            window.setTimeout(() => iframe.remove(), 2e4);
+            document.documentElement.appendChild(iframe);
+          } else {
+            btn.textContent = "!";
+            btn.style.background = "#dc2626";
+            setTimeout(() => {
+              btn.textContent = "+";
+              btn.style.background = "rgba(196, 96, 60, 0.92)";
+              btn.style.pointerEvents = "auto";
+            }, 2e3);
+          }
+        });
       });
       const pos = getComputedStyle(card).position;
       if (pos === "static") card.style.position = "relative";
