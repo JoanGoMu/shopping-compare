@@ -243,4 +243,42 @@ Supports: S/M/L/XL, 2XL, 38, 36-38, 42/44, EU 38, US 6, UK 10
 Run SQL in Supabase dashboard: `docs/schema_store_extractors.sql`
 Add `ANTHROPIC_API_KEY` to Vercel env vars and `.env.local`.
 
-## No open issues as of Apr 17 2026
+## Changes Apr 19 2026
+
+### Post-launch fixes (shoes testing)
+- **Dutch spec labels**: `normalize-specs.ts` (both copies) extended with Dutch shoe terms (bovenmateriaal -> Material, binnenzool/dekzool/buitenzool -> Sole, binnenmateriaal -> Lining). Substring map additions: `zool`, `materiaal`, `voering`.
+- **Render-time normalization**: `CompareTable.tsx` and `PublicCompareTable.tsx` apply `normalizeSpecs()` at render time so existing stored data with foreign keys displays correctly without DB migration.
+- **Category-aware spec display**: `CompareTable.tsx` + `PublicCompareTable.tsx` now auto-detect category (shoes/clothing/electronics/beauty/home/default) from spec keys + product names. Priority spec ordering per category (CATEGORY_SPECS map + detectCategory() function).
+- **AI spec translations**: `StoreSelectorRules` extended with `category`, `detected_currency`, `spec_translations` fields. AI extractor (`/api/generate-extractor`) now returns these. Extension `content.ts` applies them via `applySpecTranslations()`. `store_extractors` table needs 3 new columns (SQL: `alter table store_extractors add column if not exists category text, add column if not exists spec_translations jsonb default '{}', add column if not exists detected_currency text`).
+- **Converse EUR fix**: Converse extractor in `extractor.ts` uses TLD-based currency detection (EU country TLDs -> EUR, .co.uk -> GBP).
+- **Amazon INR fix**: Amazon extractor currency IIFE with full regional TLD map. `parsePrice()` now detects INR (₹), JPY (¥), KRW (₩), TRY (₺), PLN (zł), CHF.
+- **Price history RLS**: `price_history` table needed SELECT policy. SQL to run: `create policy "Authenticated users can read price history" on price_history for select to authenticated using (true);` - user must run this in Supabase SQL Editor.
+- **Email alerts**: Product names in price alert emails now link directly to store product URL. "View on [store]" link added per product row.
+- **PriceSparkline**: Responsive SVG with viewBox + percentage width (max-w-[140px]). vectorEffect="non-scaling-stroke". Price labels as HTML flex row below chart (start left, current right, colored by trend). N prices tracked text. Dots with tooltip.
+
+### UI improvements
+- **Delete button**: Redesigned from white/bordered to `bg-black/60 text-white hover:bg-red-500` - dark pill that turns red on hover.
+- **ProductDetailPanel**: New left slide-over panel (`src/components/ProductDetailPanel.tsx`). Opens when clicking a product card. Shows: image carousel, store favicon+name, product name, price with trend indicator, price history sparkline, Buy button (affiliate URL), all specs (normalized), notes textarea (auto-save on blur), alert toggle, delete with confirm. Closes on Escape or backdrop click.
+- **ProductCard**: Click now opens detail panel (not toggle select). Checkbox in top-right still toggles selection (stopPropagation). New `onOpenDetail` prop added.
+- **ProductGrid**: Manages `detailProductId` state. Passes `onOpenDetail` to ProductCard. Renders ProductDetailPanel when active. `handleNotesUpdated` syncs notes back to items state.
+
+### Extension: carousel/listing save (Point 3)
+- **contextMenus permission** added to `manifest.json`.
+- **Right-click "Save to CompareCart"**: context menu on page + link contexts. For current page: sends CONTEXT_MENU_SAVE to content script. For linked URLs: calls `/api/save-from-url` server-side. Shows inline toast feedback via executeScript.
+- **Mini "+" save buttons**: injected on Amazon/Zalando/ASOS/Zara listing/carousel pages. Per-domain config (LISTING_CONFIGS) with card/link selectors. Dark terracotta circle button top-right of each card, turns green on save or grey on duplicate. MutationObserver re-injects on infinite scroll.
+- **SAVE_FROM_LISTING** message handler in `background.ts` calls `/api/save-from-url`.
+- **`/api/save-from-url`** endpoint: validates URL, checks for duplicate, fetches page server-side, extracts product via `extractProductFromHtml()`, inserts to user's products.
+
+## Supabase: pending SQL
+Run in Supabase SQL Editor:
+```sql
+-- Price history RLS (required for sparklines to show)
+create policy "Authenticated users can read price history"
+  on price_history for select to authenticated using (true);
+
+-- AI extractor new columns
+alter table store_extractors
+  add column if not exists category text,
+  add column if not exists spec_translations jsonb default '{}',
+  add column if not exists detected_currency text;
+```

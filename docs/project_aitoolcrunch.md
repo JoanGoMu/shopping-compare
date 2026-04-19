@@ -27,9 +27,9 @@ An affiliate comparison website for AI tools at **aitoolcrunch.com**. Revenue mo
 - **Automation:** GitHub Actions cron (daily 6am UTC) — scrapes Product Hunt + RSS feeds
 - **Node.js:** installed via Homebrew at `/opt/homebrew/opt/node@20/bin/` (must use `export PATH="/opt/homebrew/opt/node@20/bin:$PATH"` in terminal)
 
-## Current site content (as of April 16, 2026)
+## Current site content (as of April 19, 2026)
 
-**37 tools across 6 categories:**
+**39+ tools across 6 categories (all have bestFor, keyStrength, scores fields). Bot adds new tools daily from PH RSS.**
 - AI Writing: jasper, copy-ai, writesonic, rytr, claude, chatgpt, gemini, perplexity, generateppt, notebooklm
 - AI Image: midjourney, dall-e, leonardo-ai, ideogram, apimage (+ chatgpt cross-listed)
 - AI Code: github-copilot, cursor, tabnine, goose, mercury-edit, codictate, openclaw (+ claude, chatgpt, gemini cross-listed)
@@ -37,17 +37,13 @@ An affiliate comparison website for AI tools at **aitoolcrunch.com**. Revenue mo
 - AI Audio: elevenlabs, descript, murf-ai, voiceos, fluently
 - AI Automation: make, n8n, gumloop (+ openclaw cross-listed)
 
-**142 comparison pages** - full intra-category coverage achieved April 16, 2026. No gaps remain.
+**169+ comparison pages** - full intra-category coverage for all active tools (affiliate filter removed Apr 19). Comparisons getting editorial body content: 5 enriched per daily bot run (~34 days to cover all).
 
-**6 categories:** ai-writing, ai-image, ai-code, ai-video, ai-audio, ai-automation
+**6 categories:** ai-writing, ai-image, ai-code, ai-video, ai-audio, ai-automation (nav tab added Apr 19)
 
-**37 blog posts** (last updated April 17, 2026). Author for all new posts: "AIToolCrunch". Older posts have fake author names (alex-chen, sara-morales, etc.) - not yet backfilled.
+**43+ blog posts** (as of April 19, 2026). All AIToolCrunch-authored posts rewritten with rich HTML. Bot generates 2 new posts/day.
 
-Recent posts (Apr 17): claude-opus-4-7-launch, claude-code-routines-saved-workflows, qwen-3-6-open-source-beats-opus, openai-codex-2-claude-code-competitor, chatgpt-for-excel-spreadsheets
-
-Recent posts (Apr 16): anthropic-cowork-claude-desktop-agent, coding-agent-infrastructure-freestyle-twill, nouscoder-14b-open-source-coding-model, claudraband-claude-code-power-user-tools, gaia-local-ai-agents-framework
-
-**RSS items still uncovered:** Railway $100M raise, CSS Studio, Eve (managed OpenClaw), sllm, Hippo memory framework, LangAlpha (Claude Code for finance, 131 HN pts), CodeBurn (token usage analyzer, 88 HN pts), GPT-Rosalind (OpenAI life sciences), Kampala YC W26.
+**SEO status (Apr 19):** 4/267 pages indexed by Google after 3 weeks. Sitemap correct (267 URLs as of Apr 19). Google deprecated sitemap ping in 2023 - indexing happens organically. 267 URLs manually submitted to GSC on Apr 19. Weekly index report workflow now automates delta reporting each Sunday.
 
 ## Affiliate programs — full status (as of April 16, 2026)
 
@@ -102,35 +98,57 @@ Perplexity, Tabnine (enterprise partner program), Pika, Ideogram, n8n (credits n
 
 ```
 data/
-  tools/*.json          — one file per tool (37 files)
-  categories.json       — 6 categories
-  comparisons.json      — 142 comparison page definitions
-  deals.json            — empty (no deals yet)
-  affiliate-links.json  — affiliate URLs and statuses
-  blog/*.json           — 32 blog post files
-  blog-ideas.json       — populated daily by GitHub Actions scraper
-  rss-feed-items.json   — AI news from RSS feeds, updated daily
+  tools/*.json               — one file per tool (37 files, all have bestFor/keyStrength/scores)
+  categories.json            — 6 categories
+  comparisons.json           — 169 comparison definitions (body field being backfilled 5/day)
+  deals.json                 — empty (no deals yet)
+  affiliate-links.json       — affiliate URLs and statuses
+  blog/*.json                — 41 blog post files
+  blog-ideas.json            — populated daily by GitHub Actions scraper
+  blog-published-urls.json   — tracks source URLs already turned into posts (dedup)
+  tool-generated-urls.json   — tracks PH RSS URLs already processed for tools (dedup)
+  rss-feed-items.json        — AI news from RSS feeds, updated daily
+  bot-log.txt                — permanent append-only log of all bot activity (newest first)
+  bot-log-latest.txt         — current run only, used for commit message body
+  indexed-urls.txt           — sorted list of all sitemap URLs seen by weekly index workflow
 
 src/
   app/page.tsx                    — homepage
-  app/tools/[slug]/page.tsx       — tool detail pages
+  app/tools/[slug]/page.tsx       — tool detail pages (description paragraphs, bestFor/keyStrength cards, score bars)
   app/category/[slug]/page.tsx    — category pages
-  app/compare/[slug]/page.tsx     — comparison pages
-  app/blog/[slug]/page.tsx        — blog post pages
+  app/compare/[slug]/page.tsx     — comparison pages (renders body field as rich prose HTML)
+  app/blog/[slug]/page.tsx        — blog post pages (full prose HTML via dangerouslySetInnerHTML)
   app/deals/page.tsx              — deals page
-  app/sitemap.ts                  — auto-generated sitemap
-  lib/types.ts                    — TypeScript interfaces
+  app/sitemap.ts                  — auto-generated sitemap (264 URLs)
+  lib/types.ts                    — TypeScript interfaces (Comparison now has body?: string)
   lib/data.ts                     — data loading functions
+  lib/constants.ts                — NAV_LINKS (includes ai-automation tab)
   lib/affiliates.ts               — affiliate link resolution
   lib/seo.ts                      — metadata + Google verification
 
 scripts/
-  scrapers/product-hunt.ts    — scrapes PH for new AI tools
-  scrapers/rss-feeds.ts       — scrapes TechCrunch/VentureBeat/PH RSS
-  generators/generate-comparisons.ts  — auto-generates comparison entries
+  scrapers/rss-feeds.ts                    — scrapes TechCrunch/VentureBeat/PH RSS
+  scrapers/blog-ideas.ts                   — scrapes HN/Reddit/tech news for blog ideas
+  generators/generate-comparisons.ts       — auto-generates comparison entries (all active tools, alphabetical slugs)
+  generators/generate-blog-posts.ts        — daily: picks 2 ideas, writes rich HTML posts, enriches 5 comparisons
+  generators/generate-tools.ts             — daily: generates new tool pages from PH RSS items
+  generators/enrich-existing.ts            — one-shot: rewrite old posts + populate tool fields
+  generators/retry-failed-posts.ts         — one-shot: retry posts that failed JSON parsing
 
 .github/workflows/scrape-tools.yml  — daily cron at 6am UTC
+.github/workflows/weekly-index.yml  — weekly cron Sundays 8am UTC, reports new sitemap URLs for GSC
 ```
+
+## Daily bot workflow (GitHub Actions, 6am UTC)
+
+1. RSS feed scraper → rss-feed-items.json
+2. Comparison generator → comparisons.json (new tools get comparison pages)
+3. Blog ideas scraper → blog-ideas.json
+4. Tool generator → data/tools/*.json (new tools from PH RSS, status: active)
+5. Blog post generator → data/blog/*.json (2 posts) + enriches 5 comparisons with body content
+6. Commit with detailed message listing all new URLs → push → Netlify auto-deploys
+
+Bot log: data/bot-log.txt (permanent, newest first) | data/bot-log-latest.txt (current run only)
 
 ## Tool JSON schema (for adding new tools)
 
@@ -235,19 +253,24 @@ git push
 4. Apply for Cursor affiliate (cursor.com/affiliate - next wave, high traffic)
 5. When any affiliate approved: update data/affiliate-links.json status + URL, push
 
-**Growth:**
+**SEO / Growth:**
 6. Set up Google Analytics 4 (still not done - can't measure traffic)
 7. Share on Reddit: r/artificial, r/SideProject, r/MachineLearning
 8. Submit to directories: Product Hunt, IndieHackers, BetaList
-9. Blog: keep 3-5 posts/week cadence using RSS scraper items
-10. Add "Best of" roundup posts for video, audio, automation categories
+9. Google Search Console: 267 URLs manually submitted Apr 19. Weekly workflow (weekly-index.yml) now reports new URLs every Sunday automatically - check Actions > "Weekly Index Report" > Summary tab each week and paste new URLs into GSC URL Inspection.
+10. Consider adding internal links from homepage/category pages to boost crawl priority
 
-**Technical improvements:**
-11. Add JSON-LD structured data (SoftwareApplication schema for tools)
-12. Add email newsletter signup (Buttondown free tier)
-13. Add Claude API to GitHub Actions for fully automated content generation
-    - Needs Anthropic API key (pay-as-you-go, separate from Claude Pro)
-    - claude-haiku-4-5 costs ~$0.01 per page generated
+**Automation (all running):**
+- Blog: 2 posts/day auto-generated with rich HTML, external links, varied structure
+- Tools: new tools from Product Hunt RSS auto-published daily
+- Comparisons: all pairs auto-generated; body content enriched 5/day (~34 days to cover all 169)
+- Bot log: data/bot-log.txt shows all activity
+
+**Content quality (done Apr 19):**
+- All 24 auto blog posts rewritten with rich HTML
+- All 37 tools now have bestFor, keyStrength, easeOfUse, learningCurve scores
+- Tool pages render description as paragraphs + callout cards + score bars
+- Comparison pages render editorial body content between verdict and pros/cons
 
 ## Known issues / decisions
 
@@ -256,6 +279,8 @@ git push
 - `scripts/` directory excluded from tsconfig to avoid build errors
 - RSS scraper had a hanging issue - fixed with 15s per-feed timeout wrapper
 - Copy.ai affiliate program was confirmed closed/discontinued April 2026
+- Claude Haiku sometimes returns markdown fences (```html, ```json) or a full JSON blob instead of raw HTML, even when instructed not to. Fixed in generate-blog-posts.ts and retry-failed-posts.ts via `extractHtmlContent()` which strips fences and extracts the `content` key if the response is JSON. Always apply this to any new script that requests raw HTML from the API.
+- Em dashes in titles/excerpts: `cleanContent()` must be applied to ALL text fields (title, excerpt, content), not just content. `validatePost()` in generate-blog-posts.ts now does this.
 
 ## Joan's preferences
 
