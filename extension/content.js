@@ -1797,6 +1797,13 @@
             if (response.duplicate) {
               btn.style.background = "#6b7280";
             }
+            if (response.ok && !response.duplicate) {
+              const iframe = document.createElement("iframe");
+              iframe.src = productUrl;
+              iframe.style.cssText = "position:fixed;width:1px;height:1px;top:-9999px;left:-9999px;opacity:0;pointer-events:none;border:none;";
+              window.setTimeout(() => iframe.remove(), 25e3);
+              document.documentElement.appendChild(iframe);
+            }
           }
         );
       });
