@@ -1689,12 +1689,11 @@
   }
   var LISTING_CONFIGS = {
     "amazon": {
-      // Search results + bestsellers/category pages (zg-item-immersion)
-      cardSelector: '[data-component-type="s-search-result"], li.zg-item-immersion',
-      linkSelector: 'h2 a, a.a-link-normal[href*="/dp/"]',
-      nameSelector: "h2 span, .p13n-sc-truncate-desktop-type2, .p13n-sc-truncate",
-      priceSelector: ".a-price .a-offscreen, .p13n-sc-price",
-      imageSelector: "img.s-image, img.p13n-sc-dynamic-image, img",
+      cardSelector: '[data-component-type="s-search-result"]',
+      linkSelector: "h2 a",
+      nameSelector: "h2 span",
+      priceSelector: ".a-price .a-offscreen",
+      imageSelector: "img.s-image",
       insertPosition: "afterbegin"
     },
     "zalando": {
@@ -1732,10 +1731,8 @@
   };
   function parseListingPrice(text) {
     const currency = text.includes("\u20AC") ? "EUR" : text.includes("\xA3") ? "GBP" : text.includes("\u20B9") ? "INR" : text.includes("$") ? "USD" : text.includes("\xA5") ? "JPY" : "USD";
-    const match = text.match(/[\d.,]+/);
-    if (!match) return { price: null, currency };
-    let cleaned = match[0];
-    if (/,\d{1,2}$/.test(cleaned)) {
+    let cleaned = text.replace(/[€£₹$¥\s]/g, "").trim();
+    if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(cleaned)) {
       cleaned = cleaned.replace(/\./g, "").replace(",", ".");
     } else {
       cleaned = cleaned.replace(/,/g, "");
