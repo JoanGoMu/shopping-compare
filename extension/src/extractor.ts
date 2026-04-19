@@ -1021,15 +1021,9 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
       const raw = document.querySelector<HTMLElement>('[class*="product-price"], [class*="ProductPrice"], [class*="price"]')?.textContent;
       return raw ? parsePrice(raw).price : null;
     })(),
-    currency: (() => {
-      // Converse embeds USD in meta tags globally even on EU/UK regional sites.
-      // Override based on TLD which reliably reflects the store's local currency.
-      const host = window.location.hostname;
-      if (/\.co\.uk$/i.test(host)) return 'GBP';
-      if (/\.(nl|de|fr|es|it|be|at|pt|pl|se|dk|fi|ie|cz|ro|hu|bg|sk|si|hr|lt|lv|ee)$/i.test(host)) return 'EUR';
-      const meta = document.querySelector<HTMLMetaElement>('meta[property="product:price:currency"]')?.content;
-      return meta || 'USD';
-    })(),
+    // Currency intentionally omitted - the meta tag always contains "USD" regardless of region.
+    // The AI extractor (detected_currency) handles this correctly per domain.
+    currency: null,
     image_url: document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? null,
     specs: (() => {
       const specs: Record<string, string> = {};

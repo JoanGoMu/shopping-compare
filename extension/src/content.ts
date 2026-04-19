@@ -360,12 +360,53 @@ const LISTING_CONFIGS: Record<string, ListingConfig> = {
 
 const LISTING_BTN_CLASS = 'cc-listing-save-btn';
 
+// Generic product card patterns tried in order; first one with 4+ valid cards wins.
+// More specific selectors first to avoid false positives on product detail pages.
+const GENERIC_CARD_PATTERNS = [
+  '[class*="product-card"]',
+  '[class*="ProductCard"]',
+  '[class*="product-item"]',
+  '[class*="ProductItem"]',
+  '[class*="product-tile"]',
+  '[class*="product-cell"]',
+  '[class*="product-grid-item"]',
+  '[class*="product-list-item"]',
+];
+
+// Product URL patterns - links must match one of these to be considered a product link
+const PRODUCT_LINK_RE = /\/(product|shop|p|item|dp|prd|pd)\/|\.html$|\/[A-Z0-9]{6,}$/i;
+
+function detectGenericListingCards(): ListingConfig | null {
+  // Only run on non-product pages (listing/category pages)
+  if (isLikelyProductPage()) return null;
+
+  for (const selector of GENERIC_CARD_PATTERNS) {
+    const cards = Array.from(document.querySelectorAll<HTMLElement>(selector));
+    // Require 4+ cards each containing an image and a product-like link
+    const valid = cards.filter((c) => {
+      const img = c.querySelector('img');
+      const link = c.querySelector<HTMLAnchorElement>('a[href]');
+      return img && link?.href && PRODUCT_LINK_RE.test(link.href);
+    });
+    if (valid.length >= 4) {
+      return {
+        cardSelector: selector,
+        linkSelector: 'a[href]',
+        insertTarget: 'self',
+        insertPosition: 'afterbegin',
+      };
+    }
+  }
+  return null;
+}
+
 function getListingConfig(): ListingConfig | null {
   const host = window.location.hostname.replace(/^www\./, '');
   for (const [key, config] of Object.entries(LISTING_CONFIGS)) {
     if (host.includes(key)) return config;
   }
-  return null;
+  // Fall back to generic detection for unlisted stores
+  return detectGenericListingCards();
 }
 
 function isListingPage(): boolean {
@@ -396,35 +437,38 @@ function injectListingSaveButtons() {
     btn.style.cssText = `
       all: initial;
       position: absolute;
-      top: 6px;
-      right: 6px;
+      bottom: 8px;
+      left: 8px;
       z-index: 100;
-      width: 28px;
-      height: 28px;
-      background: rgba(196, 96, 60, 0.92);
+      width: 26px;
+      height: 26px;
+      background: rgba(196, 96, 60, 0.85);
       color: white;
       border: none;
       border-radius: 50%;
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 700;
       line-height: 1;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-      transition: background 0.15s ease, transform 0.15s ease;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      transition: background 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      opacity: 0.7;
     `;
     btn.textContent = '+';
 
     btn.addEventListener('mouseenter', () => {
       btn.style.background = '#A84E30';
       btn.style.transform = 'scale(1.1)';
+      btn.style.opacity = '1';
     });
     btn.addEventListener('mouseleave', () => {
-      btn.style.background = 'rgba(196, 96, 60, 0.92)';
+      btn.style.background = 'rgba(196, 96, 60, 0.85)';
       btn.style.transform = 'scale(1)';
+      btn.style.opacity = '0.7';
     });
 
     btn.addEventListener('click', (e) => {
@@ -446,7 +490,8 @@ function injectListingSaveButtons() {
             btn.style.background = '#dc2626';
             setTimeout(() => {
               btn.textContent = '+';
-              btn.style.background = 'rgba(196, 96, 60, 0.92)';
+              btn.style.background = 'rgba(196, 96, 60, 0.85)';
+              btn.style.opacity = '0.7';
               btn.style.pointerEvents = 'auto';
             }, 2000);
             return;
