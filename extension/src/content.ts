@@ -482,14 +482,16 @@ function injectListingSaveButtons() {
       e.preventDefault();
       if (!chrome.runtime?.id) return;
 
-      btn.textContent = '...';
-      btn.style.pointerEvents = 'none';
-
       const productUrl = link.href;
       const domain = window.location.hostname.replace(/^www\./, '');
       const parts = domain.split('.');
       const storeName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
       const { name, price, currency, image_url } = extractFromListingCard(card, config);
+
+      // Optimistic UI: show saved immediately, revert only on failure
+      btn.textContent = '✓';
+      btn.style.background = '#059669';
+      btn.style.pointerEvents = 'none';
 
       // Save immediately with what we can read from the card
       const product = {
@@ -505,25 +507,8 @@ function injectListingSaveButtons() {
       };
 
       chrome.runtime.sendMessage({ type: 'SAVE_PRODUCT', product }, (response) => {
-        if (chrome.runtime.lastError || !response) {
-          btn.textContent = '+';
-          btn.style.pointerEvents = 'auto';
-          return;
-        }
-        if (response.duplicate) {
-          btn.textContent = '✓';
-          btn.style.background = '#6b7280';
-        } else if (response.ok) {
-          btn.textContent = '✓';
-          btn.style.background = '#059669';
-          // Open hidden iframe to product page so the content script can do a full
-          // JS-enabled extraction and enrich the record with specs, images, real price
-          const iframe = document.createElement('iframe');
-          iframe.src = productUrl;
-          iframe.style.cssText = 'position:fixed;width:1px;height:1px;top:-9999px;left:-9999px;opacity:0;pointer-events:none;border:none;';
-          window.setTimeout(() => iframe.remove(), 20000);
-          document.documentElement.appendChild(iframe);
-        } else {
+        if (chrome.runtime.lastError || !response || (!response.ok && !response.duplicate)) {
+          // Revert on failure
           btn.textContent = '!';
           btn.style.background = '#dc2626';
           setTimeout(() => {
@@ -531,6 +516,18 @@ function injectListingSaveButtons() {
             btn.style.background = 'rgba(196, 96, 60, 0.92)';
             btn.style.pointerEvents = 'auto';
           }, 2000);
+          return;
+        }
+        if (response.duplicate) {
+          btn.style.background = '#6b7280'; // grey for already saved
+        }
+        // On success: open hidden iframe for full JS-enabled enrichment (specs, images, real price)
+        if (response.ok && !response.duplicate) {
+          const iframe = document.createElement('iframe');
+          iframe.src = productUrl;
+          iframe.style.cssText = 'position:fixed;width:1px;height:1px;top:-9999px;left:-9999px;opacity:0;pointer-events:none;border:none;';
+          window.setTimeout(() => iframe.remove(), 20000);
+          document.documentElement.appendChild(iframe);
         }
       });
     });
