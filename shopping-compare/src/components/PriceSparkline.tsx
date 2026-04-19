@@ -13,43 +13,32 @@ function Sparkline({ points, currency }: { points: PricePoint[]; currency: strin
   const max = Math.max(...prices);
   const range = max - min || 1;
 
-  const W = 160;
-  const H = 36;
-  const padX = 4;
-  const padY = 14; // vertical padding for labels above/below the line
-
   const fmt = (p: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(p);
-
-  const coords = points.map((p, i) => {
-    const x = padX + (i / (points.length - 1)) * (W - padX * 2);
-    const y = padY + (1 - (p.price - min) / range) * (H - padY * 2);
-    return { x, y, price: p.price, date: p.recorded_at };
-  });
 
   const current = points[points.length - 1].price;
   const first = points[0].price;
   const trend = current < first ? 'down' : current > first ? 'up' : 'flat';
   const color = trend === 'down' ? '#16a34a' : trend === 'up' ? '#ef4444' : '#C4603C';
 
-  // Show label at first and last point always; for intermediate points only when <= 4 total
-  const showLabelAt = (i: number) =>
-    i === 0 || i === points.length - 1 || points.length <= 4;
+  // Compact layout: line with start/end price labels stacked below
+  // Use viewBox for responsiveness - SVG scales to fit column width
+  const VW = 100; // viewBox width
+  const VH = 28;  // viewBox height for the line area
+  const pad = 2;
 
-  // Position label above the dot when dot is in the lower half, below when in the upper half
-  const labelY = (y: number) => y > H / 2 ? y - 6 : y + 14;
-
-  // Anchor label text: first point left-aligned, last point right-aligned, others centered
-  const labelAnchor = (i: number) =>
-    i === 0 ? 'start' : i === points.length - 1 ? 'end' : 'middle';
+  const coords = points.map((p, i) => {
+    const x = pad + (i / (points.length - 1)) * (VW - pad * 2);
+    const y = pad + (1 - (p.price - min) / range) * (VH - pad * 2);
+    return { x, y, price: p.price, date: p.recorded_at };
+  });
 
   return (
-    <div>
+    <div className="w-full max-w-[140px]">
       <svg
-        width={W}
-        height={H + padY}
-        viewBox={`0 0 ${W} ${H + padY}`}
-        className="overflow-visible block"
-        style={{ marginBottom: 2 }}
+        viewBox={`0 0 ${VW} ${VH}`}
+        className="w-full h-auto block"
+        preserveAspectRatio="xMidYMid meet"
+        style={{ maxHeight: 32 }}
       >
         {/* Line */}
         <polyline
@@ -59,29 +48,22 @@ function Sparkline({ points, currency }: { points: PricePoint[]; currency: strin
           strokeWidth="1.5"
           strokeLinejoin="round"
           strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
         />
-        {/* Dots and labels */}
+        {/* Dots */}
         {coords.map((c, i) => (
           <g key={i}>
-            <circle cx={c.x} cy={c.y} r="2.5" fill={color} />
-            {showLabelAt(i) && (
-              <text
-                x={c.x}
-                y={labelY(c.y)}
-                textAnchor={labelAnchor(i)}
-                fontSize="8"
-                fill="#666"
-                fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-              >
-                {fmt(c.price)}
-              </text>
-            )}
-            {/* Tooltip on hover */}
+            <circle cx={c.x} cy={c.y} r="1.5" fill={color} />
             <title>{fmt(c.price)} - {new Date(c.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</title>
           </g>
         ))}
       </svg>
-      <div className="text-xs text-muted">{points.length} price{points.length === 1 ? '' : 's'} tracked</div>
+      {/* Price labels below the chart */}
+      <div className="flex justify-between items-baseline mt-0.5">
+        <span className="text-[10px] text-muted">{fmt(first)}</span>
+        <span className={`text-[10px] font-medium ${trend === 'down' ? 'text-green-600' : trend === 'up' ? 'text-red-500' : 'text-muted'}`}>{fmt(current)}</span>
+      </div>
+      <div className="text-[10px] text-muted mt-0.5">{points.length} prices tracked</div>
     </div>
   );
 }
