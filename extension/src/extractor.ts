@@ -1013,17 +1013,21 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
   }),
 
   // Converse: uses a standard size picker pattern (radio buttons or select)
-  'converse.': () => ({
+  'converse.': () => {
+    // Read price from DOM text first so parsePrice() can detect the € symbol.
+    // Converse's meta tags and JSON-LD always report "USD" regardless of region,
+    // so meta-first would always lose the correct currency.
+    const priceEl = document.querySelector<HTMLElement>(
+      '[class*="product-price"]:not(meta), [class*="ProductPrice"], [class*="price__amount"], [class*="price-current"]'
+    );
+    const domParsed = priceEl?.textContent ? parsePrice(priceEl.textContent) : null;
+    const metaAmount = document.querySelector<HTMLMetaElement>('meta[property="product:price:amount"]')?.content;
+    return ({
     name: document.querySelector<HTMLElement>('h1[class*="product-title"], h1[class*="ProductTitle"], h1[class*="pdp"], h1')?.textContent?.trim() ?? null,
-    price: (() => {
-      const meta = document.querySelector<HTMLMetaElement>('meta[property="product:price:amount"]')?.content;
-      if (meta) return parseFloat(meta);
-      const raw = document.querySelector<HTMLElement>('[class*="product-price"], [class*="ProductPrice"], [class*="price"]')?.textContent;
-      return raw ? parsePrice(raw).price : null;
-    })(),
-    // Currency intentionally omitted - the meta tag always contains "USD" regardless of region.
-    // The AI extractor (detected_currency) handles this correctly per domain.
-    currency: null,
+    price: domParsed?.price ?? (metaAmount ? parseFloat(metaAmount) : null),
+    // Use symbol-detected currency only when non-USD (€ → EUR, £ → GBP, etc.).
+    // If the DOM element has no symbol, domParsed.currency defaults to 'USD' — treat that as unknown.
+    currency: (domParsed?.currency && domParsed.currency !== 'USD') ? domParsed.currency : null,
     image_url: document.querySelector<HTMLMetaElement>('meta[property="og:image"]')?.content ?? null,
     specs: (() => {
       const specs: Record<string, string> = {};
@@ -1043,7 +1047,8 @@ const STORE_EXTRACTORS: Record<string, () => Partial<ExtractedProduct>> = {
       if (color) specs['Color'] = color;
       return specs;
     })(),
-  }),
+  });
+  },
 
   // Dr. Martens
   'drmartens.': () => ({

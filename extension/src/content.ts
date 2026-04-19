@@ -357,8 +357,8 @@ const LISTING_CONFIGS: Record<string, ListingConfig> = {
     insertPosition: 'afterbegin',
   },
   'converse': {
-    // Converse listing cards are li elements containing a product image link
-    cardSelector: 'li[class*="product"], li[class*="Product"]',
+    // Match any li that contains a product link — avoids class-name guessing
+    cardSelector: 'li:has(a[href*="/shop/p/"])',
     linkSelector: 'a[href*="/shop/p/"]',
     insertTarget: 'self',
     insertPosition: 'afterbegin',

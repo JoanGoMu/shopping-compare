@@ -1090,31 +1090,33 @@
       })()
     }),
     // Converse: uses a standard size picker pattern (radio buttons or select)
-    "converse.": () => ({
-      name: document.querySelector('h1[class*="product-title"], h1[class*="ProductTitle"], h1[class*="pdp"], h1')?.textContent?.trim() ?? null,
-      price: (() => {
-        const meta = document.querySelector('meta[property="product:price:amount"]')?.content;
-        if (meta) return parseFloat(meta);
-        const raw = document.querySelector('[class*="product-price"], [class*="ProductPrice"], [class*="price"]')?.textContent;
-        return raw ? parsePrice(raw).price : null;
-      })(),
-      // Currency intentionally omitted - the meta tag always contains "USD" regardless of region.
-      // The AI extractor (detected_currency) handles this correctly per domain.
-      currency: null,
-      image_url: document.querySelector('meta[property="og:image"]')?.content ?? null,
-      specs: (() => {
-        const specs = {};
-        const sizeEls = Array.from(document.querySelectorAll(
-          '[aria-label*="Size"] button, [aria-label*="Size"] [role="radio"], [class*="SizeSelector"] button, [class*="size-selector"] button, [data-testid*="size"] button, select[name*="size"] option'
-        )).filter(
-          (el) => el.getAttribute("aria-disabled") !== "true" && !el.hasAttribute("disabled") && !el.disabled
-        ).map((el) => el.textContent?.trim() ?? "").filter((t) => t.length > 0 && t.length <= 10 && !NON_SIZE_TEXT.test(t));
-        if (sizeEls.length >= 2) specs["Size"] = [...new Set(sizeEls)].join(", ");
-        const color = document.querySelector('[class*="ColorSelector"] [aria-checked="true"], [class*="color-selector"] [aria-checked="true"]')?.getAttribute("aria-label");
-        if (color) specs["Color"] = color;
-        return specs;
-      })()
-    }),
+    "converse.": () => {
+      const priceEl = document.querySelector(
+        '[class*="product-price"]:not(meta), [class*="ProductPrice"], [class*="price__amount"], [class*="price-current"]'
+      );
+      const domParsed = priceEl?.textContent ? parsePrice(priceEl.textContent) : null;
+      const metaAmount = document.querySelector('meta[property="product:price:amount"]')?.content;
+      return {
+        name: document.querySelector('h1[class*="product-title"], h1[class*="ProductTitle"], h1[class*="pdp"], h1')?.textContent?.trim() ?? null,
+        price: domParsed?.price ?? (metaAmount ? parseFloat(metaAmount) : null),
+        // Use symbol-detected currency only when non-USD (€ → EUR, £ → GBP, etc.).
+        // If the DOM element has no symbol, domParsed.currency defaults to 'USD' — treat that as unknown.
+        currency: domParsed?.currency && domParsed.currency !== "USD" ? domParsed.currency : null,
+        image_url: document.querySelector('meta[property="og:image"]')?.content ?? null,
+        specs: (() => {
+          const specs = {};
+          const sizeEls = Array.from(document.querySelectorAll(
+            '[aria-label*="Size"] button, [aria-label*="Size"] [role="radio"], [class*="SizeSelector"] button, [class*="size-selector"] button, [data-testid*="size"] button, select[name*="size"] option'
+          )).filter(
+            (el) => el.getAttribute("aria-disabled") !== "true" && !el.hasAttribute("disabled") && !el.disabled
+          ).map((el) => el.textContent?.trim() ?? "").filter((t) => t.length > 0 && t.length <= 10 && !NON_SIZE_TEXT.test(t));
+          if (sizeEls.length >= 2) specs["Size"] = [...new Set(sizeEls)].join(", ");
+          const color = document.querySelector('[class*="ColorSelector"] [aria-checked="true"], [class*="color-selector"] [aria-checked="true"]')?.getAttribute("aria-label");
+          if (color) specs["Color"] = color;
+          return specs;
+        })()
+      };
+    },
     // Dr. Martens
     "drmartens.": () => ({
       name: document.querySelector('h1[class*="product-title"], h1[class*="product-name"], h1')?.textContent?.trim() ?? null,
@@ -1710,8 +1712,8 @@
       insertPosition: "afterbegin"
     },
     "converse": {
-      // Converse listing cards are li elements containing a product image link
-      cardSelector: 'li[class*="product"], li[class*="Product"]',
+      // Match any li that contains a product link — avoids class-name guessing
+      cardSelector: 'li:has(a[href*="/shop/p/"])',
       linkSelector: 'a[href*="/shop/p/"]',
       insertTarget: "self",
       insertPosition: "afterbegin"
