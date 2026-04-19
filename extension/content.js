@@ -1812,14 +1812,13 @@
         e.stopPropagation();
         e.preventDefault();
         if (!chrome.runtime?.id) return;
+        btn.textContent = "...";
+        btn.style.pointerEvents = "none";
         const productUrl = link.href;
         const domain = window.location.hostname.replace(/^www\./, "");
         const parts = domain.split(".");
         const storeName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
         const { name, price, currency, image_url } = extractFromListingCard(card, config);
-        btn.textContent = "\u2713";
-        btn.style.background = "#059669";
-        btn.style.pointerEvents = "none";
         const product = {
           name,
           price,
@@ -1832,7 +1831,23 @@
           specs: {}
         };
         chrome.runtime.sendMessage({ type: "SAVE_PRODUCT", product }, (response) => {
-          if (chrome.runtime.lastError || !response || !response.ok && !response.duplicate) {
+          if (chrome.runtime.lastError || !response) {
+            btn.textContent = "+";
+            btn.style.pointerEvents = "auto";
+            return;
+          }
+          if (response.duplicate) {
+            btn.textContent = "\u2713";
+            btn.style.background = "#6b7280";
+          } else if (response.ok) {
+            btn.textContent = "\u2713";
+            btn.style.background = "#059669";
+            const iframe = document.createElement("iframe");
+            iframe.src = productUrl;
+            iframe.style.cssText = "position:fixed;width:1px;height:1px;top:-9999px;left:-9999px;opacity:0;pointer-events:none;border:none;";
+            window.setTimeout(() => iframe.remove(), 2e4);
+            document.documentElement.appendChild(iframe);
+          } else {
             btn.textContent = "!";
             btn.style.background = "#dc2626";
             setTimeout(() => {
@@ -1840,17 +1855,6 @@
               btn.style.background = "rgba(196, 96, 60, 0.92)";
               btn.style.pointerEvents = "auto";
             }, 2e3);
-            return;
-          }
-          if (response.duplicate) {
-            btn.style.background = "#6b7280";
-          }
-          if (response.ok && !response.duplicate) {
-            const iframe = document.createElement("iframe");
-            iframe.src = productUrl;
-            iframe.style.cssText = "position:fixed;width:1px;height:1px;top:-9999px;left:-9999px;opacity:0;pointer-events:none;border:none;";
-            window.setTimeout(() => iframe.remove(), 2e4);
-            document.documentElement.appendChild(iframe);
           }
         });
       });
