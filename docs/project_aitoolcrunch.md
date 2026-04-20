@@ -43,7 +43,7 @@ An affiliate comparison website for AI tools at **aitoolcrunch.com**. Revenue mo
 
 **43+ blog posts** (as of April 19, 2026). All AIToolCrunch-authored posts rewritten with rich HTML. Bot generates 2 new posts/day.
 
-**SEO status (Apr 19):** 4/267 pages indexed by Google after 3 weeks. Sitemap correct (267 URLs as of Apr 19). Google deprecated sitemap ping in 2023 - indexing happens organically. 267 URLs manually submitted to GSC on Apr 19. Weekly index report workflow now automates delta reporting each Sunday.
+**SEO status (Apr 20):** 4/295 pages indexed. Sitemap fixed and resubmitted to GSC on Apr 20 at https://www.aitoolcrunch.com/sitemap.xml (295 URLs, www. + trailing slashes). Root cause of "Redirect error" in GSC: site is on Vercel (not Netlify), and Porkbun was doing a temporary 302 via l.ink intermediary. Fixed by: (1) changing SITE_URL to www.aitoolcrunch.com, (2) adding trailing slashes to all sitemap URLs, (3) user updated Porkbun to 301 direct to www. Weekly index report workflow reports new URLs every Sunday - check Actions > "Weekly Index Report" > Summary tab.
 
 ## Affiliate programs — full status (as of April 16, 2026)
 
@@ -257,7 +257,7 @@ git push
 6. Set up Google Analytics 4 (still not done - can't measure traffic)
 7. Share on Reddit: r/artificial, r/SideProject, r/MachineLearning
 8. Submit to directories: Product Hunt, IndieHackers, BetaList
-9. Google Search Console: 267 URLs manually submitted Apr 19. Weekly workflow (weekly-index.yml) now reports new URLs every Sunday automatically - check Actions > "Weekly Index Report" > Summary tab each week and paste new URLs into GSC URL Inspection.
+9. Google Search Console: sitemap resubmitted Apr 20 (https://www.aitoolcrunch.com/sitemap.xml, 295 URLs). Redirect errors fixed. Pages should index organically over coming weeks.
 10. Consider adding internal links from homepage/category pages to boost crawl priority
 
 **Automation (all running):**

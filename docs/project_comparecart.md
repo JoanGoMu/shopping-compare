@@ -250,7 +250,7 @@ Add `ANTHROPIC_API_KEY` to Vercel env vars and `.env.local`.
 - **Render-time normalization**: `CompareTable.tsx` and `PublicCompareTable.tsx` apply `normalizeSpecs()` at render time so existing stored data with foreign keys displays correctly without DB migration.
 - **Category-aware spec display**: `CompareTable.tsx` + `PublicCompareTable.tsx` now auto-detect category (shoes/clothing/electronics/beauty/home/default) from spec keys + product names. Priority spec ordering per category (CATEGORY_SPECS map + detectCategory() function).
 - **AI spec translations**: `StoreSelectorRules` extended with `category`, `detected_currency`, `spec_translations` fields. AI extractor (`/api/generate-extractor`) now returns these. Extension `content.ts` applies them via `applySpecTranslations()`. `store_extractors` table needs 3 new columns (SQL: `alter table store_extractors add column if not exists category text, add column if not exists spec_translations jsonb default '{}', add column if not exists detected_currency text`).
-- **Converse EUR fix**: Converse extractor in `extractor.ts` uses TLD-based currency detection (EU country TLDs -> EUR, .co.uk -> GBP).
+- **Converse EUR fix**: Converse extractor reads DOM price text first (parsePrice detects € symbol). Returns null if no non-USD symbol found, letting chain fall through to aiDetectedCurrency. Meta tags on converse.com always say USD regardless of region.
 - **Amazon INR fix**: Amazon extractor currency IIFE with full regional TLD map. `parsePrice()` now detects INR (₹), JPY (¥), KRW (₩), TRY (₺), PLN (zł), CHF.
 - **Price history RLS**: `price_history` table needed SELECT policy. SQL to run: `create policy "Authenticated users can read price history" on price_history for select to authenticated using (true);` - user must run this in Supabase SQL Editor.
 - **Email alerts**: Product names in price alert emails now link directly to store product URL. "View on [store]" link added per product row.
@@ -262,12 +262,27 @@ Add `ANTHROPIC_API_KEY` to Vercel env vars and `.env.local`.
 - **ProductCard**: Click now opens detail panel (not toggle select). Checkbox in top-right still toggles selection (stopPropagation). New `onOpenDetail` prop added.
 - **ProductGrid**: Manages `detailProductId` state. Passes `onOpenDetail` to ProductCard. Renders ProductDetailPanel when active. `handleNotesUpdated` syncs notes back to items state.
 
-### Extension: carousel/listing save (Point 3)
-- **contextMenus permission** added to `manifest.json`.
-- **Right-click "Save to CompareCart"**: context menu on page + link contexts. For current page: sends CONTEXT_MENU_SAVE to content script. For linked URLs: calls `/api/save-from-url` server-side. Shows inline toast feedback via executeScript.
-- **Mini "+" save buttons**: injected on Amazon/Zalando/ASOS/Zara listing/carousel pages. Per-domain config (LISTING_CONFIGS) with card/link selectors. Dark terracotta circle button top-right of each card, turns green on save or grey on duplicate. MutationObserver re-injects on infinite scroll.
+### Extension: carousel/listing save
+- **contextMenus permission** added to `manifest.json`. Web Store justification: "The context menu allows users to right-click any product link or page to save it directly to their CompareCart collection without navigating away from the page."
+- **Right-click "Save to CompareCart"**: context menu on page + link contexts. For current page: sends CONTEXT_MENU_SAVE to content script. For linked URLs: tries `/api/save-from-url` server-side first; on failure (bot protection) falls back to hidden iframe (SAVE_VIA_IFRAME). Toast shown via SHOW_TOAST message to content script (no scripting permission needed).
+- **Mini "+" save buttons**: injected on listing/carousel pages. Per-domain LISTING_CONFIGS (Amazon, Zalando, ASOS, Zara, Converse, Dr. Martens) + generic fallback with ancestor de-duplication. Converse: `div:has(> a[href*="/shop/p/"] picture)` - direct-child + picture required to avoid matching color swatch links. Button bottom-left, 26px, semi-transparent until hover. MutationObserver re-injects on infinite scroll.
+- **Bot-protected stores fallback**: SAVE_FROM_LISTING / right-click on link → if server fetch fails, opens hidden iframe to product URL. Content script inside iframe listens for CC_AUTOSAVE postMessage, extracts after 4s and calls SAVE_PRODUCT.
 - **SAVE_FROM_LISTING** message handler in `background.ts` calls `/api/save-from-url`.
-- **`/api/save-from-url`** endpoint: validates URL, checks for duplicate, fetches page server-side, extracts product via `extractProductFromHtml()`, inserts to user's products.
+- **`/api/save-from-url`** endpoint: validates + normalizes URL, checks for duplicate (respects soft-delete), fetches page server-side, extracts product, inserts.
+
+### Soft-delete (Apr 20 2026)
+- Products are never hard-deleted. Delete sets `deleted_at` timestamp instead.
+- All SELECT queries filter `.is('deleted_at', null)`.
+- Re-adding a previously deleted URL restores the row (same id, same price_history).
+- Extension background.ts direct Supabase queries also filter deleted_at.
+- Supabase: `ALTER TABLE products ADD COLUMN IF NOT EXISTS deleted_at timestamptz;` (already run).
+- Duplicate checks now check `deleted_at` - if null it's active (duplicate), if set it restores the row.
+
+### Extension v0.1.3 (Apr 20 2026)
+- Removed `chrome.scripting` usage entirely - replaced with `SHOW_TOAST` message type sent via `chrome.tabs.sendMessage`. Content script handles it with existing `showToast()`. No scripting permission needed.
+- Permissions: `storage`, `contextMenus` only.
+- Web Store URLs corrected: homepage `https://comparecart.app`, support `https://comparecart.app/privacy`.
+- ZIP: `comparecart-extension-0.1.3.zip` (159KB) at repo root.
 
 ## Supabase: pending SQL
 Run in Supabase SQL Editor:
