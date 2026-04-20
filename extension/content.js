@@ -1830,14 +1830,7 @@
           { type: "SAVE_FROM_LISTING", url: productUrl },
           (response) => {
             if (chrome.runtime.lastError || !response || !response.ok && !response.duplicate) {
-              btn.textContent = "!";
-              btn.style.background = "#dc2626";
-              setTimeout(() => {
-                btn.textContent = "+";
-                btn.style.background = "rgba(196, 96, 60, 0.85)";
-                btn.style.opacity = "0.7";
-                btn.style.pointerEvents = "auto";
-              }, 2e3);
+              openAutoSaveIframe(productUrl);
               return;
             }
             if (response.duplicate) {
@@ -1858,6 +1851,22 @@
       card.insertAdjacentElement(config.insertPosition, btn);
     });
   }
+  function openAutoSaveIframe(productUrl) {
+    if (!chrome.runtime?.id) return;
+    const iframe = document.createElement("iframe");
+    iframe.src = productUrl;
+    iframe.style.cssText = "position:fixed;width:1px;height:1px;top:-9999px;left:-9999px;opacity:0;pointer-events:none;border:none;";
+    iframe.addEventListener("load", () => {
+      window.setTimeout(() => {
+        try {
+          iframe.contentWindow?.postMessage({ type: "CC_AUTOSAVE" }, "*");
+        } catch {
+        }
+      }, 400);
+    });
+    window.setTimeout(() => iframe.remove(), 3e4);
+    document.documentElement.appendChild(iframe);
+  }
   function tryInjectListingButtons() {
     if (!isListingPage()) return;
     injectListingSaveButtons();
@@ -1871,9 +1880,13 @@
     observer.observe(document.body, { childList: true, subtree: true });
   }
   chrome.runtime.onMessage.addListener((message) => {
-    if (message?.type !== "CONTEXT_MENU_SAVE") return;
-    const fakeBtn = { textContent: "", style: { opacity: "" } };
-    handleSave(fakeBtn);
+    if (message?.type === "CONTEXT_MENU_SAVE") {
+      const fakeBtn = { textContent: "", style: { opacity: "" } };
+      handleSave(fakeBtn);
+    }
+    if (message?.type === "SAVE_VIA_IFRAME") {
+      openAutoSaveIframe(message.url);
+    }
   });
   var APP_URL = "https://comparecart.app";
   window.addEventListener("message", (event) => {
@@ -1892,6 +1905,18 @@
   if (!isOwnApp()) {
     if (chrome.runtime?.id) {
       if (window.self !== window.top) {
+        let autosaveFired = false;
+        window.addEventListener("message", (event) => {
+          if (event.data?.type !== "CC_AUTOSAVE" || autosaveFired) return;
+          autosaveFired = true;
+          window.setTimeout(() => {
+            try {
+              const product = extractProduct();
+              chrome.runtime.sendMessage({ type: "SAVE_PRODUCT", product });
+            } catch {
+            }
+          }, 4e3);
+        });
         window.setTimeout(() => {
           try {
             const product = extractProduct();

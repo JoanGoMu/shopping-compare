@@ -499,15 +499,11 @@ function injectListingSaveButtons() {
         { type: 'SAVE_FROM_LISTING', url: productUrl },
         (response) => {
           if (chrome.runtime.lastError || !response || (!response.ok && !response.duplicate)) {
-            btn.textContent = '!';
-            btn.style.background = '#dc2626';
-            setTimeout(() => {
-              btn.textContent = '+';
-              btn.style.background = 'rgba(196, 96, 60, 0.85)';
-              btn.style.opacity = '0.7';
-              btn.style.pointerEvents = 'auto';
-            }, 2000);
-            return;
+            // Server-side fetch failed (bot protection, network error, etc.).
+            // Fall back to browser-side save via hidden iframe so the store's
+            // real session/cookies are used — works for Converse, Zara, etc.
+            openAutoSaveIframe(productUrl);
+            return; // Keep ✓ — still attempting via iframe
           }
           if (response.duplicate) {
             btn.style.background = '#6b7280';
@@ -533,6 +529,23 @@ function injectListingSaveButtons() {
   });
 }
 
+// Opens a hidden iframe and signals the content script inside to auto-save the product.
+// Used when server-side fetch fails (bot protection) or for right-click on a product link.
+function openAutoSaveIframe(productUrl: string) {
+  if (!chrome.runtime?.id) return;
+  const iframe = document.createElement('iframe');
+  iframe.src = productUrl;
+  iframe.style.cssText = 'position:fixed;width:1px;height:1px;top:-9999px;left:-9999px;opacity:0;pointer-events:none;border:none;';
+  iframe.addEventListener('load', () => {
+    // Small delay so the content script's message listener is registered
+    window.setTimeout(() => {
+      try { iframe.contentWindow?.postMessage({ type: 'CC_AUTOSAVE' }, '*'); } catch { /* blocked iframe */ }
+    }, 400);
+  });
+  window.setTimeout(() => iframe.remove(), 30000);
+  document.documentElement.appendChild(iframe);
+}
+
 function tryInjectListingButtons() {
   if (!isListingPage()) return;
   injectListingSaveButtons();
@@ -544,11 +557,16 @@ function tryInjectListingButtons() {
   observer.observe(document.body, { childList: true, subtree: true });
 }
 
-// Listen for CONTEXT_MENU_SAVE from background (user right-clicked "Save to CompareCart")
+// Listen for messages from background
 chrome.runtime.onMessage.addListener((message) => {
-  if (message?.type !== 'CONTEXT_MENU_SAVE') return;
-  const fakeBtn = { textContent: '', style: { opacity: '' } } as unknown as HTMLButtonElement;
-  handleSave(fakeBtn);
+  if (message?.type === 'CONTEXT_MENU_SAVE') {
+    const fakeBtn = { textContent: '', style: { opacity: '' } } as unknown as HTMLButtonElement;
+    handleSave(fakeBtn);
+  }
+  // Background sends this when server-side fetch fails (bot protection) for a right-clicked link
+  if (message?.type === 'SAVE_VIA_IFRAME') {
+    openAutoSaveIframe(message.url as string);
+  }
 });
 
 // Auto sign-in: listen for session tokens posted from the web app (runs on all pages)
@@ -571,7 +589,22 @@ window.addEventListener('message', (event) => {
 if (!isOwnApp()) {
   if (chrome.runtime?.id) {
     if (window.self !== window.top) {
-      // Inside a hidden iframe — extract and enrich silently, no UI
+      // Inside a hidden iframe — listen for CC_AUTOSAVE (from listing buttons / right-click
+      // fallback) and also do the usual silent enrichment after 5s.
+      let autosaveFired = false;
+      window.addEventListener('message', (event) => {
+        if (event.data?.type !== 'CC_AUTOSAVE' || autosaveFired) return;
+        autosaveFired = true;
+        // Wait for the page JS to finish rendering price/specs before extracting
+        window.setTimeout(() => {
+          try {
+            const product = extractProduct();
+            chrome.runtime.sendMessage({ type: 'SAVE_PRODUCT', product });
+          } catch { /* silent */ }
+        }, 4000);
+      });
+
+      // Normal enrichment path (crowd-sourced freshness for everyone who saved this URL)
       window.setTimeout(() => {
         try {
           const product = extractProduct();

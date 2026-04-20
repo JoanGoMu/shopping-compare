@@ -20062,6 +20062,10 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       body: JSON.stringify({ url: targetUrl })
     });
     const data = await res.json();
+    if (!data.ok && !data.duplicate && tab?.id) {
+      chrome.tabs.sendMessage(tab.id, { type: "SAVE_VIA_IFRAME", url: targetUrl });
+      return;
+    }
     if (tab?.id) {
       chrome.scripting?.executeScript({
         target: { tabId: tab.id },
@@ -20072,7 +20076,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           document.documentElement.appendChild(el);
           setTimeout(() => el.remove(), 3e3);
         },
-        args: [data.ok ? data.duplicate ? "Already in your collection!" : "Saved to CompareCart!" : "Could not save: " + (data.error ?? "unknown error")]
+        args: [data.duplicate ? "Already in your collection!" : "Saved to CompareCart!"]
       }).catch(() => {
       });
     }

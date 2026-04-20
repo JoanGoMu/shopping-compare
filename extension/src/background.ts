@@ -87,7 +87,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     return;
   }
 
-  // For a linked URL (different from current page), call the server to fetch + extract
+  // For a linked URL (different from current page): try server-side fetch first.
+  // If the store blocks bots, fall back to a hidden iframe in the current tab
+  // so the browser's real session/cookies handle the request.
   try {
     const stored = await chrome.storage.local.get(SESSION_KEY);
     if (!stored[SESSION_KEY]) return;
@@ -98,6 +100,11 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       body: JSON.stringify({ url: targetUrl }),
     });
     const data = await res.json() as { ok: boolean; duplicate?: boolean; error?: string };
+    if (!data.ok && !data.duplicate && tab?.id) {
+      // Server fetch blocked (bot protection) — fall back to browser-side iframe save
+      chrome.tabs.sendMessage(tab.id, { type: 'SAVE_VIA_IFRAME', url: targetUrl });
+      return;
+    }
     if (tab?.id) {
       chrome.scripting?.executeScript({
         target: { tabId: tab.id },
@@ -108,7 +115,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
           document.documentElement.appendChild(el);
           setTimeout(() => el.remove(), 3000);
         },
-        args: [data.ok ? (data.duplicate ? 'Already in your collection!' : 'Saved to CompareCart!') : ('Could not save: ' + (data.error ?? 'unknown error'))],
+        args: [data.duplicate ? 'Already in your collection!' : 'Saved to CompareCart!'],
       }).catch(() => {});
     }
   } catch { /* silent */ }
