@@ -357,9 +357,10 @@ const LISTING_CONFIGS: Record<string, ListingConfig> = {
     insertPosition: 'afterbegin',
   },
   'converse': {
-    // Direct-parent of the product link: div:has(> a) only matches the immediate
-    // parent div, never ancestor containers — prevents multiple buttons per card.
-    cardSelector: 'div:has(> a[href*="/shop/p/"])',
+    // The main product image link contains a <picture> element; color-swatch links don't.
+    // Using picture inside the selector means only the image container div matches,
+    // not the color swatch links (which are also a[href*="/shop/p/"]).
+    cardSelector: 'div:has(> a[href*="/shop/p/"] picture)',
     linkSelector: 'a[href*="/shop/p/"]',
     insertTarget: 'self',
     insertPosition: 'afterbegin',
