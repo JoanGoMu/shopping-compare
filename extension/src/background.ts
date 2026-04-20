@@ -118,7 +118,12 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         args: [data.duplicate ? 'Already in your collection!' : 'Saved to CompareCart!'],
       }).catch(() => {});
     }
-  } catch { /* silent */ }
+  } catch {
+    // Network error or timeout — fall back to browser-side iframe save
+    if (tab?.id) {
+      chrome.tabs.sendMessage(tab.id, { type: 'SAVE_VIA_IFRAME', url: targetUrl });
+    }
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

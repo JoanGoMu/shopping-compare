@@ -416,9 +416,14 @@ function detectGenericListingCards(): ListingConfig | null {
 function getListingConfig(): ListingConfig | null {
   const host = window.location.hostname.replace(/^www\./, '');
   for (const [key, config] of Object.entries(LISTING_CONFIGS)) {
-    if (host.includes(key)) return config;
+    if (!host.includes(key)) continue;
+    // Only use explicit config if its selector actually matches cards on this page.
+    // If it doesn't (e.g. different listing layout, or product page) fall through
+    // to generic detection rather than returning a config that silently does nothing.
+    if (document.querySelectorAll(config.cardSelector).length >= 3) return config;
+    break; // Domain matched but selector failed - don't try other keys, go to generic
   }
-  // Fall back to generic detection for unlisted stores
+  // Fall back to generic detection for unlisted stores or when explicit config fails
   return detectGenericListingCards();
 }
 

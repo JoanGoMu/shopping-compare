@@ -1760,7 +1760,9 @@
   function getListingConfig() {
     const host = window.location.hostname.replace(/^www\./, "");
     for (const [key, config] of Object.entries(LISTING_CONFIGS)) {
-      if (host.includes(key)) return config;
+      if (!host.includes(key)) continue;
+      if (document.querySelectorAll(config.cardSelector).length >= 3) return config;
+      break;
     }
     return detectGenericListingCards();
   }

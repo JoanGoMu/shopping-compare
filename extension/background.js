@@ -20081,6 +20081,9 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       });
     }
   } catch {
+    if (tab?.id) {
+      chrome.tabs.sendMessage(tab.id, { type: "SAVE_VIA_IFRAME", url: targetUrl });
+    }
   }
 });
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
