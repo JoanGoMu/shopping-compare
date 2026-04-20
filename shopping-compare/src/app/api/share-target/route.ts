@@ -41,16 +41,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Check duplicate
+  // Check for existing row (active or soft-deleted)
   const { data: existing } = await supabase
     .from('products')
-    .select('id')
+    .select('id, deleted_at')
     .eq('user_id', user.id)
     .eq('product_url', rawUrl)
     .maybeSingle();
 
   if (existing) {
-    return NextResponse.redirect(new URL('/dashboard?share=duplicate', request.url));
+    if (!existing.deleted_at) return NextResponse.redirect(new URL('/dashboard?share=duplicate', request.url));
+    // Restore soft-deleted row
+    await supabase.from('products').update({ deleted_at: null, created_at: new Date().toISOString() }).eq('id', existing.id);
+    return NextResponse.redirect(new URL('/dashboard?share=success', request.url));
   }
 
   // Fetch and extract the page

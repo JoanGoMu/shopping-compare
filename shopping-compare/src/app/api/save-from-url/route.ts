@@ -48,11 +48,16 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // Check for duplicate
+  // Check for existing row (active or soft-deleted)
   const { data: existing } = await supabase
-    .from('products').select('id')
+    .from('products').select('id, deleted_at')
     .eq('user_id', user.id).eq('product_url', url).maybeSingle();
-  if (existing) return NextResponse.json({ ok: true, duplicate: true });
+  if (existing) {
+    if (!existing.deleted_at) return NextResponse.json({ ok: true, duplicate: true });
+    // Restore soft-deleted row
+    await supabase.from('products').update({ deleted_at: null, created_at: new Date().toISOString() }).eq('id', existing.id);
+    return NextResponse.json({ ok: true });
+  }
 
   // Fetch the page server-side
   let html: string;

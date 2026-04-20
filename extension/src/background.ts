@@ -263,7 +263,7 @@ async function handleUpdatePriceIfSaved(url: string, price: number, currency: st
     const normalizedUrl = normalizeProductUrl(url);
     const { data: existing } = await supabase
       .from('products').select('id, price, currency, specs')
-      .eq('user_id', user.id).eq('product_url', normalizedUrl).maybeSingle();
+      .eq('user_id', user.id).eq('product_url', normalizedUrl).is('deleted_at', null).maybeSingle();
 
     if (!existing) return;
     // Skip currency mismatch only when product already has a price —
@@ -307,9 +307,17 @@ async function handleSaveProduct(product: {
   product.product_url = normalizeProductUrl(product.product_url);
 
   const { data: existing } = await supabase
-    .from('products').select('id')
+    .from('products').select('id, deleted_at')
     .eq('user_id', user.id).eq('product_url', product.product_url).maybeSingle();
-  if (existing) return { ok: true, duplicate: true };
+  if (existing) {
+    if (!existing.deleted_at) return { ok: true, duplicate: true };
+    // Restore soft-deleted row with fresh data
+    const { error } = await supabase.from('products').update({
+      ...product, deleted_at: null, created_at: new Date().toISOString(),
+    }).eq('id', existing.id);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true };
+  }
 
   const { error } = await supabase.from('products').insert({
     user_id: user.id, ...product,
@@ -354,7 +362,8 @@ async function handleGetProductsByDomain(domain: string): Promise<{ url: string 
       .from('products')
       .select('product_url')
       .eq('user_id', user.id)
-      .eq('store_domain', domain);
+      .eq('store_domain', domain)
+      .is('deleted_at', null);
     return (data ?? []).map((p) => ({ url: p.product_url }));
   } catch { return []; }
 }
@@ -515,7 +524,8 @@ async function handleGetRelatedUrls(domain: string, currentUrl: string): Promise
       .from('products')
       .select('product_url')
       .eq('user_id', user.id)
-      .eq('store_domain', domain);
+      .eq('store_domain', domain)
+      .is('deleted_at', null);
 
     const urls = (data ?? [])
       .map(p => p.product_url as string)

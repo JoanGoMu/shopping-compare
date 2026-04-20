@@ -20194,7 +20194,7 @@ async function handleUpdatePriceIfSaved(url, price, currency, specs) {
     const user = await getUser();
     if (!user) return;
     const normalizedUrl = normalizeProductUrl(url);
-    const { data: existing } = await supabase.from("products").select("id, price, currency, specs").eq("user_id", user.id).eq("product_url", normalizedUrl).maybeSingle();
+    const { data: existing } = await supabase.from("products").select("id, price, currency, specs").eq("user_id", user.id).eq("product_url", normalizedUrl).is("deleted_at", null).maybeSingle();
     if (!existing) return;
     if (existing.price !== null && existing.currency !== currency) return;
     url = normalizedUrl;
@@ -20222,8 +20222,17 @@ async function handleSaveProduct(product) {
   const user = await getUser();
   if (!user) return { ok: false, error: "not logged in" };
   product.product_url = normalizeProductUrl(product.product_url);
-  const { data: existing } = await supabase.from("products").select("id").eq("user_id", user.id).eq("product_url", product.product_url).maybeSingle();
-  if (existing) return { ok: true, duplicate: true };
+  const { data: existing } = await supabase.from("products").select("id, deleted_at").eq("user_id", user.id).eq("product_url", product.product_url).maybeSingle();
+  if (existing) {
+    if (!existing.deleted_at) return { ok: true, duplicate: true };
+    const { error: error2 } = await supabase.from("products").update({
+      ...product,
+      deleted_at: null,
+      created_at: (/* @__PURE__ */ new Date()).toISOString()
+    }).eq("id", existing.id);
+    if (error2) return { ok: false, error: error2.message };
+    return { ok: true };
+  }
   const { error } = await supabase.from("products").insert({
     user_id: user.id,
     ...product
@@ -20255,7 +20264,7 @@ async function handleGetProductsByDomain(domain) {
     if (!stored[SESSION_KEY]) return [];
     const user = await getUser();
     if (!user) return [];
-    const { data } = await supabase.from("products").select("product_url").eq("user_id", user.id).eq("store_domain", domain);
+    const { data } = await supabase.from("products").select("product_url").eq("user_id", user.id).eq("store_domain", domain).is("deleted_at", null);
     return (data ?? []).map((p) => ({ url: p.product_url }));
   } catch {
     return [];
@@ -20368,7 +20377,7 @@ async function handleGetRelatedUrls(domain, currentUrl) {
     if (!stored[SESSION_KEY]) return { urls: [] };
     const user = await getUser();
     if (!user) return { urls: [] };
-    const { data } = await supabase.from("products").select("product_url").eq("user_id", user.id).eq("store_domain", domain);
+    const { data } = await supabase.from("products").select("product_url").eq("user_id", user.id).eq("store_domain", domain).is("deleted_at", null);
     const urls = (data ?? []).map((p) => p.product_url).filter((u) => u && u !== currentUrl).slice(0, BG_MAX_PRODUCTS);
     if (urls.length) lastDomainRefresh.set(domain, Date.now());
     return { urls };

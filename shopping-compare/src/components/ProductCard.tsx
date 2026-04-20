@@ -53,7 +53,7 @@ export default function ProductCard({ product, selected, priceAlerts, onToggleSe
     e.stopPropagation();
     if (!confirmDelete) { setConfirmDelete(true); return; }
     setDeleting(true);
-    await supabase.from('products').delete().eq('id', product.id);
+    await supabase.from('products').update({ deleted_at: new Date().toISOString() }).eq('id', product.id);
     onDeleted(product.id);
   }
 

@@ -53,7 +53,8 @@ export async function POST(request: NextRequest) {
   const { data: products } = await supabase
     .from('products')
     .select('id, user_id, price, currency, name, store_name, price_alerts, specs')
-    .eq('product_url', url);
+    .eq('product_url', url)
+    .is('deleted_at', null);
 
   if (!products?.length) return NextResponse.json({ ok: true, updated: 0 });
 
