@@ -1712,8 +1712,9 @@
       insertPosition: "afterbegin"
     },
     "converse": {
-      // Match any li that contains a product link — avoids class-name guessing
-      cardSelector: 'li:has(a[href*="/shop/p/"])',
+      // Direct-parent of the product link: div:has(> a) only matches the immediate
+      // parent div, never ancestor containers — prevents multiple buttons per card.
+      cardSelector: 'div:has(> a[href*="/shop/p/"])',
       linkSelector: 'a[href*="/shop/p/"]',
       insertTarget: "self",
       insertPosition: "afterbegin"
@@ -1746,7 +1747,8 @@
         const link = c.querySelector("a[href]");
         return img && link?.href && PRODUCT_LINK_RE.test(link.href);
       });
-      if (valid.length >= 4) {
+      const deduplicated = valid.filter((c) => !valid.some((other) => other !== c && c.contains(other)));
+      if (deduplicated.length >= 4) {
         return {
           cardSelector: selector,
           linkSelector: "a[href]",
