@@ -250,7 +250,7 @@ async function handleUpdatePriceIfSaved(url: string, price: number, currency: st
     const normalizedUrl = normalizeProductUrl(url);
     const { data: existing } = await supabase
       .from('products').select('id, price, currency, specs')
-      .eq('user_id', user.id).eq('product_url', normalizedUrl).is('deleted_at', null).maybeSingle();
+      .eq('user_id', user.id).eq('product_url', normalizedUrl).is('valid_to', null).maybeSingle();
 
     if (!existing) return;
     // Skip currency mismatch only when product already has a price —
@@ -348,7 +348,7 @@ async function handleGetProductsByDomain(domain: string): Promise<{ url: string 
       .select('product_url')
       .eq('user_id', user.id)
       .eq('store_domain', domain)
-      .is('deleted_at', null);
+      .is('valid_to', null);
     return (data ?? []).map((p) => ({ url: p.product_url }));
   } catch { return []; }
 }
@@ -510,7 +510,7 @@ async function handleGetRelatedUrls(domain: string, currentUrl: string): Promise
       .select('product_url')
       .eq('user_id', user.id)
       .eq('store_domain', domain)
-      .is('deleted_at', null);
+      .is('valid_to', null);
 
     const urls = (data ?? [])
       .map(p => p.product_url as string)

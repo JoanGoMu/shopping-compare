@@ -26,7 +26,7 @@ export default async function ComparePage({ searchParams }: Props) {
     .from('products')
     .select('*')
     .eq('user_id', user!.id)
-    .is('deleted_at', null)
+    .is('valid_to', null)
     .order('created_at', { ascending: false });
   const allProducts = allProductsData ?? [];
 

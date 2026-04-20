@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     .from('products')
     .select('id, user_id, price, currency, name, store_name, price_alerts, specs')
     .eq('product_url', url)
-    .is('deleted_at', null);
+    .is('valid_to', null);
 
   if (!products?.length) return NextResponse.json({ ok: true, updated: 0 });
 

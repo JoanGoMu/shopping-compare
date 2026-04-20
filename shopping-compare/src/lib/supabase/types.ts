@@ -23,7 +23,8 @@ export interface Database {
           last_checked_at: string | null;
           price_check_failed: boolean;
           price_alerts: boolean;
-          deleted_at: string | null;
+          valid_from: string;
+          valid_to: string | null;
         };
         Insert: {
           id?: string;
@@ -44,7 +45,8 @@ export interface Database {
           last_checked_at?: string | null;
           price_check_failed?: boolean;
           price_alerts?: boolean;
-          deleted_at?: string | null;
+          valid_from?: string;
+          valid_to?: string | null;
         };
         Update: {
           id?: string;
@@ -65,7 +67,8 @@ export interface Database {
           last_checked_at?: string | null;
           price_check_failed?: boolean;
           price_alerts?: boolean;
-          deleted_at?: string | null;
+          valid_from?: string;
+          valid_to?: string | null;
         };
         Relationships: [];
       };

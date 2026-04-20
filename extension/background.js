@@ -20178,7 +20178,7 @@ async function handleUpdatePriceIfSaved(url, price, currency, specs) {
     const user = await getUser();
     if (!user) return;
     const normalizedUrl = normalizeProductUrl(url);
-    const { data: existing } = await supabase.from("products").select("id, price, currency, specs").eq("user_id", user.id).eq("product_url", normalizedUrl).is("deleted_at", null).maybeSingle();
+    const { data: existing } = await supabase.from("products").select("id, price, currency, specs").eq("user_id", user.id).eq("product_url", normalizedUrl).is("valid_to", null).maybeSingle();
     if (!existing) return;
     if (existing.price !== null && existing.currency !== currency) return;
     url = normalizedUrl;
@@ -20249,7 +20249,7 @@ async function handleGetProductsByDomain(domain) {
     if (!stored[SESSION_KEY]) return [];
     const user = await getUser();
     if (!user) return [];
-    const { data } = await supabase.from("products").select("product_url").eq("user_id", user.id).eq("store_domain", domain).is("deleted_at", null);
+    const { data } = await supabase.from("products").select("product_url").eq("user_id", user.id).eq("store_domain", domain).is("valid_to", null);
     return (data ?? []).map((p) => ({ url: p.product_url }));
   } catch {
     return [];
@@ -20362,7 +20362,7 @@ async function handleGetRelatedUrls(domain, currentUrl) {
     if (!stored[SESSION_KEY]) return { urls: [] };
     const user = await getUser();
     if (!user) return { urls: [] };
-    const { data } = await supabase.from("products").select("product_url").eq("user_id", user.id).eq("store_domain", domain).is("deleted_at", null);
+    const { data } = await supabase.from("products").select("product_url").eq("user_id", user.id).eq("store_domain", domain).is("valid_to", null);
     const urls = (data ?? []).map((p) => p.product_url).filter((u) => u && u !== currentUrl).slice(0, BG_MAX_PRODUCTS);
     if (urls.length) lastDomainRefresh.set(domain, Date.now());
     return { urls };

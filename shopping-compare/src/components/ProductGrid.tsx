@@ -60,7 +60,7 @@ export default function ProductGrid({ products: initialProducts, groups }: Props
     if (!confirmBulkDelete) { setConfirmBulkDelete(true); return; }
     setDeleting(true);
     const ids = Array.from(selectedIds);
-    await supabase.from('products').update({ deleted_at: new Date().toISOString() }).in('id', ids);
+    await supabase.from('products').update({ valid_to: new Date().toISOString() }).in('id', ids);
     setItems((prev) => prev.filter((p) => !selectedIds.has(p.id)));
     setSelectedIds(new Set());
     setDeleting(false);

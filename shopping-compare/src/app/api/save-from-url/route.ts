@@ -56,16 +56,11 @@ export async function POST(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // Check for existing row (active or soft-deleted)
+  // Check for an active row (valid_to IS NULL)
   const { data: existing } = await supabase
-    .from('products').select('id, deleted_at')
-    .eq('user_id', user.id).eq('product_url', url).maybeSingle();
-  if (existing) {
-    if (!existing.deleted_at) return NextResponse.json({ ok: true, duplicate: true });
-    // Restore soft-deleted row
-    await supabase.from('products').update({ deleted_at: null, created_at: new Date().toISOString() }).eq('id', existing.id);
-    return NextResponse.json({ ok: true });
-  }
+    .from('products').select('id')
+    .eq('user_id', user.id).eq('product_url', url).is('valid_to', null).maybeSingle();
+  if (existing) return NextResponse.json({ ok: true, duplicate: true });
 
   // If the caller already extracted product data (e.g. from the content script),
   // skip the server-side fetch entirely and use the provided data directly.

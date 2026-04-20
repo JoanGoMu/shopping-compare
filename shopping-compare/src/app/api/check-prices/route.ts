@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     .select('id, user_id, product_url, price, currency, name, store_name, price_alerts, specs')
     .not('product_url', 'is', null)
     .not('price', 'is', null)
-    .is('deleted_at', null)
+    .is('valid_to', null)
     .order('last_checked_at', { ascending: true, nullsFirst: true })
     .limit(PRODUCT_LIMIT);
 
@@ -196,7 +196,7 @@ export async function GET(request: NextRequest) {
     .select('id, product_url, specs')
     .not('product_url', 'is', null)
     .is('price', null)
-    .is('deleted_at', null)
+    .is('valid_to', null)
     .order('last_checked_at', { ascending: true, nullsFirst: true })
     .limit(5);
 

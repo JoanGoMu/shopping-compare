@@ -37,20 +37,15 @@ export async function addProductByUrl(url: string): Promise<{ ok: boolean; error
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: 'Not authenticated' };
 
-  // Check for existing row (active or soft-deleted)
+  // Check for an active row (valid_to IS NULL)
   const { data: existing } = await supabase
     .from('products')
-    .select('id, deleted_at')
+    .select('id')
     .eq('user_id', user.id)
     .eq('product_url', url)
+    .is('valid_to', null)
     .maybeSingle();
-  if (existing) {
-    if (!existing.deleted_at) return { ok: false, error: 'This product is already in your collection' };
-    // Restore soft-deleted row
-    await supabase.from('products').update({ deleted_at: null, created_at: new Date().toISOString() }).eq('id', existing.id);
-    revalidatePath('/dashboard');
-    return { ok: true };
-  }
+  if (existing) return { ok: false, error: 'This product is already in your collection' };
 
   // Fetch the page
   let html: string;
