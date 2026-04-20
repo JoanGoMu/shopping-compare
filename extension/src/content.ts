@@ -577,6 +577,10 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === 'SAVE_VIA_IFRAME') {
     openAutoSaveIframe(message.url as string);
   }
+  // Background asks content script to show a toast (avoids needing scripting permission)
+  if (message?.type === 'SHOW_TOAST') {
+    showToast(message.message as string, (message.toastType as 'success' | 'error') ?? 'success');
+  }
 });
 
 // Auto sign-in: listen for session tokens posted from the web app (runs on all pages)

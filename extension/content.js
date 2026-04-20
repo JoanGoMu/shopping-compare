@@ -1892,6 +1892,9 @@
     if (message?.type === "SAVE_VIA_IFRAME") {
       openAutoSaveIframe(message.url);
     }
+    if (message?.type === "SHOW_TOAST") {
+      showToast(message.message, message.toastType ?? "success");
+    }
   });
   var APP_URL = "https://comparecart.app";
   window.addEventListener("message", (event) => {

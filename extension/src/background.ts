@@ -71,12 +71,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
   const user = await getUser();
   if (!user) {
-    // Notify popup that they need to sign in
     if (tab?.id) {
-      chrome.scripting?.executeScript({
-        target: { tabId: tab.id },
-        func: () => { alert('Sign in via the CompareCart extension popup first.'); },
-      }).catch(() => {});
+      chrome.tabs.sendMessage(tab.id, { type: 'SHOW_TOAST', message: 'Sign in via the CompareCart extension popup first.', toastType: 'error' });
     }
     return;
   }
@@ -106,17 +102,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       return;
     }
     if (tab?.id) {
-      chrome.scripting?.executeScript({
-        target: { tabId: tab.id },
-        func: (msg: string) => {
-          const el = document.createElement('div');
-          el.style.cssText = 'all:initial;position:fixed;bottom:80px;right:24px;z-index:2147483647;background:#059669;color:white;border-radius:8px;padding:10px 16px;font-size:13px;font-family:-apple-system,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.2);';
-          el.textContent = msg;
-          document.documentElement.appendChild(el);
-          setTimeout(() => el.remove(), 3000);
-        },
-        args: [data.duplicate ? 'Already in your collection!' : 'Saved to CompareCart!'],
-      }).catch(() => {});
+      const msg = data.duplicate ? 'Already in your collection!' : 'Saved to CompareCart!';
+      chrome.tabs.sendMessage(tab.id, { type: 'SHOW_TOAST', message: msg });
     }
   } catch {
     // Network error or timeout — fall back to browser-side iframe save
