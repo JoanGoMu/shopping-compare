@@ -270,13 +270,15 @@ Add `ANTHROPIC_API_KEY` to Vercel env vars and `.env.local`.
 - **SAVE_FROM_LISTING** message handler in `background.ts` calls `/api/save-from-url`.
 - **`/api/save-from-url`** endpoint: validates + normalizes URL, checks for duplicate (respects soft-delete), fetches page server-side, extracts product, inserts.
 
-### Soft-delete (Apr 20 2026)
-- Products are never hard-deleted. Delete sets `deleted_at` timestamp instead.
-- All SELECT queries filter `.is('deleted_at', null)`.
-- Re-adding a previously deleted URL restores the row (same id, same price_history).
-- Extension background.ts direct Supabase queries also filter deleted_at.
-- Supabase: `ALTER TABLE products ADD COLUMN IF NOT EXISTS deleted_at timestamptz;` (already run).
-- Duplicate checks now check `deleted_at` - if null it's active (duplicate), if set it restores the row.
+### Temporal snapshot model (Apr 20 2026)
+- Products use SCD Type 2 (snapshot rows). Delete sets `valid_to = now()`. Re-add inserts a brand new row.
+- `deleted_at` renamed to `valid_to`. `valid_from` column added (DEFAULT now(), backfilled from `created_at`).
+- Existing UNIQUE constraint on (user_id, product_url) dropped. Replaced with partial unique index `products_user_url_active_unique` ON (user_id, product_url) WHERE valid_to IS NULL.
+- Multiple historical rows per (user_id, product_url) allowed; only one active (valid_to IS NULL).
+- All SELECT queries filter `.is('valid_to', null)`.
+- No restore-row logic anywhere - re-add always INSERTs fresh row with current extracted price.
+- `price_history` is URL-keyed (no user_id), shared across all users. Not written on save - recorded on next cron/page visit.
+- **Extension SAVE_PRODUCT** now routes through `/api/save-from-url` with pre-extracted product data in body (skips server-side fetch). Admin client in that route bypasses RLS - definitive fix for re-add bug where anon client couldn't see soft-deleted rows.
 
 ### Extension v0.1.3 (Apr 20 2026)
 - Removed `chrome.scripting` usage entirely - replaced with `SHOW_TOAST` message type sent via `chrome.tabs.sendMessage`. Content script handles it with existing `showToast()`. No scripting permission needed.
@@ -296,4 +298,15 @@ alter table store_extractors
   add column if not exists category text,
   add column if not exists spec_translations jsonb default '{}',
   add column if not exists detected_currency text;
+
+-- Temporal snapshot model (Apr 20 2026)
+alter table products add column if not exists valid_from timestamptz;
+update products set valid_from = created_at where valid_from is null;
+alter table products alter column valid_from set not null;
+alter table products alter column valid_from set default now();
+alter table products rename column deleted_at to valid_to;
+alter table products drop constraint if exists products_user_id_product_url_key;
+alter table products drop constraint if exists products_product_url_user_id_key;
+create unique index if not exists products_user_url_active_unique
+  on products (user_id, product_url) where valid_to is null;
 ```

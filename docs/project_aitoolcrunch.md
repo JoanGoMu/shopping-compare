@@ -266,11 +266,15 @@ git push
 - Comparisons: all pairs auto-generated; body content enriched 5/day (~34 days to cover all 169)
 - Bot log: data/bot-log.txt shows all activity
 
-**Content quality (done Apr 19):**
-- All 24 auto blog posts rewritten with rich HTML
-- All 37 tools now have bestFor, keyStrength, easeOfUse, learningCurve scores
+**Content quality (done Apr 20):**
+- All auto blog posts rewritten with rich HTML
+- All tools have bestFor, keyStrength, easeOfUse, learningCurve scores
 - Tool pages render description as paragraphs + callout cards + score bars
 - Comparison pages render editorial body content between verdict and pros/cons
+- 14 most recent posts rewritten with varied structure templates and embedded inline images
+- Blog generator uses 6 rotating structure templates (news-reaction, deep-dive, listicle, comparison, how-to, opinion)
+- Each post includes 1-2 inline Unsplash images via figure/figcaption, TL;DR boxes, stat highlights, pull quotes, code blocks
+- globals.css has 4 custom blog component classes: blog-tldr, blog-stat, blog-pullquote, blog-callout
 
 ## Known issues / decisions
 
@@ -279,8 +283,11 @@ git push
 - `scripts/` directory excluded from tsconfig to avoid build errors
 - RSS scraper had a hanging issue - fixed with 15s per-feed timeout wrapper
 - Copy.ai affiliate program was confirmed closed/discontinued April 2026
-- Claude Haiku sometimes returns markdown fences (```html, ```json) or a full JSON blob instead of raw HTML, even when instructed not to. Fixed in generate-blog-posts.ts and retry-failed-posts.ts via `extractHtmlContent()` which strips fences and extracts the `content` key if the response is JSON. Always apply this to any new script that requests raw HTML from the API.
-- Em dashes in titles/excerpts: `cleanContent()` must be applied to ALL text fields (title, excerpt, content), not just content. `validatePost()` in generate-blog-posts.ts now does this.
+- Claude Haiku sometimes returns markdown fences (```html, ```json) or a full JSON blob instead of raw HTML, even when instructed not to. Fixed via `extractHtmlContent()` in both generate-blog-posts.ts and retry-failed-posts.ts. Always apply this to any new script that requests raw HTML from the API.
+- Em dashes in titles/excerpts: `cleanContent()` must be applied to ALL text fields (title, excerpt, content). `validatePost()` in generate-blog-posts.ts now does this.
+- Blog structure templates: the generator rotates through 6 templates (news-reaction, deep-dive, listicle, comparison, how-to, opinion) using `existingSlugs.size % 6`. Each template specifies required HTML elements that are validated after generation.
+- Inline images: model outputs `<!-- IMG:topics|alt|caption -->` markers; `resolveImageMarkers()` replaces them with `<figure><img>` using the tagged Unsplash pool. If no markers found, one is inserted after the 2nd h2 as fallback.
+- rewrite-recent-posts.ts is a one-shot script in scripts/generators/ for bulk rewriting posts - can be reused/adapted if needed again.
 
 ## Joan's preferences
 
