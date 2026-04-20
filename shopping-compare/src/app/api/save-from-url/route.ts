@@ -19,7 +19,15 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await authClient.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  let body: { url: string };
+  let body: {
+    url: string;
+    product?: {
+      name: string; price: number | null; currency: string;
+      image_url: string | null; images?: string[];
+      store_name: string; store_domain: string;
+      specs: Record<string, string>;
+    };
+  };
   try {
     body = await request.json();
   } catch {
@@ -59,25 +67,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  // Fetch the page server-side
-  let html: string;
-  try {
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; CompareCartBot/1.0)',
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!res.ok) return NextResponse.json({ error: `Page returned ${res.status}` }, { status: 422 });
-    html = await res.text();
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'fetch failed';
-    return NextResponse.json({ error: msg }, { status: 422 });
+  // If the caller already extracted product data (e.g. from the content script),
+  // skip the server-side fetch entirely and use the provided data directly.
+  let product: { name: string; price: number | null; currency: string; image_url: string | null; images?: string[]; product_url: string; store_name: string; store_domain: string; specs: Record<string, string> };
+  if (body.product) {
+    product = { ...body.product, product_url: url };
+  } else {
+    // Fetch the page server-side
+    let html: string;
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; CompareCartBot/1.0)',
+          'Accept': 'text/html,application/xhtml+xml',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) return NextResponse.json({ error: `Page returned ${res.status}` }, { status: 422 });
+      html = await res.text();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'fetch failed';
+      return NextResponse.json({ error: msg }, { status: 422 });
+    }
+    product = extractProductFromHtml(html, url);
   }
-
-  const product = extractProductFromHtml(html, url);
 
   const { error } = await supabase.from('products').insert({
     user_id: user.id,
@@ -86,7 +100,7 @@ export async function POST(request: NextRequest) {
     currency: product.currency,
     image_url: product.image_url,
     images: product.images,
-    product_url: product.product_url,
+    product_url: url,
     store_name: product.store_name,
     store_domain: product.store_domain,
     specs: product.specs,

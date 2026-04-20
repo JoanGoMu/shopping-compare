@@ -285,32 +285,30 @@ async function handleUpdatePriceIfSaved(url: string, price: number, currency: st
 
 async function handleSaveProduct(product: {
   name: string; price: number | null; currency: string;
-  image_url: string | null; product_url: string;
+  image_url: string | null; images?: string[]; product_url: string;
   store_name: string; store_domain: string; specs: Record<string, string>;
 }) {
-  const user = await getUser();
-  if (!user) return { ok: false, error: 'not logged in' };
+  const stored = await chrome.storage.local.get(SESSION_KEY);
+  if (!stored[SESSION_KEY]) return { ok: false, error: 'not logged in' };
+  let access_token: string;
+  try {
+    ({ access_token } = JSON.parse(stored[SESSION_KEY]));
+  } catch { return { ok: false, error: 'not logged in' }; }
+  if (!access_token) return { ok: false, error: 'not logged in' };
 
   product.product_url = normalizeProductUrl(product.product_url);
 
-  const { data: existing } = await supabase
-    .from('products').select('id, deleted_at')
-    .eq('user_id', user.id).eq('product_url', product.product_url).maybeSingle();
-  if (existing) {
-    if (!existing.deleted_at) return { ok: true, duplicate: true };
-    // Restore soft-deleted row with fresh data
-    const { error } = await supabase.from('products').update({
-      ...product, deleted_at: null, created_at: new Date().toISOString(),
-    }).eq('id', existing.id);
-    if (error) return { ok: false, error: error.message };
-    return { ok: true };
+  try {
+    const res = await fetch(`${APP_URL}/api/save-from-url`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${access_token}` },
+      body: JSON.stringify({ url: product.product_url, product }),
+    });
+    if (!res.ok) return { ok: false, error: `Server error ${res.status}` };
+    return await res.json() as { ok: boolean; duplicate?: boolean; error?: string };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'network error' };
   }
-
-  const { error } = await supabase.from('products').insert({
-    user_id: user.id, ...product,
-  });
-  if (error) return { ok: false, error: error.message };
-  return { ok: true };
 }
 
 // Merges fresh specs over existing, but never downgrades Size from a valid full list to fewer options.
