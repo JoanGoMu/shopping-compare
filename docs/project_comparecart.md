@@ -286,27 +286,55 @@ Add `ANTHROPIC_API_KEY` to Vercel env vars and `.env.local`.
 - Web Store URLs corrected: homepage `https://comparecart.app`, support `https://comparecart.app/privacy`.
 - ZIP: `comparecart-extension-0.1.3.zip` (159KB) at repo root.
 
+### Changes Apr 21 2026
+
+#### URL normalization (price update fix)
+- Root cause: products saved with full Amazon slug or query params never got price updates because `handleUpdatePriceIfSaved` normalizes the URL for lookup but stored URLs were dirty.
+- Fix: `src/lib/normalize-url.ts` - shared `normalizeProductUrl()` function (Amazon → origin/dp/ASIN, all others → strip query params + trailing slash).
+- Applied in: `save-from-url/route.ts`, `actions.ts` (add-by-URL form), `share-target/route.ts`. Extension `background.ts` already normalized.
+- DB cleanup: ran SQL to drop index, normalize existing rows, deduplicate (kept most recent active row), recreate index. Some products had duplicate active rows from dirty vs clean URL being saved separately.
+
+#### Price history recording fix
+- Root cause race: `UPDATE_PRICE_IF_SAVED` updates the stored price first; `ENRICH_PRODUCT` then sees no change and skips `recordPriceHistory`. Sparkline stays empty.
+- Fix: `handleUpdatePriceIfSaved` in background.ts now inserts the new price directly into `price_history` when a change is detected. Only the new price - old was already recorded.
+- Requires INSERT policy on `price_history` for authenticated users (SQL run).
+
+#### Sparkline improvements
+- Full panel width, taller (80px) with gradient fill under line.
+- Deduplicates consecutive same-price points before rendering (client-side guard against DB duplicates).
+- Labels shown at every distinct price point with date below.
+- `PriceSparkline.tsx`: uses `nl-NL` locale for currency formatting.
+
+#### Extension v0.1.4 (Apr 21 2026)
+- **CRITICAL**: v0.1.3 broken for all users after `deleted_at` → `valid_to` rename. Old extension queries non-existent column, all price updates silently fail.
+- v0.1.4 submitted to Chrome Web Store. ZIP: `comparecart-extension-0.1.4.zip` (165KB).
+- No permission changes vs v0.1.3.
+
 ## Supabase: pending SQL
 Run in Supabase SQL Editor:
 ```sql
--- Price history RLS (required for sparklines to show)
-create policy "Authenticated users can read price history"
-  on price_history for select to authenticated using (true);
-
--- AI extractor new columns
+-- AI extractor new columns (if not already run)
 alter table store_extractors
   add column if not exists category text,
   add column if not exists spec_translations jsonb default '{}',
   add column if not exists detected_currency text;
+```
 
--- Temporal snapshot model (Apr 20 2026)
-alter table products add column if not exists valid_from timestamptz;
-update products set valid_from = created_at where valid_from is null;
+## Supabase: already applied SQL (do not re-run)
+```sql
+-- Price history RLS
+create policy "Authenticated users can read price history"
+  on price_history for select to authenticated using (true);
+create policy "Authenticated users can insert price history"
+  on price_history for insert to authenticated with check (true);
+
+-- Temporal snapshot model
+alter table products add column valid_from timestamptz;
+update products set valid_from = created_at;
 alter table products alter column valid_from set not null;
 alter table products alter column valid_from set default now();
 alter table products rename column deleted_at to valid_to;
-alter table products drop constraint if exists products_user_id_product_url_key;
-alter table products drop constraint if exists products_product_url_user_id_key;
-create unique index if not exists products_user_url_active_unique
+-- index dropped, rows normalized, recreated:
+create unique index products_user_url_active_unique
   on products (user_id, product_url) where valid_to is null;
 ```
