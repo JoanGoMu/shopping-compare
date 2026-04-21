@@ -281,12 +281,8 @@ async function handleUpdatePriceIfSaved(url: string, price: number, currency: st
       ...specsUpdate,
     }).eq('id', existing.id);
 
-    // Record price history for both old and new price so the sparkline has data.
-    // ENRICH_PRODUCT also tries this but races with UPDATE_PRICE_IF_SAVED and sees
-    // no change - so we write history here where we have the old price in hand.
-    if (existing.price != null) {
-      await supabase.from('price_history').insert({ product_url: url, price: existing.price, currency, recorded_at: now });
-    }
+    // Record the new price in history. The old price is already there from a previous
+    // recording - inserting it again would create a misleading duplicate flat segment.
     await supabase.from('price_history').insert({ product_url: url, price, currency, recorded_at: now });
   } catch { /* silent - background price sync is best-effort */ }
 }

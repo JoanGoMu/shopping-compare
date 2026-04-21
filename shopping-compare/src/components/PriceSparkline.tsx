@@ -5,7 +5,11 @@ import { createClient } from '@/lib/supabase/client';
 
 interface PricePoint { price: number; recorded_at: string }
 
-function Sparkline({ points, currency }: { points: PricePoint[]; currency: string }) {
+function Sparkline({ points: rawPoints, currency }: { points: PricePoint[]; currency: string }) {
+  // Deduplicate consecutive same-price points, keeping only the first occurrence.
+  // Duplicates arise when the same price is recorded multiple times (e.g. cron + extension both write it).
+  const points = rawPoints.filter((p, i) => i === 0 || p.price !== rawPoints[i - 1].price);
+
   if (points.length < 2) return <span className="text-xs text-muted italic">Not enough data yet</span>;
 
   const prices = points.map((p) => p.price);
@@ -32,8 +36,8 @@ function Sparkline({ points, currency }: { points: PricePoint[]; currency: strin
     return { x, y, price: p.price, date: p.recorded_at };
   });
 
-  // Show label at a point if price changed from previous point
-  const labelPoints = coords.filter((c, i) => i === 0 || c.price !== coords[i - 1].price || i === coords.length - 1);
+  // Show label at every point (all are distinct prices after dedup above)
+  const labelPoints = coords;
 
   return (
     <div className="w-full">

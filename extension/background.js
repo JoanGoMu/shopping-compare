@@ -20199,9 +20199,6 @@ async function handleUpdatePriceIfSaved(url, price, currency, specs) {
       price_check_failed: false,
       ...specsUpdate
     }).eq("id", existing.id);
-    if (existing.price != null) {
-      await supabase.from("price_history").insert({ product_url: url, price: existing.price, currency, recorded_at: now });
-    }
     await supabase.from("price_history").insert({ product_url: url, price, currency, recorded_at: now });
   } catch {
   }
