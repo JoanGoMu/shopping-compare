@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { extractProductFromHtml } from '@/lib/extract-product';
+import { normalizeProductUrl } from '@/lib/normalize-url';
 
 export async function recordReferral(referrerId: string): Promise<void> {
   if (!referrerId) return;
@@ -32,6 +33,8 @@ export async function addProductByUrl(url: string): Promise<{ ok: boolean; error
   } catch {
     return { ok: false, error: 'Please enter a valid URL' };
   }
+
+  url = normalizeProductUrl(url);
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

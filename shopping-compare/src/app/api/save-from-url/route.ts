@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { extractProductFromHtml } from '@/lib/extract-product';
+import { normalizeProductUrl } from '@/lib/normalize-url';
 
 export async function POST(request: NextRequest) {
   const token = request.headers.get('authorization')?.replace('Bearer ', '');
@@ -48,11 +49,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid URL' }, { status: 400 });
   }
 
-  // Normalize: Amazon → /dp/ASIN, others → strip query params
-  const asin = parsed.pathname.match(/\/dp\/([A-Z0-9]{10})/i)?.[1];
-  const url = asin && parsed.hostname.includes('amazon.')
-    ? `${parsed.origin}/dp/${asin}`
-    : parsed.origin + parsed.pathname.replace(/\/$/, '');
+  const url = normalizeProductUrl(rawUrl);
 
   const supabase = createAdminClient();
 

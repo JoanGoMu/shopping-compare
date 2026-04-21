@@ -12,6 +12,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { extractProductFromHtml } from '@/lib/extract-product';
+import { normalizeProductUrl } from '@/lib/normalize-url';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -32,6 +33,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard?share=error&reason=invalid-url', request.url));
   }
 
+  const url = normalizeProductUrl(rawUrl);
+
   // Check auth
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -46,7 +49,7 @@ export async function GET(request: NextRequest) {
     .from('products')
     .select('id')
     .eq('user_id', user.id)
-    .eq('product_url', rawUrl)
+    .eq('product_url', url)
     .is('valid_to', null)
     .maybeSingle();
   if (existing) return NextResponse.redirect(new URL('/dashboard?share=duplicate', request.url));
@@ -54,7 +57,7 @@ export async function GET(request: NextRequest) {
   // Fetch and extract the page
   let html: string;
   try {
-    const res = await fetch(rawUrl, {
+    const res = await fetch(url, {
       signal: AbortSignal.timeout(10000),
       headers: {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -72,7 +75,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Extract and save
-  const product = extractProductFromHtml(html, rawUrl);
+  const product = extractProductFromHtml(html, url);
   if (!product.name || product.name === 'Unknown product') {
     return NextResponse.redirect(new URL('/dashboard?share=error&reason=extract', request.url));
   }
