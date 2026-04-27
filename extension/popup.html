@@ -9,8 +9,8 @@
     h1 { font-size: 18px; font-weight: 700; font-style: italic; color: #1A1A18; margin-bottom: 2px; letter-spacing: -0.3px; }
     .subtitle { font-size: 11px; color: #8C8278; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.1em; }
     label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; color: #8C8278; margin-bottom: 5px; }
-    input { width: 100%; border: 1px solid #E8E3DC; background: #fff; padding: 8px 10px; font-size: 13px; color: #1A1A18; outline: none; margin-bottom: 10px; }
-    input:focus { border-color: #C4603C; }
+    input[type="email"], input[type="password"] { width: 100%; border: 1px solid #E8E3DC; background: #fff; padding: 8px 10px; font-size: 13px; color: #1A1A18; outline: none; margin-bottom: 10px; }
+    input[type="email"]:focus, input[type="password"]:focus { border-color: #C4603C; }
     .error { font-size: 12px; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; padding: 6px 10px; margin-bottom: 10px; }
     .btn { display: block; width: 100%; padding: 10px; border: none; font-size: 11px; font-weight: 600; cursor: pointer; text-align: center; text-transform: uppercase; letter-spacing: 0.15em; transition: background 0.15s; }
     .btn-primary { background: #C4603C; color: white; }
@@ -24,6 +24,20 @@
     .hint { font-size: 11px; color: #8C8278; text-align: center; line-height: 1.5; }
     a { color: #C4603C; text-decoration: none; }
     a:hover { text-decoration: underline; }
+    .section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; color: #8C8278; margin-bottom: 10px; }
+    .pref-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12px; color: #1A1A18; }
+    .pref-row input[type="checkbox"] { cursor: pointer; flex-shrink: 0; accent-color: #C4603C; }
+    .pref-row.disabled { opacity: 0.45; }
+    .pref-row.disabled input { cursor: default; }
+    .hidden-sites-section { margin-bottom: 8px; }
+    .hidden-sites-label { font-size: 11px; color: #8C8278; margin-bottom: 4px; }
+    .hidden-sites-list { list-style: none; padding: 0; margin: 0; }
+    .hidden-sites-list li { display: flex; align-items: center; justify-content: space-between; font-size: 11px; padding: 3px 0; color: #1A1A18; }
+    .show-site-btn { font-size: 10px; color: #C4603C; background: none; border: none; cursor: pointer; padding: 0; font-family: inherit; }
+    .show-site-btn:hover { text-decoration: underline; }
+    .btn-reset { display: block; width: 100%; padding: 6px; font-size: 11px; color: #8C8278; background: none; border: 1px solid #E8E3DC; cursor: pointer; font-family: inherit; transition: border-color 0.15s, color 0.15s; }
+    .btn-reset:not(:disabled):hover { border-color: #8C8278; color: #1A1A18; }
+    .btn-reset:disabled { opacity: 0.4; cursor: default; }
   </style>
 </head>
 <body>
@@ -54,6 +68,19 @@
     <div class="divider"></div>
     <p class="hint">Browse any store and click the<br>"Save to Compare" button.</p>
   </div>
+
+  <!-- Preferences (always visible) -->
+  <div class="divider"></div>
+  <p class="section-title">Preferences</p>
+  <div id="hide-site-row" class="pref-row">
+    <input type="checkbox" id="hide-site-toggle" />
+    <span id="hide-site-label">Hide button on this site</span>
+  </div>
+  <div id="hidden-sites-section" class="hidden-sites-section" style="display:none">
+    <p class="hidden-sites-label">Hidden on:</p>
+    <ul id="hidden-sites-list" class="hidden-sites-list"></ul>
+  </div>
+  <button id="reset-position-btn" class="btn-reset" disabled>Reset button position</button>
 
   <script src="popup.js"></script>
 </body>

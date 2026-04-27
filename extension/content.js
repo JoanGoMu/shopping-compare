@@ -1428,10 +1428,17 @@
 
   // src/content.ts
   var BUTTON_ID = "comparecart-save-btn";
+  var CLOSE_BTN_ID = "comparecart-close-btn";
+  var LABEL_ID = "comparecart-save-label";
   var TOAST_ID = "comparecart-toast";
+  var UI_PREFS_KEY = "ui_prefs";
+  function getDefaultPrefs() {
+    return { hiddenDomains: [], saveButtonPos: null };
+  }
   var bestSizeForUrl = { url: "", size: "", count: 0 };
   var cachedAiRules = null;
   var aiRulesRequested = false;
+  var initPending = false;
   function applyAiRules(product) {
     if (!cachedAiRules) return;
     try {
@@ -1501,15 +1508,13 @@
     if (/\/dp\/[A-Z0-9]{10}/i.test(window.location.pathname) && document.getElementById("productTitle")) return true;
     return false;
   }
-  function createButton() {
+  function createButton(savedPos) {
     const btn = document.createElement("button");
     btn.id = BUTTON_ID;
-    btn.textContent = "\u{1F6D2} Save to Compare";
     btn.style.cssText = `
     all: initial;
     position: fixed;
-    bottom: 24px;
-    right: 24px;
+    ${savedPos ? `top: ${savedPos.top}px; left: ${savedPos.left}px;` : "bottom: 24px; right: 24px;"}
     z-index: 2147483647;
     background: #C4603C;
     color: white;
@@ -1519,13 +1524,38 @@
     font-size: 14px;
     font-weight: 600;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    cursor: pointer;
+    cursor: grab;
     box-shadow: 0 4px 16px rgba(196, 96, 60, 0.4);
-    transition: all 0.15s ease;
+    transition: background 0.15s ease;
     line-height: 1;
     white-space: nowrap;
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   `;
+    const label = document.createElement("span");
+    label.id = LABEL_ID;
+    label.textContent = "\u{1F6D2} Save to Compare";
+    label.style.cssText = "pointer-events: none;";
+    btn.appendChild(label);
+    const closeBtn = document.createElement("span");
+    closeBtn.id = CLOSE_BTN_ID;
+    closeBtn.title = "Hide on this site";
+    closeBtn.textContent = "\xD7";
+    closeBtn.style.cssText = `
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    background: rgba(0,0,0,0.4);
+    border-radius: 50%;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+  `;
+    btn.appendChild(closeBtn);
     btn.addEventListener("mouseenter", () => {
       btn.style.background = "#A84E30";
     });
@@ -1563,12 +1593,17 @@
       showToast("Extension was updated - reload the page", "error");
       return;
     }
-    btn.textContent = "Saving...";
+    const labelEl = typeof btn.querySelector === "function" ? btn.querySelector(`#${LABEL_ID}`) : null;
+    function setLabel(text) {
+      if (labelEl) labelEl.textContent = text;
+      else btn.textContent = text;
+    }
+    setLabel("Saving...");
     btn.style.opacity = "0.7";
     const product = extractProduct(cachedAiRules?.detected_currency);
     applyAiRules(product);
     function reset() {
-      btn.textContent = "\u{1F6D2} Save to Compare";
+      setLabel("\u{1F6D2} Save to Compare");
       btn.style.opacity = "1";
     }
     const timer = window.setTimeout(() => {
@@ -1606,13 +1641,143 @@
       showToast("Extension was updated - reload the page", "error");
     }
   }
+  function makeDraggable(btn) {
+    let startMouseX = 0, startMouseY = 0;
+    let startBtnTop = 0, startBtnLeft = 0;
+    let dragging = false;
+    let dragEnded = false;
+    function clampVal(n, lo, hi) {
+      return Math.min(Math.max(n, lo), hi);
+    }
+    function applyPos(clientX, clientY) {
+      const dx = clientX - startMouseX;
+      const dy = clientY - startMouseY;
+      if (!dragging && Math.sqrt(dx * dx + dy * dy) < 5) return;
+      if (!dragging) {
+        dragging = true;
+        btn.style.cursor = "grabbing";
+        btn.style.transition = "none";
+        btn.style.pointerEvents = "none";
+        btn.style.bottom = "";
+        btn.style.right = "";
+      }
+      const m = 8;
+      btn.style.top = clampVal(startBtnTop + dy, m, window.innerHeight - btn.offsetHeight - m) + "px";
+      btn.style.left = clampVal(startBtnLeft + dx, m, window.innerWidth - btn.offsetWidth - m) + "px";
+    }
+    function finishDrag() {
+      btn.style.cursor = "grab";
+      btn.style.transition = "background 0.15s ease";
+      btn.style.pointerEvents = "";
+      dragEnded = true;
+      window.setTimeout(() => {
+        dragEnded = false;
+      }, 50);
+      const top = parseFloat(btn.style.top);
+      const left = parseFloat(btn.style.left);
+      if (!isNaN(top) && !isNaN(left)) {
+        chrome.storage.local.get(UI_PREFS_KEY, (d) => {
+          const p = d[UI_PREFS_KEY] ?? getDefaultPrefs();
+          p.saveButtonPos = { top, left };
+          chrome.storage.local.set({ [UI_PREFS_KEY]: p });
+        });
+      }
+    }
+    function onMouseDown(e) {
+      if (e.target.id === CLOSE_BTN_ID) return;
+      e.preventDefault();
+      const rect = btn.getBoundingClientRect();
+      startMouseX = e.clientX;
+      startMouseY = e.clientY;
+      startBtnTop = rect.top;
+      startBtnLeft = rect.left;
+      dragging = false;
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+    }
+    function onMouseMove(e) {
+      applyPos(e.clientX, e.clientY);
+    }
+    function onMouseUp() {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      if (!dragging) return;
+      finishDrag();
+    }
+    function onTouchStart(e) {
+      if (e.target.id === CLOSE_BTN_ID) return;
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const rect = btn.getBoundingClientRect();
+      startMouseX = t.clientX;
+      startMouseY = t.clientY;
+      startBtnTop = rect.top;
+      startBtnLeft = rect.left;
+      dragging = false;
+    }
+    function onTouchMove(e) {
+      if (e.touches.length !== 1) return;
+      applyPos(e.touches[0].clientX, e.touches[0].clientY);
+      if (dragging) e.preventDefault();
+    }
+    function onTouchEnd() {
+      if (!dragging) return;
+      finishDrag();
+    }
+    btn.addEventListener("mousedown", onMouseDown);
+    btn.addEventListener("touchstart", onTouchStart, { passive: true });
+    btn.addEventListener("touchmove", onTouchMove, { passive: false });
+    btn.addEventListener("touchend", onTouchEnd);
+    let resizeTimer = 0;
+    window.addEventListener("resize", () => {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => {
+        if (!btn.style.top) return;
+        const top = parseFloat(btn.style.top);
+        const left = parseFloat(btn.style.left);
+        if (isNaN(top) || isNaN(left)) return;
+        const m = 8;
+        const newTop = clampVal(top, m, window.innerHeight - btn.offsetHeight - m);
+        const newLeft = clampVal(left, m, window.innerWidth - btn.offsetWidth - m);
+        if (newTop !== top) btn.style.top = newTop + "px";
+        if (newLeft !== left) btn.style.left = newLeft + "px";
+      }, 100);
+    });
+    return { justDragged: () => dragEnded };
+  }
   function init() {
     if (document.getElementById(BUTTON_ID)) return;
+    if (initPending) return;
     if (isOwnApp()) return;
     if (!isLikelyProductPage()) return;
-    const btn = createButton();
-    btn.addEventListener("click", () => handleSave(btn));
-    document.documentElement.appendChild(btn);
+    initPending = true;
+    chrome.storage.local.get(UI_PREFS_KEY, (data) => {
+      initPending = false;
+      if (chrome.runtime.lastError) return;
+      if (document.getElementById(BUTTON_ID)) return;
+      const prefs = data[UI_PREFS_KEY] ?? getDefaultPrefs();
+      if (prefs.hiddenDomains.includes(location.hostname)) return;
+      const btn = createButton(prefs.saveButtonPos ?? null);
+      const drag = makeDraggable(btn);
+      const closeEl = btn.querySelector(`#${CLOSE_BTN_ID}`);
+      closeEl?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        chrome.storage.local.get(UI_PREFS_KEY, (d) => {
+          const p = d[UI_PREFS_KEY] ?? getDefaultPrefs();
+          if (!p.hiddenDomains.includes(location.hostname)) {
+            p.hiddenDomains.push(location.hostname);
+          }
+          chrome.storage.local.set({ [UI_PREFS_KEY]: p });
+        });
+        btn.remove();
+        showToast(`Hidden on ${location.hostname}. Re-enable from the extension popup.`);
+      });
+      btn.addEventListener("click", () => {
+        if (drag.justDragged()) return;
+        handleSave(btn);
+      });
+      document.documentElement.appendChild(btn);
+    });
   }
   function tryUpdateSavedPrice() {
     if (!chrome.runtime?.id) return;
@@ -1941,6 +2106,24 @@
           }
         }, 5e3);
       } else {
+        chrome.storage.onChanged.addListener((changes, area) => {
+          if (area !== "local" || !changes[UI_PREFS_KEY]) return;
+          const newPrefs = changes[UI_PREFS_KEY].newValue ?? getDefaultPrefs();
+          const btn = document.getElementById(BUTTON_ID);
+          const isHidden = newPrefs.hiddenDomains.includes(location.hostname);
+          if (isHidden && btn) {
+            btn.remove();
+          } else if (!isHidden && !btn && isLikelyProductPage() && !isOwnApp()) {
+            initPending = false;
+            init();
+          }
+          if (!isHidden && btn && !newPrefs.saveButtonPos) {
+            btn.style.top = "";
+            btn.style.left = "";
+            btn.style.bottom = "24px";
+            btn.style.right = "24px";
+          }
+        });
         const startAfterLoad = () => {
           initWithRetry();
           window.setTimeout(() => {
@@ -1953,6 +2136,7 @@
               if (location.href !== lastUrl) {
                 lastUrl = location.href;
                 document.getElementById(BUTTON_ID)?.remove();
+                initPending = false;
                 bestSizeForUrl = { url: "", size: "", count: 0 };
                 window.setTimeout(init, 600);
               }

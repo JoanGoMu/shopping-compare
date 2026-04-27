@@ -5,7 +5,8 @@
   "description": "Save products from any shopping site to CompareCart and compare them side-by-side.",
   "permissions": [
     "storage",
-    "contextMenus"
+    "contextMenus",
+    "activeTab"
   ],
   "background": {
     "service_worker": "background.js",

@@ -2,8 +2,8 @@
 name: CompareCart project
 description: Cross-site shopping comparison tool - second project by Joan, separate from aitoolcrunch.com
 type: project
+originSessionId: c6abf647-428e-4c77-8cde-1fa8e2c0ddad
 ---
-
 Second project: a web app + Chrome extension that lets shoppers save products from any store and compare them side-by-side.
 
 **Why:** Market validated (Honey $4B acquisition). Differentiation: structured side-by-side comparison UX with filtering.
@@ -309,6 +309,42 @@ Add `ANTHROPIC_API_KEY` to Vercel env vars and `.env.local`.
 - **CRITICAL**: v0.1.3 broken for all users after `deleted_at` → `valid_to` rename. Old extension queries non-existent column, all price updates silently fail.
 - v0.1.4 submitted to Chrome Web Store. ZIP: `comparecart-extension-0.1.4.zip` (165KB).
 - No permission changes vs v0.1.3.
+
+## Changes Apr 27 2026
+
+### Floating Save button: movable + per-domain hide
+
+**User feedback:** The bottom-right floating "Save to Compare" button sometimes covers store UI (buy buttons, chat widgets, etc.).
+
+#### Draggable button
+- `extension/src/content.ts`: `createButton()` now accepts `savedPos: {top,left}|null`. Button uses `cursor: grab`, `display: flex` with label + × close span.
+- `makeDraggable(btn)` function: mousedown/mousemove/mouseup + touchstart/touchmove/touchend drag handling. 5px threshold distinguishes click from drag. `pointerEvents: none` on button during drag prevents hover flicker. Clamps to 8px viewport margins. Saves position to `chrome.storage.local` on drag end. `window.resize` re-clamps saved position. Returns `{ justDragged() }` used to suppress click-after-drag.
+
+#### Per-domain hide
+- × close button (inline in the pill) hides the button on the current hostname only.
+- Saves `location.hostname` to `ui_prefs.hiddenDomains[]` in `chrome.storage.local`.
+- `init()` reads prefs first (async guard with `initPending` flag) and skips injection if domain is hidden.
+- `chrome.storage.onChanged` listener (top-level frame only) applies visibility changes live without reload.
+- `initPending = false` reset added to SPA navigation handler.
+
+#### UiPrefs schema (chrome.storage.local key: `ui_prefs`)
+```ts
+interface UiPrefs {
+  hiddenDomains: string[];                              // per-hostname hide list
+  saveButtonPos: { top: number; left: number } | null; // global saved position
+}
+```
+
+#### Popup preferences UI
+- `extension/popup.html`: New "Preferences" section (always visible, below auth).
+- `extension/src/popup.ts`: `initPrefs()` uses `chrome.tabs.query` (activeTab permission) to get current hostname. Wires "Hide on this site" checkbox + live hidden-sites list with "Show" buttons + "Reset button position" button.
+- `extension/manifest.json`: Added `"activeTab"` permission (needed for popup to read current tab URL). No other permission changes. Requires new Web Store version submission.
+
+#### Key files changed
+- `extension/src/content.ts` - createButton, makeDraggable, init, chrome.storage.onChanged listener
+- `extension/popup.html` - preferences section
+- `extension/src/popup.ts` - initPrefs() function
+- `extension/manifest.json` - added "activeTab" permission
 
 ## Supabase: pending SQL
 Run in Supabase SQL Editor:

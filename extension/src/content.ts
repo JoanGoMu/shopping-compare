@@ -5,7 +5,19 @@
 import { extractProduct, extractWithRules, applySpecTranslations, simplifyHtml, type StoreSelectorRules } from './extractor';
 
 const BUTTON_ID = 'comparecart-save-btn';
+const CLOSE_BTN_ID = 'comparecart-close-btn';
+const LABEL_ID = 'comparecart-save-label';
 const TOAST_ID = 'comparecart-toast';
+const UI_PREFS_KEY = 'ui_prefs';
+
+interface UiPrefs {
+  hiddenDomains: string[];
+  saveButtonPos: { top: number; left: number } | null;
+}
+
+function getDefaultPrefs(): UiPrefs {
+  return { hiddenDomains: [], saveButtonPos: null };
+}
 
 // Track the best Size value seen per URL to prevent retries from
 // overwriting a good extraction with a worse one (SPA DOM state flipping).
@@ -15,6 +27,9 @@ let bestSizeForUrl = { url: '', size: '', count: 0 };
 let cachedAiRules: StoreSelectorRules | null = null;
 // Prevent sending the same domain for generation more than once per page session.
 let aiRulesRequested = false;
+
+// Prevent concurrent storage reads in init() on rapid-fire calls.
+let initPending = false;
 
 /**
  * Merges AI-generated rule extraction results on top of an existing product.
@@ -105,15 +120,13 @@ function isLikelyProductPage(): boolean {
   return false;
 }
 
-function createButton(): HTMLButtonElement {
+function createButton(savedPos: { top: number; left: number } | null): HTMLButtonElement {
   const btn = document.createElement('button');
   btn.id = BUTTON_ID;
-  btn.textContent = '🛒 Save to Compare';
   btn.style.cssText = `
     all: initial;
     position: fixed;
-    bottom: 24px;
-    right: 24px;
+    ${savedPos ? `top: ${savedPos.top}px; left: ${savedPos.left}px;` : 'bottom: 24px; right: 24px;'}
     z-index: 2147483647;
     background: #C4603C;
     color: white;
@@ -123,13 +136,41 @@ function createButton(): HTMLButtonElement {
     font-size: 14px;
     font-weight: 600;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    cursor: pointer;
+    cursor: grab;
     box-shadow: 0 4px 16px rgba(196, 96, 60, 0.4);
-    transition: all 0.15s ease;
+    transition: background 0.15s ease;
     line-height: 1;
     white-space: nowrap;
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   `;
+
+  const label = document.createElement('span');
+  label.id = LABEL_ID;
+  label.textContent = '🛒 Save to Compare';
+  label.style.cssText = 'pointer-events: none;';
+  btn.appendChild(label);
+
+  const closeBtn = document.createElement('span');
+  closeBtn.id = CLOSE_BTN_ID;
+  closeBtn.title = 'Hide on this site';
+  closeBtn.textContent = '×';
+  closeBtn.style.cssText = `
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    background: rgba(0,0,0,0.4);
+    border-radius: 50%;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+  `;
+  btn.appendChild(closeBtn);
+
   btn.addEventListener('mouseenter', () => { btn.style.background = '#A84E30'; });
   btn.addEventListener('mouseleave', () => { btn.style.background = '#C4603C'; });
   return btn;
@@ -166,14 +207,23 @@ function handleSave(btn: HTMLButtonElement) {
     return;
   }
 
-  btn.textContent = 'Saving...';
+  const labelEl = (typeof btn.querySelector === 'function'
+    ? btn.querySelector(`#${LABEL_ID}`)
+    : null) as HTMLElement | null;
+
+  function setLabel(text: string) {
+    if (labelEl) labelEl.textContent = text;
+    else btn.textContent = text;
+  }
+
+  setLabel('Saving...');
   btn.style.opacity = '0.7';
 
   const product = extractProduct(cachedAiRules?.detected_currency);
   applyAiRules(product);
 
   function reset() {
-    btn.textContent = '🛒 Save to Compare';
+    setLabel('🛒 Save to Compare');
     btn.style.opacity = '1';
   }
 
@@ -216,13 +266,158 @@ function handleSave(btn: HTMLButtonElement) {
   }
 }
 
+function makeDraggable(btn: HTMLButtonElement): { justDragged(): boolean } {
+  let startMouseX = 0, startMouseY = 0;
+  let startBtnTop = 0, startBtnLeft = 0;
+  let dragging = false;
+  let dragEnded = false;
+
+  function clampVal(n: number, lo: number, hi: number) {
+    return Math.min(Math.max(n, lo), hi);
+  }
+
+  function applyPos(clientX: number, clientY: number) {
+    const dx = clientX - startMouseX;
+    const dy = clientY - startMouseY;
+    if (!dragging && Math.sqrt(dx * dx + dy * dy) < 5) return;
+    if (!dragging) {
+      dragging = true;
+      btn.style.cursor = 'grabbing';
+      btn.style.transition = 'none';
+      btn.style.pointerEvents = 'none';
+      btn.style.bottom = '';
+      btn.style.right = '';
+    }
+    const m = 8;
+    btn.style.top = clampVal(startBtnTop + dy, m, window.innerHeight - btn.offsetHeight - m) + 'px';
+    btn.style.left = clampVal(startBtnLeft + dx, m, window.innerWidth - btn.offsetWidth - m) + 'px';
+  }
+
+  function finishDrag() {
+    btn.style.cursor = 'grab';
+    btn.style.transition = 'background 0.15s ease';
+    btn.style.pointerEvents = '';
+    dragEnded = true;
+    window.setTimeout(() => { dragEnded = false; }, 50);
+    const top = parseFloat(btn.style.top);
+    const left = parseFloat(btn.style.left);
+    if (!isNaN(top) && !isNaN(left)) {
+      chrome.storage.local.get(UI_PREFS_KEY, (d) => {
+        const p: UiPrefs = (d[UI_PREFS_KEY] as UiPrefs) ?? getDefaultPrefs();
+        p.saveButtonPos = { top, left };
+        chrome.storage.local.set({ [UI_PREFS_KEY]: p });
+      });
+    }
+  }
+
+  function onMouseDown(e: MouseEvent) {
+    if ((e.target as HTMLElement).id === CLOSE_BTN_ID) return;
+    e.preventDefault();
+    const rect = btn.getBoundingClientRect();
+    startMouseX = e.clientX;
+    startMouseY = e.clientY;
+    startBtnTop = rect.top;
+    startBtnLeft = rect.left;
+    dragging = false;
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }
+
+  function onMouseMove(e: MouseEvent) { applyPos(e.clientX, e.clientY); }
+
+  function onMouseUp() {
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+    if (!dragging) return;
+    finishDrag();
+  }
+
+  function onTouchStart(e: TouchEvent) {
+    if ((e.target as HTMLElement).id === CLOSE_BTN_ID) return;
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    const rect = btn.getBoundingClientRect();
+    startMouseX = t.clientX;
+    startMouseY = t.clientY;
+    startBtnTop = rect.top;
+    startBtnLeft = rect.left;
+    dragging = false;
+  }
+
+  function onTouchMove(e: TouchEvent) {
+    if (e.touches.length !== 1) return;
+    applyPos(e.touches[0].clientX, e.touches[0].clientY);
+    if (dragging) e.preventDefault();
+  }
+
+  function onTouchEnd() {
+    if (!dragging) return;
+    finishDrag();
+  }
+
+  btn.addEventListener('mousedown', onMouseDown);
+  btn.addEventListener('touchstart', onTouchStart, { passive: true });
+  btn.addEventListener('touchmove', onTouchMove, { passive: false });
+  btn.addEventListener('touchend', onTouchEnd);
+
+  let resizeTimer = 0;
+  window.addEventListener('resize', () => {
+    window.clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(() => {
+      if (!btn.style.top) return;
+      const top = parseFloat(btn.style.top);
+      const left = parseFloat(btn.style.left);
+      if (isNaN(top) || isNaN(left)) return;
+      const m = 8;
+      const newTop = clampVal(top, m, window.innerHeight - btn.offsetHeight - m);
+      const newLeft = clampVal(left, m, window.innerWidth - btn.offsetWidth - m);
+      if (newTop !== top) btn.style.top = newTop + 'px';
+      if (newLeft !== left) btn.style.left = newLeft + 'px';
+    }, 100);
+  });
+
+  return { justDragged: () => dragEnded };
+}
+
 function init() {
   if (document.getElementById(BUTTON_ID)) return;
+  if (initPending) return;
   if (isOwnApp()) return;
   if (!isLikelyProductPage()) return;
-  const btn = createButton();
-  btn.addEventListener('click', () => handleSave(btn));
-  document.documentElement.appendChild(btn);
+
+  initPending = true;
+  chrome.storage.local.get(UI_PREFS_KEY, (data) => {
+    initPending = false;
+    if (chrome.runtime.lastError) return;
+    if (document.getElementById(BUTTON_ID)) return;
+
+    const prefs: UiPrefs = (data[UI_PREFS_KEY] as UiPrefs) ?? getDefaultPrefs();
+    if (prefs.hiddenDomains.includes(location.hostname)) return;
+
+    const btn = createButton(prefs.saveButtonPos ?? null);
+    const drag = makeDraggable(btn);
+
+    const closeEl = btn.querySelector(`#${CLOSE_BTN_ID}`) as HTMLElement | null;
+    closeEl?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      chrome.storage.local.get(UI_PREFS_KEY, (d) => {
+        const p: UiPrefs = (d[UI_PREFS_KEY] as UiPrefs) ?? getDefaultPrefs();
+        if (!p.hiddenDomains.includes(location.hostname)) {
+          p.hiddenDomains.push(location.hostname);
+        }
+        chrome.storage.local.set({ [UI_PREFS_KEY]: p });
+      });
+      btn.remove();
+      showToast(`Hidden on ${location.hostname}. Re-enable from the extension popup.`);
+    });
+
+    btn.addEventListener('click', () => {
+      if (drag.justDragged()) return;
+      handleSave(btn);
+    });
+
+    document.documentElement.appendChild(btn);
+  });
 }
 
 function tryUpdateSavedPrice() {
@@ -635,6 +830,30 @@ if (!isOwnApp()) {
       }, 5000);
     } else {
       // Normal top-level tab — inject button and run retries
+
+      // Live-update button visibility when user toggles from popup
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local' || !changes[UI_PREFS_KEY]) return;
+        const newPrefs = (changes[UI_PREFS_KEY].newValue as UiPrefs) ?? getDefaultPrefs();
+        const btn = document.getElementById(BUTTON_ID) as HTMLButtonElement | null;
+        const isHidden = newPrefs.hiddenDomains.includes(location.hostname);
+
+        if (isHidden && btn) {
+          btn.remove();
+        } else if (!isHidden && !btn && isLikelyProductPage() && !isOwnApp()) {
+          initPending = false;
+          init();
+        }
+
+        // Position reset: if saveButtonPos cleared from popup, move button back to default corner
+        if (!isHidden && btn && !newPrefs.saveButtonPos) {
+          btn.style.top = '';
+          btn.style.left = '';
+          btn.style.bottom = '24px';
+          btn.style.right = '24px';
+        }
+      });
+
       const startAfterLoad = () => {
         initWithRetry();
         // Delay the SPA-navigation observer by 3s to avoid React's initial
@@ -647,6 +866,7 @@ if (!isOwnApp()) {
             if (location.href !== lastUrl) {
               lastUrl = location.href;
               document.getElementById(BUTTON_ID)?.remove();
+              initPending = false;
               bestSizeForUrl = { url: '', size: '', count: 0 };
               window.setTimeout(init, 600);
             }
