@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CompareCart - Save to Compare",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Save products from any shopping site to CompareCart and compare them side-by-side.",
   "permissions": [
     "storage",
