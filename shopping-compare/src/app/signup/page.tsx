@@ -21,8 +21,19 @@ export default function SignupPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
   const router = useRouter();
   const supabase = createClient();
+
+  async function handleResend() {
+    setResendStatus('sending');
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard` },
+    });
+    setResendStatus(error ? 'idle' : 'sent');
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,7 +67,20 @@ export default function SignupPage() {
             <p className="text-muted text-sm max-w-xs">
               We sent a confirmation link to <strong className="text-ink">{email}</strong>. Click it to activate your account.
             </p>
-            <Link href="/login" className="mt-8 inline-block text-sm text-terra hover:underline">Back to sign in</Link>
+            <div className="mt-6">
+              {resendStatus === 'sent' ? (
+                <p className="text-sm text-green-700">Email resent - check your inbox.</p>
+              ) : (
+                <button
+                  onClick={handleResend}
+                  disabled={resendStatus === 'sending'}
+                  className="text-sm text-muted hover:text-terra disabled:opacity-50"
+                >
+                  {resendStatus === 'sending' ? 'Sending...' : 'Didn\'t get it? Resend email'}
+                </button>
+              )}
+            </div>
+            <Link href="/login" className="mt-4 inline-block text-sm text-terra hover:underline">Back to sign in</Link>
           </div>
         </div>
       </div>
