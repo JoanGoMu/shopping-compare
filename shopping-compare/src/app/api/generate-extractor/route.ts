@@ -2,6 +2,15 @@
 // Called by the Chrome extension when it visits an unsupported store and generic
 // extraction (JSON-LD / OG) returns incomplete results.
 //
+// What it does:
+//  For stores not in the hardcoded list (Amazon, Zalando, etc.) and without JSON-LD,
+//  the extension sends a ~20KB HTML snapshot of the product page. Claude Haiku analyzes
+//  it and returns CSS selectors for: product name, price, image, specs, plus metadata
+//  (product category, currency, foreign-language spec label translations).
+//  Rules are cached per domain in the store_extractors Supabase table and shared across
+//  all users - one cache miss per domain, then free for everyone.
+//  Cost: ~$0.001 per cache miss (Claude Haiku). Cache hits cost nothing.
+//
 // Flow:
 //  1. Extension sends simplified HTML snapshot (stripped to ~20KB)
 //  2. This endpoint checks the cache first (store_extractors table by domain)
@@ -9,6 +18,13 @@
 //  4. Validates the rules against the HTML using Cheerio
 //  5. Stores valid rules in store_extractors (keyed by domain, shared across all users)
 //  6. Returns the rules to the extension
+//
+// To re-enable: set AI_EXTRACTION_ENABLED = true below.
+// Cached rules already in store_extractors continue to be served regardless of this flag.
+// Only new Claude API calls are gated.
+
+// --- FEATURE FLAG ---
+const AI_EXTRACTION_ENABLED = false;
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
@@ -167,6 +183,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, rules, cached: true });
   }
   // Fall through to (re)generate if cached rules have no specs
+
+  // AI generation is currently disabled. Return nothing so the extension
+  // falls back to its built-in extraction (JSON-LD + hardcoded store extractors).
+  if (!AI_EXTRACTION_ENABLED) {
+    return NextResponse.json({ ok: false, disabled: true });
+  }
 
   // Generate rules via Claude Haiku
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });

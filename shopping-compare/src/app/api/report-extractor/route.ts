@@ -1,6 +1,11 @@
 // Called by the extension after using cached AI-generated rules.
 // Tracks success/fail counts per domain. When failure rate is high,
 // marks the rules as stale so the next visitor triggers regeneration.
+//
+// This route does not call Claude. It is part of the AI extraction feature but
+// is kept active even when AI_EXTRACTION_ENABLED=false in generate-extractor/route.ts,
+// since it only reads/writes counters in the store_extractors table (harmless).
+// If you want to fully freeze the feature, you can return early here too.
 
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
